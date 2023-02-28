@@ -446,6 +446,8 @@ struct PerReadMetrics {
 	// For collecting information to go into an FM string
 	bool doFmString;
 	FmString fmString;
+
+	size_t maxDPFails;
 };
 
 #endif /*READ_H_*/

@@ -21,6 +21,7 @@
 #define SAM_H_
 
 #include <string>
+#include <vector>
 #include "ds.h"
 #include "read.h"
 #include "util.h"
@@ -61,6 +62,7 @@ public:
 		const StrList& refnames,  // reference sequence names
 		const LenList& reflens,   // reference sequence lengths
 		bool truncQname,          // truncate read name to 255?
+		bool appendComment,	  // append FASTA/Q comment to sam record
 		bool omitsec,             // omit secondary SEQ/QUAL
 		bool noUnal,              // omit unaligned reads
 		const std::string& pg_id, // id
@@ -105,6 +107,7 @@ public:
 		bool print_zu,
 		bool print_zt) :
 		truncQname_(truncQname),
+		appendComment_(appendComment),
 		omitsec_(omitsec),
 		noUnal_(noUnal),
 		pg_id_(pg_id),
@@ -208,7 +211,7 @@ public:
 			}
 		}
 	}
-	
+
 	/**
 	 * Print a read name in a way that doesn't violate SAM's character
 	 * constraints. [!-?A-~]{1,255} (i.e. [33, 63], [65, 126])
@@ -247,7 +250,7 @@ public:
 		BTString& o,
 		size_t i)
 		const;
-	
+
 	/**
 	 * Print SAM header to given output buffer.
 	 */
@@ -311,8 +314,79 @@ public:
 	 * Print optional flags that that have been preserve from BAM input
 	 */
 	void printPreservedOptFlags(BTString& o, const Read& rd) const;
-	
+
 	/**
+	 * Append FASTA/Q comment to SAM record
+	 */
+        template <typename TStr>
+        void printComment(BTString &o, TStr &name) const {
+		if (appendComment_) {
+			size_t i;
+
+			for (i = 0; i < name.length() && !isspace(name[i]); i++) ;
+			o.append('\t');
+			if (i < name.length()) {
+				const char *comment = name.toZBuf() + i + 1;
+				if (isIllumina(comment))
+					o.append("BC:Z:");
+				o.append(comment);
+			}
+		}
+	}
+
+	bool isIllumina(const char *str) const {
+		const char *start, *end;
+		int field = 0;
+
+		for (start = str, end = str; *end != '\0' && *end != ' '; end++) {
+			if (*end == ':') {
+				switch (field) {
+                                case 0: {
+					char *endptr;
+					long read = strtol(start, &endptr, 10);
+					if (endptr != end || (read != 1 && read != 2))
+						return false;
+					break;
+                                }
+                                case 1:
+					if (*start != 'N' && *start != 'Y')
+						return false;
+					break;
+				case 2: {
+					char *endptr;
+					long controlNumber = strtol(start, &endptr, 10);
+					if (endptr != end || controlNumber % 2 != 0)
+						return false;
+					break;
+
+				}
+				default:
+					return false;
+				}
+				start = end + 1, field++;
+			}
+
+		}
+		return true;
+	}
+
+	template<typename T>
+	static void readTagVal(BTString& o, const char *data, size_t &offset, size_t count) {
+		std::vector<T> val(count);
+		size_t i = 0;
+
+		memcpy(val.data(), data + offset, sizeof(T) * count);
+		do {
+			std::string str = std::to_string(val[i]);
+			o.append(str.c_str(), str.length());
+			if (i < (count - 1))
+				o.append(",");
+		} while (++i < count);
+		offset += sizeof(T) * count;
+	}
+
+
+        /**
 	 * Return true iff we should try to obey the SAM spec's recommendations
 	 * that:
 	 *
@@ -322,17 +396,22 @@ public:
 	bool omitSecondarySeqQual() const {
 		return omitsec_;
 	}
-	
+
 	bool omitUnalignedReads() const {
 		return noUnal_;
+	}
+
+	bool passthrough() const {
+		return print_xr_;
 	}
 
 protected:
 
 	bool truncQname_;   // truncate QNAME to 255 chars?
-	bool omitsec_;      // omit secondary 
+	bool appendComment_;// Append FASTA/Q comment to SAM record
+	bool omitsec_;      // omit secondary
 	bool noUnal_;       // omit unaligned reads
-	
+
 	std::string pg_id_; // @PG ID: Program record identifier
 	std::string pg_pn_; // @PG PN: Program name
 	std::string pg_vn_; // @PG VN: Program version
@@ -340,7 +419,7 @@ protected:
 	std::string rgs_;   // Read-group string to add to all records
 	const StrList& refnames_; // reference sequence names
 	const LenList& reflens_;  // reference sequence lengths
-	
+
 	// Which alignment flags to print?
 
 	// Following are printed by BWA-SW
@@ -367,7 +446,7 @@ protected:
 	bool print_yt_; // YT:Z: String representing alignment type
 	bool print_ys_; // YS:i: Score of other mate
 	bool print_zs_; // ZS:i: Pseudo-random seed
-	
+
 	bool print_xr_; // XR:Z: Original read string
 	bool print_xt_; // XT:i: Time taken to align
 	bool print_xd_; // XD:i: DP problems

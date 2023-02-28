@@ -1,6 +1,71 @@
+<h2>Version 2.5.1 - Jan 17, 2023</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+    <li>Fixed an issue affecting <code>bowtie2</code> alignment accuracy.</li>
+    <li>Updated the versions of the NCBI <code>NGS</code> and <code>VDB</code> libraries used by <code>bowtie2</code>.</li>
+    <li>Fixed a segmentation fault that would occur while aligning SRA data.</li>
+    <li>Fixed an issue preventing <code><a href="manual.shtml#bowtie2-options-un-mates">--un-mates</a></code> from properly saving unaligned mates.</li>
+</ul>
+
+<h2>Version 2.5.0 - Oct 31, 2022</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+    <li>Overall improvements in the use of prefetch instructions. (contribution by Igor Sfiligoi)</li>
+    <li>Made input/output fully asynchronous by using a dedicated thread. (contribution by Igor Sfiligoi)</li>
+    <li>Added support for AVX2 256-bit instructions with can be enabled by setting the <code>SSE_AXV2</code> environment variable at compile time. (contribution by Igor Sfiligoi)</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to crash when processing ZSTD files with high compression ratios.</li>
+    <li>Changed the way that unique alignments are counted in summary message to better match up with filters on SAM output</li>
+</ul>
+
+<h2>Version 2.4.5 - Jan 16, 2022</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+    <li>Fixed issues with <code>bowtie2</code> BAM parser that would cause <code>bowtie2</code> to crash when processing input that was encoded with tools other than samtools e.g. Picard.</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to drop certain optional fields when when aligning BAM reads with the <code><a href="manual.shtml#bowtie2-options-preserve-tags">--preserve-tags</a></code> option.</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to produce mangled SAM output when specifying <code><a href="manual.shtml#bowtie2-options-sam-append-comment">--sam-append-comment</a></code> together with the <code>--passthrough</code> option.</li>
+    <li>Appended <code>GO:query</code> to SAM <code>@HD</code> entry to indicate that reads are grouped by query name, bump SAM version to 1.5 to indicate support for this change.</li>
+</ul>
+
+<h3 id="bowtie2-build">bowtie2-build</h3>
+<ul>
+    <li>Implemented thread pool to address performance regressions introduced during the switch to C++11 threads.</li>
+    <li>Fixed an issue causing masked-sequence metadata to be omitted from index. This issue would subsequently result in sequence data, <code>@SQ</code>, being left out from alignment SAM header.</li>
+    <li>Included <code>.tmp</code> extension to index files currenlty being built. The extension is removed only upon successful build. This change seeks to address the assumption that <code>bowtie2-build</code> ran successfully without building the reverse indexes.</li>
+    <li>Fixed an issue causing <code>bowtie2-build</code> to sometimes incorrectly calculate input size. This issue would result in the wrong index type being chosen and only happened with GZip compressed files.</li>
+</ul>
+
+<h3 id="bowtie2-inspect">bowtie2-inspect</h3>
+<ul>
+    <li>Added a new <code><a href="manual.shtml#bowtie2-inspect-options-o">-o/--output</a></code> option to save the output of <code>bowtie2-inspect</code> to a file instead of being dumped to standard output.</li>
+</ul>
+
+<h2>Version 2.4.4 - May 23, 2021</h2>
+<ul>
+    <li>Fixed an issue that would sometimes cause deadlocks in <code>bowtie2</code> when running multithreaded</li>
+</ul>
+
+<h2>Version 2.4.3 - May 13, 2021</h2>
+<ul>
+    <li>Replaced TBB concurrency with C++ threads</li>
+    <li>Added native support for processing Zstd-compressed read files to <code>>bowtie2</code></li>
+    <li>Added native support for processing Zstd-compressed reference-genome files to bowtie2-build</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to report incorrect alignments on big-endian machines</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to incorrectly process BAM files on big-endian machines</li>
+    <li>Fixed an issue causing <code>bowtie2</code> to set an incorrect MAPQ when AS and XS are the maximum for read length</li>
+    <li>Add support for building on Apple M1 processors</li>
+</ul>
+
+<h2>Version 2.4.2 - Oct 5, 2020 </h2>
+<ul>
+    <li>Fixed an issue that would cause the <code>bowtie2</code> wrapper script to throw an error when using wrapper-specific arguments.</li>
+    <li>Added new <code><a href="manual.shtml#bowtie2-options-sam-append-comment">--sam-append-comment</a></code> flag that appends comment from FASTA/Q read to corresponding SAM record.</li>
+    <li>Fixed an issue that would cause <code>qupto</code>, <code><a href="manual.shtml#bowtie2-options-u">-u</a></code>, to overflow when there are &gt;= 2<sup>32</sup> query sequences (PR #312).</li>
+    <li>Fixed an issue that would cause bowtie2-build script to incorrectly process reference files.</li>
+</ul>
+
 <h2>Version 2.4.1 - Feb 28, 2020</h2>
 <ul>
-    <li>Fixed an issue that would cause the <code>bowtie2</code> wrapper script to incorrectly process certain arguments<li>
+    <li>Fixed an issue that would cause the <code>bowtie2</code> wrapper script to incorrectly process certain arguments</li>
 </ul>
 
 <h2>Version 2.4.0 - Feb 25, 2020</h2>
@@ -82,48 +147,4 @@
 <h2>Thread-scaling paper appears - July 19, 2018</h2>
 <ul>
     <li>Our latest work on Bowtie's core thread scaling capabilities <a href="https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/bty648/5055585">just appeared Open Access in the journal Bioinformatics</a></li>
-</ul>
-
-<h2>Version 2.3.4.1 - February 03, 2018</h2>
-<ul>
-    <li>Fixed an issue with <tt><a href="manual.shtml#bowtie2-options-reorder">--reorder</a></tt> that caused bowtie2 to crash while reordering SAM output</li>
-</ul>
-
-<h2>Version 2.3.4 - December 29, 2017</h2>
-<ul>
-    <li>Fixed major issue causing corrupt SAM output when using many threads (<tt><a href="manual.shtml#bowtie2-options-p">-p/--threads</a></tt>) on certain systems.</li>
-    <li>Fixed an issue whereby bowtie2 processes could overwrite each others' named pipes on HPC systems.</li>
-    <li>Fixed an issue causing <tt>bowtie2-build</tt> and <tt>bowtie2-inspect</tt> to return prematurely on Windows.</li>
-    <li>Fixed issues raised by compiler "sanitizers" that could potentially have caused memory corruption or undefined behavior.</li>
-    <li>Added the "continuous FASTA" input format (<tt><a href="manual.shtml#bowtie2-options-F">-F</a></tt>) for aligning all the k-mers in the sequences of a FASTA file.  Useful for determining mapability of regions of the genome, and similar tasks.</li>
-</ul>
-
-<h2>Version 2.3.3.1 - October 05, 2017</h2>
-<ul>
-    <li>Fixed an issue causing input files to be skipped when running multi-threaded alignment</li>
-    <li>Fixed an issue causing the first character of a read name to be dropped while parsing reads split across multiple input files</li>
-</ul>
-
-<h2>Version 2.3.3 - September 06, 2017</h2>
-<p>From this release forward prepackaged bowtie2 binaries are now statically linked to the zlib compression library and, the recommended threading library, TBB. Users who rely on prepackaged builds are no longer required to have these packages pre-installed. As a result of the aforementioned changes legacy packages have been discontinued.</p>
-<ul>
-    <li><tt>bowtie2-build</tt> now supports gzip-compressed FASTA inputs</li>
-    <li>New <tt><a href="manual.shtml#bowtie2-options-xeq">--xeq</a></tt> parameter for <tt>bowtie2</tt> disambiguates the 'M' CIGAR flag. When specified, matches are indicated with the <tt>=</tt> operation and mismatches with <tt>X</tt></li>
-    <li>Fixed a possible infinite loop during parallel index building due to the compiler optimizing away a loop condition</li>
-    <li>Added <tt><a href="manual.shtml#bowtie2-options-soft-clipped-unmapped-tlen">--soft-clipped-unmapped-tlen</a></tt> parameter for <tt>bowtie2</tt> that ignores soft-clipped bases when calculating template length (TLEN)</li>
-    <li>Added support for multi-line sequences in FASTA read inputs</li>
-    <li>Expanded explanation of <tt><a href="manual.shtml#bowtie2-build-opt-fields-md">MD:Z</a></tt> field in manual</li>
-    <li>Fixed a crashing bug when output is redirected to a pipe</li>
-    <li>Fixed ambiguity in the <tt>SEED</tt> alignment policy that sometimes caused <tt><a href="manual.shtml#bowtie2-options-N">-N</a></tt> parameter to be ignored</li>
-</ul>
-
-<h2>Version 2.3.2 - May 05, 2017</h2>
-<ul>
-    <li>Now reports MREVERSE SAM flag for unaligned end when only one end of a pair aligns</li>
-    <li>Fixed issue where first character of some read names was omitted from SAM output when using tabbed input formats</li>
-    <li>Added <tt><a href="manual.shtml#bowtie2-options-sam-no-qname-trunc">--sam-no-qname-trunc</a></tt> option, which causes entire read name, including spaces, to be written to SAM output.  This violates SAM specification, but can be useful in applications that immediately postprocess the SAM.</li>
-    <li>Fixed compilation error caused by pointer comparison issue in aligner_result.cpp</li>
-    <li>Removed termcap and readline dependencies introduced in v2.3.1</li>
-    <li>Fixed compilation issues caused by gzbuffer function when compiling with zlib v1.2.3.5 and earlier. Users compiling against these libraries will use the zlib default buffer size of 8Kb when decompressing read files.</li>
-    <li>Fixed issue that would cause Bowtie 2 hang when aligning FASTA inputs with more than one thread</li>
 </ul>

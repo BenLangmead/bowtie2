@@ -68,7 +68,7 @@
  *
  * (d) Like (c) but resolving elements at a paritcular offset and
  *     orientation instead of at a specific BW range.  The res_ buffer
- *     is used in this case, since there's a chance that the 
+ *     is used in this case, since there's a chance that the
  *
  * There are simple ways to heuristically reduce the problem size while
  * maintaining randomness.  For instance, the user put a ceiling on the
@@ -102,7 +102,7 @@ public:
 	SARangeWithOffs(TIndexOffU tf, size_t len, const T& o) {
 		init(tf, len, o);
 	}
-	
+
 	void init(TIndexOffU tf, const T& o) {
 		topf = tf, offs = o;
 	}
@@ -111,14 +111,14 @@ public:
 	 * Reset to uninitialized state.
 	 */
 	void reset() { topf = std::numeric_limits<TIndexOffU>::max(); }
-	
+
 	/**
 	 * Return true if this is initialized.
 	 */
 	bool inited() const {
 		return topf != std::numeric_limits<TIndexOffU>::max();
 	}
-	
+
 	/**
 	 * Return the number of times this reference substring occurs in the
 	 * reference, which is also the size of the 'offs' TSlice.
@@ -169,7 +169,7 @@ struct WalkMetrics {
 			mergeImpl(m);
 		}
 	}
-	
+
 	/**
 	 * Set all to 0.
 	 */
@@ -204,7 +204,7 @@ private:
 struct GWElt {
 
 	GWElt() { reset(); }
-	
+
 	/**
 	 * Reset GWElt to uninitialized state.
 	 */
@@ -241,7 +241,7 @@ struct GWElt {
 		       elt == o.elt &&
 		       len == o.len;
 	}
-	
+
 	/**
 	 * Return true iff this GWElt and the given GWElt refer to
 	 * different elements.
@@ -264,7 +264,7 @@ struct GWElt {
 struct WalkResult {
 
 	WalkResult() { reset(); }
-	
+
 	/**
 	 * Reset GWElt to uninitialized state.
 	 */
@@ -337,7 +337,7 @@ public:
 		fmap.resize(sa.offs.size());
 		fmap.fill(make_pair(OFF_MASK, OFF_MASK));
 	}
-	
+
 	/**
 	 * Clear contents of sat and done.
 	 */
@@ -350,7 +350,7 @@ public:
 		range = OFF_MASK;
 		len = OFF_MASK;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that GWHit is internally consistent.  If a pointer to an
@@ -386,7 +386,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Set the ith element to be reported.
 	 */
@@ -396,7 +396,7 @@ public:
 		reported_[i] = true;
 		nrep_++;
 	}
-	
+
 	/**
 	 * Return true iff element i has been reported.
 	 */
@@ -404,7 +404,7 @@ public:
 		assert_lt(i, reported_.size());
 		return reported_[i];
 	}
-	
+
 	/**
 	 * Return true iff all elements have been reported.
 	 */
@@ -431,13 +431,13 @@ protected:
  */
 template<typename T>
 class GWState {
-	
+
 public:
 
 	GWState() : map_(0, GW_CAT) {
 		reset(); assert(repOkBasic());
 	}
-	
+
 	/**
 	 * Initialize this GWState with new ebwt, top, bot, step, and sat.
 	 *
@@ -711,7 +711,7 @@ public:
 		}
 		return ret;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check if this GWP is internally consistent.
@@ -740,7 +740,7 @@ public:
 		assert(repOkMapInclusive(hit, range));
 		return true;
 	}
-	
+
 	/**
 	 * Return true iff this GWState is not obviously corrupt.
 	 */
@@ -770,7 +770,7 @@ public:
 		}
 		return true;
 	}
-	
+
 	/**
 	 * Check that no two elements in map_ are the same.
 	 */
@@ -783,7 +783,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return the offset currently assigned to the ith element.  If it
 	 * has not yet been resolved, return 0xffffffff.
@@ -822,7 +822,7 @@ public:
 	size_t size() const {
 		return map_.size() - mapi_;
 	}
-	
+
 	/**
 	 * Return true iff all elements in this leaf range have been
 	 * resolved.
@@ -908,7 +908,7 @@ public:
 				if(in[i] > 0) {
 					// Non-empty range resulted
 					if(first) {
-						// For the first one, 
+						// For the first one,
 						first = false;
 						newtop = upto[i];
 						newbot = newtop + in[i];
@@ -936,7 +936,7 @@ public:
  						assert_eq(newbot-newtop, gws.map.size());
 					} else {
 						// For each beyond the first, create a new
-						// GWState and add it to the GWState list. 
+						// GWState and add it to the GWState list.
 						// NOTE: this can cause the underlying list to
 						// be expanded which in turn might leave 'st'
 						// pointing to bad memory.
@@ -1034,7 +1034,7 @@ public:
 		bloc.invalidate();
 		map_.clear();
 	}
-	
+
 	/**
 	 * Resize the map_ field to the given size.
 	 */
@@ -1075,7 +1075,7 @@ public:
 	TIndexOff   step;      // how many steps have we walked to the left so far
 
 protected:
-	
+
 	ASSERT_ONLY(bool inited_);
 	ASSERT_ONLY(TIndexOff lastStep_);
 	EList<TIndexOffU, 16> map_; // which elts in range 'range' we're tracking
@@ -1090,7 +1090,7 @@ public:
 	GroupWalk2S() : st_(8, GW_CAT) {
 		reset();
 	}
-	
+
 	/**
 	 * Reset the GroupWalk in preparation for the next SeedResults.
 	 */
@@ -1219,7 +1219,7 @@ public:
 	 * Return true iff all elements have been resolved and reported.
 	 */
 	bool done() const { return rep_ == elt_; }
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that GroupWalk is internally consistent.
@@ -1255,7 +1255,7 @@ public:
 	 * Return the number of BW elements that we can resolve.
 	 */
 	size_t numElts() const { return elt_; }
-	
+
 	/**
 	 * Return the size occupied by this GroupWalk and all its constituent
 	 * objects.
@@ -1269,15 +1269,15 @@ public:
 	size_t totalCapacityBytes() const {
 		return 2 * sizeof(size_t) + st_.totalCapacityBytes() + sizeof(GWHit<T>);
 	}
-	
+
 #ifndef NDEBUG
 	bool initialized() const { return inited_; }
 #endif
-	
+
 protected:
 
 	ASSERT_ONLY(bool inited_);    // initialized?
-	
+
 	size_t elt_;    // # BW elements under the control of the GropuWalk
 	size_t rep_;    // # BW elements reported
 

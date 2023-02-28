@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.4.1 is the latest
+the first version released to the public and 2.5.1 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -19,515 +19,632 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-Version 2.4.1 - Feb 28, 2020
+## Version 2.5.1 - Jan 17, 2023 ##
 
-    * Fixed an issue that would cause the `bowtie2` wrapper script to incorrectly
-      process certain arguments.
+### bowtie2 ###
+  * Fixed an issue affecting `bowtie2` alignment accuracy.
+  * Updated the versions of the NCBI `NGS` and `VDB` libraries used by `bowtie2`.
+  * Fixed a segmentation fault that would occur while aligning SRA data.
+  * Fixed an issue preventing `--un-mates` from properly saving unaligned mates.
 
-Version 2.4.0 - Feb 25, 2020
+## Version 2.5.0 - Oct 31, 2022 ##
 
-    * Fixed an issue in `-b <bam>` input mode where one might prematurely close the
-      read file pointer causing “Bad file descriptor” in other threads
-    * Fixed an issue that could cause `bowtie2` to crash in `--no-1mm-upfront` mode
-    * Modified `bowtie2-build` to better handle of flags and positional parameters
-    * Migrated all `python` scripts to `python3`
-    * Added support for wildcards in input files to `bowtie2`, e.g. `bowtie2 -x
-      index -q *.fq` as opposed to `bowtie2 -x index -q 1.fq,2.fq,3.fq...`
-    * Fixed an issue causing <code>bowtie2</code> to incorrectly process read names
-      with slash mates plus extra characters (see
-      [#265](https://github.com/BenLangmead/bowtie2/issues/265))
-    * Clarified support for overriding presets with more specific options e.g
-      `bowtie2 -x index --local --very-fast-local --L22 -q reads.fq` will set the
-      seed length to 22, overriding the 25 set by `--very-fast-local`
-    * Modified SAM output for `-k`/`-a` so that supplementary alignments get
-      assigned a MAPQ of 255
-    * Fixed an issue that would sometimes cause `bowtie2-build` to not generate
-      reverse index files
-    * Added preliminary support for ppc64le architectures with the help of SIMDE
-      project (see [#271](https://github.com/BenLangmead/bowtie2/issues/271))
-    * Fixed an issue causing `bowtie2` to incorrectly calculate the MAPQ when `--mp`
-      was specified in combination with `--ignore-quals`
+### bowtie2 ###
+  * Overall improvements in the use of prefetch instructions. (contribution by Igor Sfiligoi)
+  * Made input/output fully asynchronous by using a dedicated thread. (contribution by Igor Sfiligoi)
+  * Added support for AVX2 256-bit instructions with can be enabled by
+    setting the `SSE_AXV2` environment variable at compile time. (contribution by Igor Sfiligoi)
+  * Fixed an issue causing `bowtie2` to crash when processing ZSTD
+    files with high compression ratios.
+  * Changed the way that unique alignments are counted in summary
+    message to better match up with filters on SAM output
 
-Version 2.3.5.1 - Apr 16, 2019
+## Version 2.4.5 - Jan 15, 2022 ##
 
-    * Added official support for BAM input files
-    * Added official support for CMake build system
-    * Added changes to Makefile for creating Reproducible builds (via [210](https://github.com/BenLangmead/bowtie2/pull/210))
-    * Fix an issue whereby building on aarch64 would require patching sed commands (via [#243](https://github.com/BenLangmead/bowtie2/pull/243))
-    * Fix an issue whereby `bowtie2` would incorrectly throw an error while processing `--interleaved` input
+### bowtie2 ###
 
-Version 2.3.5 - Mar 16, 2019
+  * Fixed issues with `bowtie2` BAM parser that would cause `bowtie2` to
+    crash when processing input that was encoded with tools other than
+    samtools e.g. Picard.
+  * Fixed an issue causing `bowtie2` to drop certain optional fields when
+    when aligning BAM reads with the `--preserve-tags` option.
+  * Fixed an issue causing `bowtie2` to produce mangled SAM output when
+    specifying `--sam-append-comment` together with the `--passthrough`
+    option.
+  * Appended `GO:query` to SAM `@HD` entry to indicate that reads are
+    grouped by query name, bump SAM version to 1.5 to indicate support
+    for this change.
 
-    * Added support for obtaining input reads directly from the Sequence Read Archive, via NCBI's [NGS language bindings](https://github.com/ncbi/ngs).  This is activated via the [`--sra-acc`](manual.shtml#bowtie2-options-sra-acc) option.  This implementation is based on Daehwan Kim's in [HISAT2](https://ccb.jhu.edu/software/hisat2).  Supports both unpaired and paired-end inputs.
-    * Bowtie 2 now compiles on ARM architectures (via [#216](https://github.com/BenLangmead/bowtie2/pull/216))
-    * `--interleaved` can now be combined with FASTA inputs (worked only with FASTQ before)
-    * Fixed issue whereby large indexes were not successfully found in the `$BOWTIE2_INDEXES` directory
-    * Fixed input from FIFOs (e.g. via process substitution) to distinguish gzip-compressed versus uncompressed input
-    * Fixed issue whereby arguments containing `bz2` `lz4` were misinterpretted as files
-    * Fixed several compiler warnings
-    * Fixed issue whereby both ends of a paired-end read could have negative TLEN if they exactly coincided
-    * Fixed issue whereby `bowtie2-build` would hang on end-of-file (via [#228](https://github.com/BenLangmead/bowtie2/pull/228))
-    * Fixed issue whereby wrapper script would sometimes create zombie processes (via [#51](https://github.com/BenLangmead/bowtie2/pull/51))
-    * Fixed issue whereby `bowtie2-build` and `bowtie2-inspect` wrappers would fail on some versions of Python/PyPy
-    * Replaced old, unhelpful `README.md` in the project with a version that includes badges, links and some highlights from the manual
-    * Note: BAM input support and CMake build support both remain experimental, but we expect to finalize them in the next release
+### bowtie2-build ###
 
-Version 2.3.4.3 - Sep 17, 2018
+  * Implemented thread pool to address performance regressions
+    introduced during the switch to C++11 threads.
+  * Fixed an issue causing masked-sequence metadata to be omitted
+    from index. This issue would subsequently result in sequence
+    data, `@SQ`, being left out from alignment SAM header.
+  * Included `.tmp` extension to index files currenlty being built.
+    The extension is removed only upon successful build. This change
+    seeks to address the assumption that `bowtie2-build` ran successfully
+    without building the reverse indexes.
+  * Fixed an issue causing `bowtie2-build` to sometimes incorrectly
+    calculate input size. This issue would result in the wrong index type
+    being chosen and only happened with GZip compressed files.
 
-    * Fixed an issue causing `bowtie2-build` and `bowtie2-inspect`
-      to output incomplete help text.
-    * Fixed an issue causing `bowtie2-inspect` to crash.
-    * Fixed an issue preventing `bowtie2` from processing paired and/or
-      unpaired FASTQ reads together with interleaved FASTQ reads.
+### bowtie2-inspect ###
 
-Version 2.3.4.2 - Aug 7, 2018
+  * Added a new `-o/--output` option to save the output of
+    `bowtie2-inspect` to a file instead of being dumped to standard
+    output.
 
-    * Fixed issue causing `bowtie2` to fail in `--fast-local` mode.
-    * Fixed issue causing `--soft-clipped-unmapped-tlen` to be a positional argument.
-    * New option `--trim-to N` causes `bowtie2` to trim reads longer
-      than `N` bases to exactly `N` bases.  Can trim from either 3'
-      or 5' end, e.g. `--trim-to 5:30` trims reads to 30 bases,
-      truncating at the 5' end.
-    * Updated "Building from source" manual section with additional
-      instructions on installing TBB.
-    * Several other updates to manual, including new mentions of
-      [Bioconda](http://bioconda.github.io) and
-      [Biocontainers](https://biocontainers.pro).
-    * Fixed an issue preventing `bowtie2` from processing more than
-      one pattern source when running single threaded.
-    * Fixed an issue causing `bowtie2` and `bowtie2-inspect` to crash if
-      the index contains a gap-only segment.
-    * Added experimental BAM input mode `-b`. Works only with unpaired
-      input reads and BAM files that are sorted by read name (`samtools
-      sort -n`). BAM input mode also supports the following options:
-        o `--preserve-sam-tags`: Preserve any optional fields present in BAM record
-        o `--align-paired-reads`: Paired-end mode for BAM files
-    * Added experimental cmake support
+
+## Version 2.4.4 - May 23, 2021 ##
+
+  * Fixed an issue that would sometimes cause deadlocks in `bowtie2`
+      when running multithreaded
+
+## Version 2.4.3 - May 13, 2021 ##
+
+  * Replaced TBB concurrency with C++ threads
+  * Added native support for processing Zstd-compressed read files
+    to bowtie2
+  * Added native support for processing Zstd-compressed
+    reference-genome files to bowtie2-build
+  * Fixed an issue causing `bowtie2` to report incorrect alignments
+    on big-endian machines
+  * Fixed an issue causing `bowtie2` to incorrectly process BAM
+    files on big-endian machines
+  * Fixed an issue causing Bowtie2 to set an incorrect MAPQ when AS and
+    XS are the maximum for read length
+  * Add support for building on Apple M1 processors
+
+## Version 2.4.2 - Oct 5, 2020 ##
+
+  * Fixed an issue that would cause the `bowtie2` wrapper script to throw
+    an error when using wrapper-specific arguments.
+  * Added new `--sam-append-comment` flag that appends comment from FASTA/Q
+    read to corresponding SAM record.
+  * Fixed an issue that would cause qupto, `-u`, to overflow when there
+    are >= 2^32 query sequences (PR #312).
+  * Fixed an issue that would cause bowtie2-build script to incorrectly
+    process reference files.
+
+## Version 2.4.1 - Feb 28, 2020 ##
+
+  * Fixed an issue that would cause the `bowtie2` wrapper script to incorrectly
+    process certain arguments.
+
+## Version 2.4.0 - Feb 25, 2020 ##
+
+  * Fixed an issue in `-b <bam>` input mode where one might prematurely close the
+    read file pointer causing "Bad file descriptor" in other threads
+  * Fixed an issue that could cause `bowtie2` to crash in `--no-1mm-upfront` mode
+  * Modified `bowtie2-build` to better handle of flags and positional parameters
+  * Migrated all `python` scripts to `python3`
+  * Added support for wildcards in input files to `bowtie2`, e.g. `bowtie2 -x
+    index -q *.fq` as opposed to `bowtie2 -x index -q 1.fq,2.fq,3.fq...`
+  * Fixed an issue causing <code>bowtie2</code> to incorrectly process read names
+    with slash mates plus extra characters (see
+    [#265](https://github.com/BenLangmead/bowtie2/issues/265))
+  * Clarified support for overriding presets with more specific options e.g
+    `bowtie2 -x index --local --very-fast-local --L22 -q reads.fq` will set the
+    seed length to 22, overriding the 25 set by `--very-fast-local`
+  * Modified SAM output for `-k`/`-a` so that supplementary alignments get
+    assigned a MAPQ of 255
+  * Fixed an issue that would sometimes cause `bowtie2-build` to not generate
+    reverse index files
+  * Added preliminary support for ppc64le architectures with the help of SIMDE
+    project (see [#271](https://github.com/BenLangmead/bowtie2/issues/271))
+  * Fixed an issue causing `bowtie2` to incorrectly calculate the MAPQ when `--mp`
+    was specified in combination with `--ignore-quals`
+
+## Version 2.3.5.1 - Apr 16, 2019 ##
+
+  * Added official support for BAM input files
+  * Added official support for CMake build system
+  * Added changes to Makefile for creating Reproducible builds (via [210](https://github.com/BenLangmead/bowtie2/pull/210))
+  * Fix an issue whereby building on aarch64 would require patching sed commands (via [#243](https://github.com/BenLangmead/bowtie2/pull/243))
+  * Fix an issue whereby `bowtie2` would incorrectly throw an error while processing `--interleaved` input
+
+## Version 2.3.5 - Mar 16, 2019 ##
+
+  * Added support for obtaining input reads directly from the Sequence Read Archive, via NCBI's [NGS language bindings](https://github.com/ncbi/ngs).  This is activated via the [`--sra-acc`](manual.shtml#bowtie2-options-sra-acc) option.  This implementation is based on Daehwan Kim's in [HISAT2](https://ccb.jhu.edu/software/hisat2).  Supports both unpaired and paired-end inputs.
+  * Bowtie 2 now compiles on ARM architectures (via [#216](https://github.com/BenLangmead/bowtie2/pull/216))
+  * `--interleaved` can now be combined with FASTA inputs (worked only with FASTQ before)
+  * Fixed issue whereby large indexes were not successfully found in the `$BOWTIE2_INDEXES` directory
+  * Fixed input from FIFOs (e.g. via process substitution) to distinguish gzip-compressed versus uncompressed input
+  * Fixed issue whereby arguments containing `bz2` `lz4` were misinterpretted as files
+  * Fixed several compiler warnings
+  * Fixed issue whereby both ends of a paired-end read could have negative TLEN if they exactly coincided
+  * Fixed issue whereby `bowtie2-build` would hang on end-of-file (via [#228](https://github.com/BenLangmead/bowtie2/pull/228))
+  * Fixed issue whereby wrapper script would sometimes create zombie processes (via [#51](https://github.com/BenLangmead/bowtie2/pull/51))
+  * Fixed issue whereby `bowtie2-build` and `bowtie2-inspect` wrappers would fail on some versions of Python/PyPy
+  * Replaced old, unhelpful `README.md` in the project with a version that includes badges, links and some highlights from the manual
+  * Note: BAM input support and CMake build support both remain experimental, but we expect to finalize them in the next release
+
+## Version 2.3.4.3 - Sep 17, 2018 ##
+
+  * Fixed an issue causing `bowtie2-build` and `bowtie2-inspect`
+    to output incomplete help text.
+  * Fixed an issue causing `bowtie2-inspect` to crash.
+  * Fixed an issue preventing `bowtie2` from processing paired and/or
+    unpaired FASTQ reads together with interleaved FASTQ reads.
+
+## Version 2.3.4.2 - Aug 7, 2018 ##
+
+  * Fixed issue causing `bowtie2` to fail in `--fast-local` mode.
+  * Fixed issue causing `--soft-clipped-unmapped-tlen` to be a positional argument.
+  * New option `--trim-to N` causes `bowtie2` to trim reads longer
+    than `N` bases to exactly `N` bases.  Can trim from either 3'
+    or 5' end, e.g. `--trim-to 5:30` trims reads to 30 bases,
+    truncating at the 5' end.
+  * Updated "Building from source" manual section with additional
+    instructions on installing TBB.
+  * Several other updates to manual, including new mentions of
+    [Bioconda](http://bioconda.github.io) and
+    [Biocontainers](https://biocontainers.pro).
+  * Fixed an issue preventing `bowtie2` from processing more than
+    one pattern source when running single threaded.
+  * Fixed an issue causing `bowtie2` and `bowtie2-inspect` to crash if
+    the index contains a gap-only segment.
+  * Added experimental BAM input mode `-b`. Works only with unpaired
+    input reads and BAM files that are sorted by read name (`samtools
+    sort -n`). BAM input mode also supports the following options:
+      o `--preserve-sam-tags`: Preserve any optional fields present in BAM record
+      o `--align-paired-reads`: Paired-end mode for BAM files
+  * Added experimental cmake support
 
 Thread-scaling paper appears - July 19, 2018
 
-    * Our latest work on Bowtie's core thread scaling capabilities
-      [just appeared Open Access in the journal Bioinformatics](href="https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/bty648/5055585)
+  * Our latest work on Bowtie's core thread scaling capabilities
+    [just appeared Open Access in the journal Bioinformatics](href="https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/bty648/5055585)
 
-Version 2.3.4.1 - Feb 3, 2018
+## Version 2.3.4.1 - Feb 3, 2018 ##
 
-    * Fixed an issue with `--reorder` that caused bowtie2 to crash
-      while reordering SAM output
+  * Fixed an issue with `--reorder` that caused bowtie2 to crash
+    while reordering SAM output
 
-Version 2.3.4 - Dec 29, 2017
+## Version 2.3.4 - Dec 29, 2017 ##
 
-    * Fixed major issue causing corrupt SAM output when using many
-      threads (-p/--threads) on certain systems.
-    * Fixed an issue whereby bowtie2 processes could overwrite each
-      others' named pipes on HPC systems.
-    * Fixed an issue causing bowtie2-build and bowtie2-inspect to
-      return prematurely on Windows.
-    * Fixed issues raised by compiler "sanitizers" that could
-      potentially have caused memory corruption or undefined behavior.
-    * Added the "continuous FASTA" input format (`-F`) for aligning
-      all the k-mers in the sequences of a FASTA file.  Useful for
-      determining mapability of regions of the genome, and similar
-      tasks.
+  * Fixed major issue causing corrupt SAM output when using many
+    threads (-p/--threads) on certain systems.
+  * Fixed an issue whereby bowtie2 processes could overwrite each
+    others' named pipes on HPC systems.
+  * Fixed an issue causing bowtie2-build and bowtie2-inspect to
+    return prematurely on Windows.
+  * Fixed issues raised by compiler "sanitizers" that could
+    potentially have caused memory corruption or undefined behavior.
+  * Added the "continuous FASTA" input format (`-F`) for aligning
+    all the k-mers in the sequences of a FASTA file.  Useful for
+    determining mapability of regions of the genome, and similar
+    tasks.
 
-Version 2.3.3.1 - Oct 05, 2017
+## Version 2.3.3.1 - Oct 05, 2017 ##
 
-    * Fixed an issue causing input files to be skipped when running
-    multi-threaded alignment
-    * Fixed an issue causing the first character of a read name to be
-    dropped while parsing reads split across multiple input files
+  * Fixed an issue causing input files to be skipped when running
+  multi-threaded alignment
+  * Fixed an issue causing the first character of a read name to be
+  dropped while parsing reads split across multiple input files
 
-Version 2.3.3 - Sep 09, 2017
+## Version 2.3.3 - Sep 09, 2017 ##
+
 From this release forward prepackaged bowtie2 binaries are now
 statically linked to the zlib compression library and, the recommended
 threading library, TBB. Users who rely on prepackaged builds are
 no longer required to have these packages pre-installed. As a result
 of the aforementioned changes legacy packages have been discontinued.
 
-    * bowtie2-build now supports gzip-compressed FASTA inputs
-    * New --xeq parameter for bowtie2 disambiguates the 'M' CIGAR
-      flag. When specified, matches are indicated with the '=' operation and
-      mismatches with 'X'
-    * Fixed a possible infinite loop during parallel index building due
-      to the compiler optimizing away a loop condition
-    * Added --soft-clipped-unmapped-tlen parameter for bowtie2 that
-      ignores soft-clipped bases when calculating template length (TLEN)
-    * Added support for multi-line sequences in FASTA read inputs
-    * Expanded explanation of MD:Z field in manual
-    * Fixed a crashing bug when output is redirected to a pipe
-    * Fixed ambiguity in the SEED alignment policy that sometimes caused -N parameter to be ignored
+  * bowtie2-build now supports gzip-compressed FASTA inputs
+  * New --xeq parameter for bowtie2 disambiguates the 'M' CIGAR
+    flag. When specified, matches are indicated with the '=' operation and
+    mismatches with 'X'
+  * Fixed a possible infinite loop during parallel index building due
+    to the compiler optimizing away a loop condition
+  * Added --soft-clipped-unmapped-tlen parameter for bowtie2 that
+    ignores soft-clipped bases when calculating template length (TLEN)
+  * Added support for multi-line sequences in FASTA read inputs
+  * Expanded explanation of MD:Z field in manual
+  * Fixed a crashing bug when output is redirected to a pipe
+  * Fixed ambiguity in the SEED alignment policy that sometimes caused -N parameter to be ignored
 
-Version 2.3.2 - May 05, 2017
-    * Added support for interleaved paired-end FASTQ inputs
-      (--interleaved)
-    * Now reports MREVERSE SAM flag for unaligned end when only one
-      end of a pair aligns
-    * Fixed issue where first character of some read names was
-      omitted from SAM output when using tabbed input formats
-    * Added --sam-no-qname-trunc option, which causes entire read
-      name, including spaces, to be written to SAM output.  This
-      violates SAM specification, but can be useful in applications
-      that immediately postprocess the SAM.
-    * Fixed compilation error caused by pointer comparison issue
-      in aligner_result.cpp
-    * Removed termcap and readline dependencies introduced in v2.3.1
-    * Fixed compilation issues caused by gzbuffer function when
-      compiling with zlib v1.2.3.5 and earlier. Users compiling against
-      these libraries will use the zlib default buffer size of 8Kb
-      when decompressing read files.
-    * Fixed issue that would cause Bowtie 2 hang when aligning FASTA
-      inputs with more than one thread
+## Version 2.3.2 - May 05, 2017 ##
 
-Version 2.3.1 - Mar 04, 2017
+  * Added support for interleaved paired-end FASTQ inputs
+    (--interleaved)
+  * Now reports MREVERSE SAM flag for unaligned end when only one
+    end of a pair aligns
+  * Fixed issue where first character of some read names was
+    omitted from SAM output when using tabbed input formats
+  * Added --sam-no-qname-trunc option, which causes entire read
+    name, including spaces, to be written to SAM output.  This
+    violates SAM specification, but can be useful in applications
+    that immediately postprocess the SAM.
+  * Fixed compilation error caused by pointer comparison issue
+    in aligner_result.cpp
+  * Removed termcap and readline dependencies introduced in v2.3.1
+  * Fixed compilation issues caused by gzbuffer function when
+    compiling with zlib v1.2.3.5 and earlier. Users compiling against
+    these libraries will use the zlib default buffer size of 8Kb
+    when decompressing read files.
+  * Fixed issue that would cause Bowtie 2 hang when aligning FASTA
+    inputs with more than one thread
+
+## Version 2.3.1 - Mar 04, 2017 ##
+
 Please note that as of this release Bowtie 2 now has dependencies on zlib and readline libraries.
 Make sure that all dependencies are met before attempting to build from source.
 
-    * Added native support for gzipped read files.  The wrapper
-      script is no longer responsible for decompression.  This
-      simplifies the wrapper and improves speed and thread scalability
-      for gzipped inputs.
-    * Fixed a bug that caused `bowtie2-build` to crash when the
-      first FASTA sequence contains all Ns.
-    * Add support for interleaved FASTQ format (`-—interleaved`)
-    * Empty FASTQ inputs would yield an error in Bowtie 2 2.3.0,
-      whereas previous versions would simply align 0 reads and report
-      the SAM header as usual.  This version returns to the pre-2.3.0
-      behavior, resolving a compatibility issue between TopHat2 and
-      Bowtie 2 2.3.0.
-    * Fixed a bug whereby combining `-—un-conc*` with `-k` or `-a`
-      would cause `bowtie2` to print duplicate reads in one or both
-      of the `--un-conc*` output files, causing the ends to be
-      misaligned.
-    * The default `--score-min` for `--local` mode is now `G,20,8`.
-      That was the stated default in the documentation for a while,
-      but the actual default was `G,0,10` for many versions.  Now the
-      default matches the documentation and, we find, yields more
-      accurate alignments than `G,0,10`
+  * Added native support for gzipped read files.  The wrapper
+    script is no longer responsible for decompression.  This
+    simplifies the wrapper and improves speed and thread scalability
+    for gzipped inputs.
+  * Fixed a bug that caused `bowtie2-build` to crash when the
+    first FASTA sequence contains all Ns.
+  * Add support for interleaved FASTQ format (`--interleaved`)
+  * Empty FASTQ inputs would yield an error in Bowtie 2 2.3.0,
+    whereas previous versions would simply align 0 reads and report
+    the SAM header as usual.  This version returns to the pre-2.3.0
+    behavior, resolving a compatibility issue between TopHat2 and
+    Bowtie 2 2.3.0.
+  * Fixed a bug whereby combining `--un-conc*` with `-k` or `-a`
+    would cause `bowtie2` to print duplicate reads in one or both
+    of the `--un-conc*` output files, causing the ends to be
+    misaligned.
+  * The default `--score-min` for `--local` mode is now `G,20,8`.
+    That was the stated default in the documentation for a while,
+    but the actual default was `G,0,10` for many versions.  Now the
+    default matches the documentation and, we find, yields more
+    accurate alignments than `G,0,10`
 
-Version 2.3.0 - Dec 13, 2016
-   * Code related to read parsing was completely rewritten to improve
-     scalability to many threads.  In short, the critical section is
-     simpler and parses input reads in batches rather than one at a time.
-     The improvement applies to all read formats.
-   * TBB is now the default threading library.  We consistently found TBB to give
-     superior thread scaling.  It is widely available and widely installed.
-     That said, we are also preserving a "legacy" version of Bowtie that,
-     like previous releases, does not use TBB.  To compile Bowtie source
-     in legacy mode use `NO_TBB=1`.  To
-     use legacy binaries, download the appropriate binary archive with
-     "legacy" in the name.
-   * Bowtie now uses a queue-based lock rather
-     than a spin or heavyweight lock.  We find this gives superior thread
-     scaling; we saw an order-of-magnitude throughput improvements at
-     120 threads in one experiment, for example.
-   * Unnecessary thread synchronization removed
-   * Fixed issue with parsing FASTA records with greater-than symbol in the name
-   * Now detects and reports inconsistencies between `--score-min` and `--ma`
-   * Changed default for `--bmaxdivn` to yield better memory footprint and running time when building an index with many threads
+## Version 2.3.0 - Dec 13, 2016 ##
 
-Version 2.2.9 - Apr 22, 2016
-   * Fixed the multiple threads issue for the bowtie2-build.
-   * Fixed a TBB related build issue impacting TBB v4.4.
+  * Code related to read parsing was completely rewritten to improve
+    scalability to many threads.  In short, the critical section is
+    simpler and parses input reads in batches rather than one at a time.
+    The improvement applies to all read formats.
+  * TBB is now the default threading library.  We consistently found TBB to give
+    superior thread scaling.  It is widely available and widely installed.
+    That said, we are also preserving a "legacy" version of Bowtie that,
+    like previous releases, does not use TBB.  To compile Bowtie source
+    in legacy mode use `NO_TBB=1`.  To
+    use legacy binaries, download the appropriate binary archive with
+    "legacy" in the name.
+  * Bowtie now uses a queue-based lock rather
+    than a spin or heavyweight lock.  We find this gives superior thread
+    scaling; we saw an order-of-magnitude throughput improvements at
+    120 threads in one experiment, for example.
+  * Unnecessary thread synchronization removed
+  * Fixed issue with parsing FASTA records with greater-than symbol in the name
+  * Now detects and reports inconsistencies between `--score-min` and `--ma`
+  * Changed default for `--bmaxdivn` to yield better memory footprint and running time when building an index with many threads
 
-Version 2.2.8 - Mar 10, 2016
-   * Various website updates.
-   * Fixed the bowtie2-build issue that made TBB compilation fail.
-   * Fixed the static build for Win32 platform.
-   
+## Version 2.2.9 - Apr 22, 2016 ##
 
-Version 2.2.7 - Feb 10, 2016
-   * Added a parallel index build option: bowtie2-build --threads <# threads>.
-   * Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were
-     converted to As. Now all non-A/C/G/T characters in reads become Ns.
-   * Fixed some compilation issues, including for the Intel C++ Compiler.
-   * Removed debugging code that could impede performance for many alignment
-     threads.
-   * Fixed a few typos in documentation.
+  * Fixed the multiple threads issue for the bowtie2-build.
+  * Fixed a TBB related build issue impacting TBB v4.4.
 
-Version 2.2.6 - Jul 22, 2015
-   * Switched to a stable sort to avoid some potential reproducibility confusions.
-   * Added 'install' target for *nix platforms.
-   * Added the Intel TBB option which provides in most situations a better performance
-     output. TBB is not present by default in the current build but can be added 
-     by compiling the source code with WITH_TBB=1 option.
-   * Fixed a bug that caused seed lenght to be dependent of the -L and -N parameters order.
-   * Fixed a bug that caused --local followed by -N to reset seed lenght to 22 which is
-     actually the default value for global.
-   * Enable compilation on FreeBSD and clang, although gmake port is still required.
-   * Fixed an issue that made bowtie2 compilation process to fail on Snow Leopard.
+## Version 2.2.8 - Mar 10, 2016 ##
+
+  * Various website updates.
+  * Fixed the bowtie2-build issue that made TBB compilation fail.
+  * Fixed the static build for Win32 platform.
 
 
-Version 2.2.5 - Mar 9, 2015
-   * Fixed some situations where incorrectly we could detect a Mavericks platform.
-   * Fixed some manual issues including some HTML bad formating.
-   * Make sure the wrapper correctly identifies the platform under OSX.
-   * Fixed --rg/--rg-id options where included spaces were incorrectly treated.
-   * Various documentation fixes added by contributors.
-   * Fixed the incorrect behavior where parameter file names may contain spaces.
-   * Fixed bugs related with the presence of spaces in the path where bowtie binaries are stored.
-   * Improved exception handling for missformated quality values. 
-   * Improved redundancy checks by correctly account for soft clipping. 
+## Version 2.2.7 - Feb 10, 2016 ##
 
-Version 2.2.4 - Oct 22, 2014
-   * Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.
-   * Added lz4 compression option for the wrapper.
-   * Fixed the vanishing --no-unal help line.
-   * Added the static linkage for MinGW builds.
-   * Added extra seed-hit output.
-   * Fixed missing 0-length read in fastq --passthrough output.
-   * Fixed an issue that would cause different output in -a mode depending on random seed.
+  * Added a parallel index build option: bowtie2-build --threads <# threads>.
+  * Fixed an issue whereby IUPAC codes (other than A/C/G/T/N) in reads were
+    converted to As. Now all non-A/C/G/T characters in reads become Ns.
+  * Fixed some compilation issues, including for the Intel C++ Compiler.
+  * Removed debugging code that could impede performance for many alignment
+    threads.
+  * Fixed a few typos in documentation.
 
-Version 2.2.3 - May 30, 2014
-   * Fixed a bug that made loading an index into memory crash sometimes.
-   * Fixed a silent failure to warn the user in case the -x option is missing.
-   * Updated al, un, al-conc and un-conc options to avoid confusion in cases
-     where the user does not provide a base file name.
-   * Fixed a spurious assert that made bowtie2-inspect debug fail. 
+## Version 2.2.6 - Jul 22, 2015 ##
 
-Version 2.2.2 - April 10, 2014
-   * Improved performance for cases where the reference contains ambiguous 
-     or masked nucleobases represented by Ns.  
+  * Switched to a stable sort to avoid some potential reproducibility confusions.
+  * Added 'install' target for *nix platforms.
+  * Added the Intel TBB option which provides in most situations a better performance
+    output. TBB is not present by default in the current build but can be added
+    by compiling the source code with WITH_TBB=1 option.
+  * Fixed a bug that caused seed lenght to be dependent of the -L and -N parameters order.
+  * Fixed a bug that caused --local followed by -N to reset seed lenght to 22 which is
+    actually the default value for global.
+  * Enable compilation on FreeBSD and clang, although gmake port is still required.
+  * Fixed an issue that made bowtie2 compilation process to fail on Snow Leopard.
 
-Version 2.2.1 - February 28, 2014
-   * Improved way in which index files are loaded for alignment.  Should fix
-     efficiency problems on some filesystems.
-   * Fixed a bug that made older systems unable to correctly deal with bowtie 
-     relative symbolic links.
-   * Fixed a bug that, for very big indexes, could determine to determine file
-     offsets correctly.
-   * Fixed a bug where using --no-unal option incorrectly suppressed
-     --un/--un-conc output.
-   * Dropped a perl dependency that could cause problems on old systems.
-   * Added --no-1mm-upfront option and clarified documentation for parameters
-     governing the multiseed heuristic.
 
-Version 2.2.0 - February 10, 2014
-   * Improved index querying efficiency using "population count" instructions
-     available since SSE4.2.
-   * Added support for large and small indexes, removing 4-billion-nucleotide
-     barrier.  Bowtie 2 can now be used with reference genomes of any size.
-   * Fixed bug that could cause bowtie2-build to crash when reference length
-     is close to 4 billion.
-   * Fixed issue in bowtie2-inspect that caused -e mode not to output
-     nucleotides properly.
-   * Added a CL: string to the @PG SAM header to preserve information about
-     the aligner binary and paramteres.
-   * No longer releasing 32-bit binaries.  Simplified manual and Makefile
-     accordingly.
-   * Credits to the Intel(r) enabling team for performance optimizations
-     included in this release.  Thank you!
-   * Phased out CygWin support.
-   * Added the .bat generation for Windows.
-   * Fixed some issues with some uncommon chars in fasta files.
-   * Fixed wrappers so bowtie can now be used with symlinks.
+## Version 2.2.5 - Mar 9, 2015 ##
+
+  * Fixed some situations where incorrectly we could detect a Mavericks platform.
+  * Fixed some manual issues including some HTML bad formating.
+  * Make sure the wrapper correctly identifies the platform under OSX.
+  * Fixed --rg/--rg-id options where included spaces were incorrectly treated.
+  * Various documentation fixes added by contributors.
+  * Fixed the incorrect behavior where parameter file names may contain spaces.
+  * Fixed bugs related with the presence of spaces in the path where bowtie binaries are stored.
+  * Improved exception handling for missformated quality values.
+  * Improved redundancy checks by correctly account for soft clipping.
+
+## Version 2.2.4 - Oct 22, 2014 ##
+
+  * Fixed a Mavericks OSX specific bug caused by some linkage ambiguities.
+  * Added lz4 compression option for the wrapper.
+  * Fixed the vanishing --no-unal help line.
+  * Added the static linkage for MinGW builds.
+  * Added extra seed-hit output.
+  * Fixed missing 0-length read in fastq --passthrough output.
+  * Fixed an issue that would cause different output in -a mode depending on random seed.
+
+## Version 2.2.3 - May 30, 2014 ##
+
+  * Fixed a bug that made loading an index into memory crash sometimes.
+  * Fixed a silent failure to warn the user in case the -x option is missing.
+  * Updated al, un, al-conc and un-conc options to avoid confusion in cases
+    where the user does not provide a base file name.
+  * Fixed a spurious assert that made bowtie2-inspect debug fail.
+
+## Version 2.2.2 - April 10, 2014 ##
+
+  * Improved performance for cases where the reference contains ambiguous
+    or masked nucleobases represented by Ns.
+
+## Version 2.2.1 - February 28, 2014 ##
+
+  * Improved way in which index files are loaded for alignment.  Should fix
+    efficiency problems on some filesystems.
+  * Fixed a bug that made older systems unable to correctly deal with bowtie
+    relative symbolic links.
+  * Fixed a bug that, for very big indexes, could determine to determine file
+    offsets correctly.
+  * Fixed a bug where using --no-unal option incorrectly suppressed
+    --un/--un-conc output.
+  * Dropped a perl dependency that could cause problems on old systems.
+  * Added --no-1mm-upfront option and clarified documentation for parameters
+    governing the multiseed heuristic.
+
+## Version 2.2.0 - February 10, 2014 ##
+
+  * Improved index querying efficiency using "population count" instructions
+    available since SSE4.2.
+  * Added support for large and small indexes, removing 4-billion-nucleotide
+    barrier.  Bowtie 2 can now be used with reference genomes of any size.
+  * Fixed bug that could cause bowtie2-build to crash when reference length
+    is close to 4 billion.
+  * Fixed issue in bowtie2-inspect that caused -e mode not to output
+    nucleotides properly.
+  * Added a CL: string to the @PG SAM header to preserve information about
+    the aligner binary and paramteres.
+  * No longer releasing 32-bit binaries.  Simplified manual and Makefile
+    accordingly.
+  * Credits to the Intel(r) enabling team for performance optimizations
+    included in this release.  Thank you!
+  * Phased out CygWin support.
+  * Added the .bat generation for Windows.
+  * Fixed some issues with some uncommon chars in fasta files.
+  * Fixed wrappers so bowtie can now be used with symlinks.
 
 Bowtie 2 on GitHub - February 4, 2014
-   * Bowtie 2 source now lives in a public GitHub repository:
-     https://github.com/BenLangmead/bowtie2.
+  * Bowtie 2 source now lives in a public GitHub repository:
+    https://github.com/BenLangmead/bowtie2.
 
-Version 2.1.0 - February 21, 2013
-   * Improved multithreading support so that Bowtie 2 now uses native Windows
-     threads when compiled on Windows and uses a faster mutex.  Threading
-     performance should improve on all platforms.
-   * Improved support for building 64-bit binaries for Windows x64 platforms.
-   * Bowtie is using a spinlocking mechanism by default. 
-   * Test option --nospin is no longer available. However bowtie2 can always
-     be recompiled with EXTRA_FLAGS="-DNO_SPINLOCK" in order to drop the 
-     default spinlock usage.
+## Version 2.1.0 - February 21, 2013 ##
 
-Version 2.0.6 - January 27, 2013
-   * Fixed issue whereby spurious output would be written in --no-unal mode.
-   * Fixed issue whereby multiple input files combined with --reorder would
-     cause truncated output and a memory spike.
-   * Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
-     crash when compiled under Windows 7 x64.
-   * Fixed bowtie2 wrapper to handle filename/paths operations in a more 
-     platform independent manner.
-   * Added pthread as a default library option under cygwin, and pthreadGC
-     for MinGW.
-   * Fixed some minor issues that made MinGW compilation fail.
+  * Improved multithreading support so that Bowtie 2 now uses native Windows
+    threads when compiled on Windows and uses a faster mutex.  Threading
+    performance should improve on all platforms.
+  * Improved support for building 64-bit binaries for Windows x64 platforms.
+  * Bowtie is using a spinlocking mechanism by default.
+  * Test option --nospin is no longer available. However bowtie2 can always
+    be recompiled with EXTRA_FLAGS="-DNO_SPINLOCK" in order to drop the
+    default spinlock usage.
 
-Version 2.0.5 - January 4, 2013
-   * Fixed an issue that would cause excessive memory allocation when aligning
-     to very repetitive genomes.
-   * Fixed an issue that would cause a pseudo-randomness-related assert to be
-     thrown in debug mode under rare circumstances.
-   * When bowtie2-build fails, it will now delete index files created so far so
-     that invalid index files don't linger.
-   * Tokenizer no longer has limit of 10,000 tokens, which was a problem for
-     users trying to index a very large number of FASTA files.
-   * Updated manual's discussion of the -I and -X options to mention that
-     setting them farther apart makes Bowtie 2 slower.
-   * Renamed COPYING to LICENSE and created a README to be GitHub-friendly.
+## Version 2.0.6 - January 27, 2013 ##
 
-Version 2.0.4 - December 17, 2012
-   * Fixed issue whereby --un, --al, --un-conc and --al-conc options would
-     incorrectly suppress SAM output.
-   * Fixed minor command-line parsing issue in wrapper script.
-   * Fixed issue on Windows where wrapper script would fail to find
-     bowtie2-align.exe binary.
-   * Updated some of the index-building scripts and documentation.
-   * Updated author's contact info in usage message.
+  * Fixed issue whereby spurious output would be written in --no-unal mode.
+  * Fixed issue whereby multiple input files combined with --reorder would
+    cause truncated output and a memory spike.
+  * Fixed spinlock datatype for Win64 API (LLP64 data model) which made it
+    crash when compiled under Windows 7 x64.
+  * Fixed bowtie2 wrapper to handle filename/paths operations in a more
+    platform independent manner.
+  * Added pthread as a default library option under cygwin, and pthreadGC
+    for MinGW.
+  * Fixed some minor issues that made MinGW compilation fail.
 
-Version 2.0.3 - December 14, 2012
-   * Fixed thread safely issues that could cause crashes with a large number of
-     threads.  Thanks to John O’Neill for identifying these issues.
-   * Fixed some problems with pseudo-random number generation that could cause
-     unequal distribution of alignments across equally good candidate loci.
-   * The --un, --al, --un-conc, and --al-conc options (and their compressed
-     analogs) are all much faster now, making it less likely that they become
-     the bottleneck when Bowtie 2 is run with large -p.
-   * Fixed issue with innaccurate mapping qualities, XS:i, and YS:i flags when
-     --no-mixed and --no-discordant are specified at the same time.
-   * Fixed some compiler warnings and errors when using clang++ to compile.
-   * Fixed race condition in bowtie2 script when named pipes are used.
-   * Added more discussion of whitespace in read names to manual.
+## Version 2.0.5 - January 4, 2013 ##
 
-Version 2.0.2 - October 31, 2012
-   * Fixes a couple small issues pointed out to me immediately after 2.0.1
-     release
-   * Mac binaries now built on 10.6 in order to be forward-compatible with more
-     Mac OS versions
-   * Small changes to source to make it compile with gcc versions up to 4.7
-     without warnings
+  * Fixed an issue that would cause excessive memory allocation when aligning
+    to very repetitive genomes.
+  * Fixed an issue that would cause a pseudo-randomness-related assert to be
+    thrown in debug mode under rare circumstances.
+  * When bowtie2-build fails, it will now delete index files created so far so
+    that invalid index files don't linger.
+  * Tokenizer no longer has limit of 10,000 tokens, which was a problem for
+    users trying to index a very large number of FASTA files.
+  * Updated manual's discussion of the -I and -X options to mention that
+    setting them farther apart makes Bowtie 2 slower.
+  * Renamed COPYING to LICENSE and created a README to be GitHub-friendly.
 
-Version 2.0.1 - October 31, 2012
-   * First non-beta release.
-   * Fixed an issue that would cause Bowtie 2 to use excessive amounts of
-     memory for closely-matching and highly repetitive reads under some
-     circumstances.
-   * Fixed a bug in --mm mode that would fail to report when an index file
-     could not be memory-mapped.
-   * Added --non-deterministic option, which better matches how some users
-     expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
-     you give the same read (same name, sequence and qualities) and --seed, you
-     get the same answer.  --non-deterministic breaks that guarantee.  This can
-     be more appropriate for datasets where the input contains many identical
-     reads (same name, same sequence, same qualities).
-   * Fixed a bug in bowtie2-build would yield corrupt index files when memory
-     settings were adjusted in the middle of indexing.
-   * Clarified in manual that --un (or --un-*) options print reads exactly as
-     they appeared in the input, and that they are not necessarily written in
-     the same order as they appeared in the input.
-   * Fixed issue whereby wrapper would incorrectly interpret arguments with
-     --al as a prefix (e.g. --all) as --al.
-   * Added option --omit-sec-seq, which causes Bowtie 2 to set SEQ and QUAL
-     fields to "*" for secondary alignments.
+## Version 2.0.4 - December 17, 2012 ##
 
-Version 2.0.0-beta7 - July 9, 2012
-   * Fixed an issue in how Bowtie 2 aligns longer reads in --local mode.  Some
-     alignments were incorrectly curtailed on the left-hand side.
-   * Fixed issue --un (or --un-*) would fail to output unaligned reads when
-     --no-unal was also specified.
-   * Fixed issue whereby --un-* were significantly slowing down Bowtie 2 when
-     -p was set greater than 1.
-   * Fixed issue that would could cause hangs in -a mode or when -k is set
-     high.
-   * Fixed issue whereby the SAM FLAGS field could be set incorrectly for
-     secondary paired-end alignments with -a or -k > 1.
-   * When input reads are unpaired, Bowtie 2 no longer removes the trailing /1
-     or /2 from the read name.
-   * -M option is now deprecated.  It will be removed in subsequent versions.
-     What used to be called -M mode is still the default mode, and -k and -a
-     are still there alternatives to the default mode, but adjusting the -M
-     setting is deprecated.  Use the -D and -R options to adjust the effort
-     expended to find valid alignments.
-   * Gaps are now left-aligned in a manner similar to BWA and other tools.
-   * Fixed issue whereby wrapper script would not pass on exitlevel correctly,
-     sometimes spuriously hiding non-0 exitlevel.
-   * Added documentation for YT:Z to manual.
-   * Fixed documentation describing how Bowtie 2 searches for an index given an
-     index basename.
-   * Fixed inconsistent documentation for the default value of the -i parameter
+  * Fixed issue whereby --un, --al, --un-conc and --al-conc options would
+    incorrectly suppress SAM output.
+  * Fixed minor command-line parsing issue in wrapper script.
+  * Fixed issue on Windows where wrapper script would fail to find
+    bowtie2-align.exe binary.
+  * Updated some of the index-building scripts and documentation.
+  * Updated author's contact info in usage message.
 
-Version 2.0.0-beta6 - May 7, 2012
-   * Bowtie 2 now handles longer reads in a more memory-economical fashion,
-     which should prevent many out-of-memory issues for longer reads.
-   * Error message now produced when -L is set greater than 32.
-   * Added a warning message to warn when bowtie2-align binary is being run
-     directly, rather than via the wrapper.  Some functionality is provided by
-     the wrapper, so Bowtie 2 should always be run via the bowtie2 executable
-     rather than bowtie2-align.
-   * Fixed an occasional crashing bug that was usually caused by setting the
-     seed length relatively short.
-   * Fixed an issue whereby the FLAG, RNEXT and PNEXT fields were incorrect for
-     some paired-end alignments.  Specifically, this affected paired-end
-     alignments where both mates aligned and one or both mates aligned
-     non-uniquely.
-   * Fixed issue whereby compressed input would sometimes be mishandled.
-   * Renamed --sam-* options to omit the "sam-" prefix for brevity.  The old
-     option names will also work.
-   * Added --no-unal option to suppress SAM records corresponding to unaligned
-     reads, i.e., records where FLAG field has 0x4 set.
-   * Added --rg-id option and enhanced the documentation for both --rg-id and
-     --rg.  Users were confused by the need to specify --rg "ID:(something)" in
-     order for the @RG line to be printed; hopefully this is clearer now.
-   * Index updates: indexes linked to in the right-hand sidebar have been
-     updated to include the unplaced contigs appearing in the UCSC "random"
-     FASTA files.  This makes the indexes more complete.  Also, an index for
-     the latest mouse assembly, mm10 (AKA "GRCm38") has been added.
+## Version 2.0.3 - December 14, 2012 ##
 
-Version 2.0.0-beta5 - December 14, 2011
-   * Added --un, --al, --un-conc, and --al-conc options that write unpaired
-     and/or paired-end reads to files depending on whether they align at least
-     once or fail to align.
-   * Added --reorder option.  When enabled, the order of the SAM records output
-     by Bowtie 2 will match the order of the input reads even when -p is set
-     greater than 1.  This is disabled by default; enabling it makes Bowtie 2
-     somewhat slower and use somewhat more memory when -p is set greater than
-     1.
-   * Changed the default --score-min in --local mode to G,20,8.  This ought to
-     improve sensitivity and accuracy in many cases.
-   * Improved error reporting.
-   * Fixed some minor documentation issues.
-   * Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
-     memory footprint way up and often cause an out-of-memory exception.  This
-     will be fixed in a future version.
+  * Fixed thread safely issues that could cause crashes with a large number of
+    threads.  Thanks to John O'Neill for identifying these issues.
+  * Fixed some problems with pseudo-random number generation that could cause
+    unequal distribution of alignments across equally good candidate loci.
+  * The --un, --al, --un-conc, and --al-conc options (and their compressed
+    analogs) are all much faster now, making it less likely that they become
+    the bottleneck when Bowtie 2 is run with large -p.
+  * Fixed issue with innaccurate mapping qualities, XS:i, and YS:i flags when
+    --no-mixed and --no-discordant are specified at the same time.
+  * Fixed some compiler warnings and errors when using clang++ to compile.
+  * Fixed race condition in bowtie2 script when named pipes are used.
+  * Added more discussion of whitespace in read names to manual.
 
-Version 2.0.0-beta4 - December 5, 2011
-   * Accuracy improvements.
-   * Speed improvements in some situations.
-   * Fixed a handful of crashing bugs.
-   * Fixed some documentation bugs.
-   * Fixed bug whereby --version worked incorrectly.
-   * Fixed formatting bug with MD:Z optional field that would sometimes fail to
-     follow a mismatch with a number.
-   * Added -D option for controlling the maximum number of seed extensions that
-     can fail in a row before we move on.  This option or something like it
-	 will eventually replace the argument to -M.
-   * Added -R option to control maximum number of times re-seeding is attempted
-     for a read with repetitive seeds.
-   * Changed default to --no-dovetail.  Specifying --dovetail turns it back on.
-   * Added second argument for --mp option so that user can set maximum and
-     minimum mismatch penalties at once.  Also tweaked the formula for
-     calculating the quality-aware mismatch penalty.
+## Version 2.0.2 - October 31, 2012 ##
 
-Version 2.0.0-beta3 - November 1, 2011
-   * Accuracy improvements.
-   * Speed improvements in some situations.
-   * Fixed a handful of crashing bugs.
-   * Fixed a bug whereby number of repetitively aligned reads could be
-     misreported in the summary output.
+  * Fixes a couple small issues pointed out to me immediately after 2.0.1
+    release
+  * Mac binaries now built on 10.6 in order to be forward-compatible with more
+    Mac OS versions
+  * Small changes to source to make it compile with gcc versions up to 4.7
+    without warnings
 
-Version 2.0.0-beta2 - October 16, 2011
-   * Added manual, both included in the download package and on the website.
-     The website will always have the manual for the latest version.
-   * Added Linux 32-bit and 64-bit binary packages.  Mac OS X packages to come.
-     Still working on a Windows package.
-   * Fixed a bug that led to crashes when seed-alignment result memory was
-     exhausted.
-   * Changed the --end-to-end mode --score-min default to be less permissive.
-     The previous threshold seemed to be having an adverse effect on accuracy,
-     though the fix implemented in this version comes at the expense of some
-     sensitivity.
-   * Changed the --end-to-end mode -M default to be lower by 2 notches.  This
-     offsets any detrimental effect that the previous change would have had on
-     speed, without a large adverse impact on accuracy.  As always, setting -M
-     higher will yield still greater accuracy at the expense of speed.
+## Version 2.0.1 - October 31, 2012 ##
 
-Version 2.0.0-beta1 - September 22, 2011
-   * First public release.
-   * Caveats: as of now, the manual is incomplete, there's no tutorial, and no
-     example genome or example reads.  All these will be fixed in upcoming
-     releases.
-   * Only a source package is currently available.  Platform-specific binaries
-     will be included in future releases.
+  * First non-beta release.
+  * Fixed an issue that would cause Bowtie 2 to use excessive amounts of
+    memory for closely-matching and highly repetitive reads under some
+    circumstances.
+  * Fixed a bug in --mm mode that would fail to report when an index file
+    could not be memory-mapped.
+  * Added --non-deterministic option, which better matches how some users
+    expect the pseudo-random generator inside Bowtie 2 to work.  Normally, if
+    you give the same read (same name, sequence and qualities) and --seed, you
+    get the same answer.  --non-deterministic breaks that guarantee.  This can
+    be more appropriate for datasets where the input contains many identical
+    reads (same name, same sequence, same qualities).
+  * Fixed a bug in bowtie2-build would yield corrupt index files when memory
+    settings were adjusted in the middle of indexing.
+  * Clarified in manual that --un (or --un-*) options print reads exactly as
+    they appeared in the input, and that they are not necessarily written in
+    the same order as they appeared in the input.
+  * Fixed issue whereby wrapper would incorrectly interpret arguments with
+    --al as a prefix (e.g. --all) as --al.
+  * Added option --omit-sec-seq, which causes Bowtie 2 to set SEQ and QUAL
+    fields to "*" for secondary alignments.
+
+## Version 2.0.0-beta7 - July 9, 2012 ##
+
+  * Fixed an issue in how Bowtie 2 aligns longer reads in --local mode.  Some
+    alignments were incorrectly curtailed on the left-hand side.
+  * Fixed issue --un (or --un-*) would fail to output unaligned reads when
+    --no-unal was also specified.
+  * Fixed issue whereby --un-* were significantly slowing down Bowtie 2 when
+    -p was set greater than 1.
+  * Fixed issue that would could cause hangs in -a mode or when -k is set
+    high.
+  * Fixed issue whereby the SAM FLAGS field could be set incorrectly for
+    secondary paired-end alignments with -a or -k > 1.
+  * When input reads are unpaired, Bowtie 2 no longer removes the trailing /1
+    or /2 from the read name.
+  * -M option is now deprecated.  It will be removed in subsequent versions.
+    What used to be called -M mode is still the default mode, and -k and -a
+    are still there alternatives to the default mode, but adjusting the -M
+    setting is deprecated.  Use the -D and -R options to adjust the effort
+    expended to find valid alignments.
+  * Gaps are now left-aligned in a manner similar to BWA and other tools.
+  * Fixed issue whereby wrapper script would not pass on exitlevel correctly,
+    sometimes spuriously hiding non-0 exitlevel.
+  * Added documentation for YT:Z to manual.
+  * Fixed documentation describing how Bowtie 2 searches for an index given an
+    index basename.
+  * Fixed inconsistent documentation for the default value of the -i parameter
+
+## Version 2.0.0-beta6 - May 7, 2012 ##
+
+  * Bowtie 2 now handles longer reads in a more memory-economical fashion,
+    which should prevent many out-of-memory issues for longer reads.
+  * Error message now produced when -L is set greater than 32.
+  * Added a warning message to warn when bowtie2-align binary is being run
+    directly, rather than via the wrapper.  Some functionality is provided by
+    the wrapper, so Bowtie 2 should always be run via the bowtie2 executable
+    rather than bowtie2-align.
+  * Fixed an occasional crashing bug that was usually caused by setting the
+    seed length relatively short.
+  * Fixed an issue whereby the FLAG, RNEXT and PNEXT fields were incorrect for
+    some paired-end alignments.  Specifically, this affected paired-end
+    alignments where both mates aligned and one or both mates aligned
+    non-uniquely.
+  * Fixed issue whereby compressed input would sometimes be mishandled.
+  * Renamed --sam-* options to omit the "sam-" prefix for brevity.  The old
+    option names will also work.
+  * Added --no-unal option to suppress SAM records corresponding to unaligned
+    reads, i.e., records where FLAG field has 0x4 set.
+  * Added --rg-id option and enhanced the documentation for both --rg-id and
+    --rg.  Users were confused by the need to specify --rg "ID:(something)" in
+    order for the @RG line to be printed; hopefully this is clearer now.
+  * Index updates: indexes linked to in the right-hand sidebar have been
+    updated to include the unplaced contigs appearing in the UCSC "random"
+    FASTA files.  This makes the indexes more complete.  Also, an index for
+    the latest mouse assembly, mm10 (AKA "GRCm38") has been added.
+
+## Version 2.0.0-beta5 - December 14, 2011 ##
+
+  * Added --un, --al, --un-conc, and --al-conc options that write unpaired
+    and/or paired-end reads to files depending on whether they align at least
+    once or fail to align.
+  * Added --reorder option.  When enabled, the order of the SAM records output
+    by Bowtie 2 will match the order of the input reads even when -p is set
+    greater than 1.  This is disabled by default; enabling it makes Bowtie 2
+    somewhat slower and use somewhat more memory when -p is set greater than
+    1.
+  * Changed the default --score-min in --local mode to G,20,8.  This ought to
+    improve sensitivity and accuracy in many cases.
+  * Improved error reporting.
+  * Fixed some minor documentation issues.
+  * Note: I am aware of an issue whereby longer reads (>10,000 bp) drive the
+    memory footprint way up and often cause an out-of-memory exception.  This
+    will be fixed in a future version.
+
+## Version 2.0.0-beta4 - December 5, 2011 ##
+
+  * Accuracy improvements.
+  * Speed improvements in some situations.
+  * Fixed a handful of crashing bugs.
+  * Fixed some documentation bugs.
+  * Fixed bug whereby --version worked incorrectly.
+  * Fixed formatting bug with MD:Z optional field that would sometimes fail to
+    follow a mismatch with a number.
+  * Added -D option for controlling the maximum number of seed extensions that
+    can fail in a row before we move on.  This option or something like it
+    will eventually replace the argument to -M.
+  * Added -R option to control maximum number of times re-seeding is attempted
+    for a read with repetitive seeds.
+  * Changed default to --no-dovetail.  Specifying --dovetail turns it back on.
+  * Added second argument for --mp option so that user can set maximum and
+    minimum mismatch penalties at once.  Also tweaked the formula for
+    calculating the quality-aware mismatch penalty.
+
+## Version 2.0.0-beta3 - November 1, 2011 ##
+
+  * Accuracy improvements.
+  * Speed improvements in some situations.
+  * Fixed a handful of crashing bugs.
+  * Fixed a bug whereby number of repetitively aligned reads could be
+    misreported in the summary output.
+
+## Version 2.0.0-beta2 - October 16, 2011 ##
+
+  * Added manual, both included in the download package and on the website.
+    The website will always have the manual for the latest version.
+  * Added Linux 32-bit and 64-bit binary packages.  Mac OS X packages to come.
+    Still working on a Windows package.
+  * Fixed a bug that led to crashes when seed-alignment result memory was
+    exhausted.
+  * Changed the --end-to-end mode --score-min default to be less permissive.
+    The previous threshold seemed to be having an adverse effect on accuracy,
+    though the fix implemented in this version comes at the expense of some
+    sensitivity.
+  * Changed the --end-to-end mode -M default to be lower by 2 notches.  This
+    offsets any detrimental effect that the previous change would have had on
+    speed, without a large adverse impact on accuracy.  As always, setting -M
+    higher will yield still greater accuracy at the expense of speed.
+
+## Version 2.0.0-beta1 - September 22, 2011 ##
+
+  * First public release.
+  * Caveats: as of now, the manual is incomplete, there's no tutorial, and no
+    example genome or example reads.  All these will be fixed in upcoming
+    releases.
+  * Only a source package is currently available.  Platform-specific binaries
+    will be included in future releases.

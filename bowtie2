@@ -41,8 +41,8 @@ my ($vol,$script_path,$prog);
 $prog = File::Spec->rel2abs( __FILE__ );
 
 while (-f $prog && -l $prog){
-    my (undef, $dir, undef) = File::Spec->splitpath($prog);
-    $prog = File::Spec->rel2abs(readlink($prog), $dir);
+        my (undef, $dir, undef) = File::Spec->splitpath($prog);
+        $prog = File::Spec->rel2abs(readlink($prog), $dir);
 }
 
 ($vol,$script_path,$prog)
@@ -61,37 +61,37 @@ my %signo       = ();
 my @signame     = ();
 
 sub quote_params {
-    my %params_2_quote = ('-S' => 1, '-U' => 1,
-                          '-1' => 1, '-2' => 1,
-                          '-x' => 1, '-b' => 1,
-                          '--interleaved' => 1,
-                          '--rg' => 1,'--rg-id' => 1,
-                          '--tab5' => 1, '--tab6' => 1,
-                          '--sam-acc' => 1, '--bam' => 1
-        );
-    my $param_list = shift;
-    my $quoting = 0;
+        my %params_2_quote = ('-S' => 1, '-U' => 1,
+                              '-1' => 1, '-2' => 1,
+                              '-x' => 1, '-b' => 1,
+                              '--interleaved' => 1,
+                              '--rg' => 1,'--rg-id' => 1,
+                              '--tab5' => 1, '--tab6' => 1,
+                              '--sam-acc' => 1, '--bam' => 1
+            );
+        my $param_list = shift;
+        my $quoting = 0;
 
-    for (my $i=0; $i<scalar(@{$param_list}); $i++){
-        if($quoting){
-            $quoting = 0;
-            $param_list->[$i] = "\"".$param_list->[$i]."\"";
-            next;
+        for (my $i=0; $i<scalar(@{$param_list}); $i++){
+                if($quoting){
+                        $quoting = 0;
+                        $param_list->[$i] = "\"".$param_list->[$i]."\"";
+                        next;
+                }
+                $quoting = 1 if(exists($params_2_quote{$param_list->[$i]}));
         }
-        $quoting = 1 if(exists($params_2_quote{$param_list->[$i]}));
-    }
 }
 
 
 {
-    # Get signal info
-    use Config;
-    my $i = 0;
-    for my $name (split(' ', $Config{sig_name})) {
-        $signo{$name} = $i;
-        $signame[$i] = $name;
-        $i++;
-    }
+        # Get signal info
+        use Config;
+        my $i = 0;
+        for my $name (split(' ', $Config{sig_name})) {
+                $signo{$name} = $i;
+                $signame[$i] = $name;
+                $i++;
+        }
 }
 
 (-x "$align_prog") ||
@@ -100,17 +100,17 @@ sub quote_params {
 # Get description of arguments from Bowtie 2 so that we can distinguish Bowtie
 # 2 args from wrapper args
 sub getBt2Desc($) {
-    my $d = shift;
-    my $cmd = "\"$align_prog\" --wrapper basic-0 --arg-desc";
-    open(my $fh, "$cmd |") || Fail("Failed to run command '$cmd'\n");
-    while(readline $fh) {
-        chomp;
-        next if /^\s*$/;
-        my @ts = split(/\t/);
-        $d->{$ts[0]} = $ts[1];
-    }
-    close($fh);
-    $? == 0 || Fail("Description of arguments failed!\n");
+        my $d = shift;
+        my $cmd = "\"$align_prog\" --wrapper basic-0 --arg-desc";
+        open(my $fh, "$cmd |") || Fail("Failed to run command '$cmd'\n");
+        while(readline $fh) {
+                chomp;
+                next if /^\s*$/;
+                my @ts = split(/\t/);
+                $d->{$ts[0]} = $ts[1];
+        }
+        close($fh);
+        $? == 0 || Fail("Description of arguments failed!\n");
 }
 
 my %desc = ();
@@ -130,14 +130,15 @@ my $no_unal = 0;
 my $large_idx = 0;
 
 sub handle_un_or_al {
-    my ($opt, $value) = @_;
-    my ($name, $type_of_compression) = $opt =~ /((?:al|un)(?:-conc|-mates)?)(?:-(gz|bz2|lz4))?/;
+        my ($opt, $value) = @_;
+        my ($name, $type_of_compression) = $opt =~ /((?:al|un)(?:-conc|-mates)?)(?:-(gz|bz2|lz4|zst))?/;
 
-    $read_fns{$name} = $value;
-    $read_compress{$name} = "";
-    $read_compress{$name} = "gzip"  if defined $type_of_compression && $type_of_compression eq "gz";
-    $read_compress{$name} = "bzip2" if defined $type_of_compression && $type_of_compression eq "bz2";
-    $read_compress{$name} = "lz4"   if defined $type_of_compression && $type_of_compression eq "lz4";
+        $read_fns{$name} = $value;
+        $read_compress{$name} = "";
+        $read_compress{$name} = "gzip"  if defined $type_of_compression && $type_of_compression eq "gz";
+        $read_compress{$name} = "bzip2" if defined $type_of_compression && $type_of_compression eq "bz2";
+        $read_compress{$name} = "lz4"   if defined $type_of_compression && $type_of_compression eq "lz4";
+        $read_compress{$name} = "zstd"  if defined $type_of_compression && $type_of_compression eq "zst";
 }
 
 my @unps = ();
@@ -149,7 +150,7 @@ my @interleaved_mates = ();
 my @bam_files = ();
 my @to_delete = ();
 my @to_kill = ();
-my $temp_dir = "/tmp";
+my $temp_dir = File::Spec->tmpdir();
 my $bam_out = 0;
 my $ref_str = undef;
 my $no_pipes = 0;
@@ -161,264 +162,284 @@ my $help = 0;
 
 # Travis' MacOS image does not like bundling_values
 eval {
-    Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev", "bundling_values");
-    1;
+        Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev", "bundling_values");
+        1;
 }
 or do {
-    Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev");
+        Getopt::Long::Configure("pass_through", "no_ignore_case", "no_auto_abbrev");
 };
 
 GetOptions(
-    "1=s{1,}"                       => \@mate1s,
-    "2=s{1,}"                       => \@mate2s,
-    "reads|U=s{1,}"                 => \@unps,
-    "tab5=s{1,}"                    => \@tab5_mates,
-    "tab6=s{1,}"                    => \@tab6_mates,
-    "interleaved=s{1,}"             => \@interleaved_mates,
-    "b=s{1,}"                       => \@bam_files,
-    "temp-directory=s"              => \$temp_dir,
-    "bam"                           => \$bam_out,
-    "no-named-pipes"                => \$no_pipes,
-    "ref-string|reference-string=s" => \$ref_str,
-    "keep"                          => \$keep,
-    "verbose"                       => \$verbose,
-    "debug"                         => \$debug,
-    "sanitized"                     => \$sanitized,
-    "large-index"                   => \$large_idx,
-    "no-unal"                       => \$no_unal,
-    "un=s"                          => \&handle_un_or_al,
-    "un-gz=s"                       => \&handle_un_or_al,
-    "un-bz2=s"                      => \&handle_un_or_al,
-    "un-lz4=s"                      => \&handle_un_or_al,
-    "al=s"                          => \&handle_un_or_al,
-    "al-gz=s"                       => \&handle_un_or_al,
-    "al-bz2=s"                      => \&handle_un_or_al,
-    "al-lz4=s"                      => \&handle_un_or_al,
-    "un-conc=s"                     => \&handle_un_or_al,
-    "un-conc-gz=s"                  => \&handle_un_or_al,
-    "un-conc-bz2=s"                 => \&handle_un_or_al,
-    "un-conc-lz4=s"                 => \&handle_un_or_al,
-    "al-conc=s"                     => \&handle_un_or_al,
-    "al-conc-gz=s"                  => \&handle_un_or_al,
-    "al-conc-bz2=s"                 => \&handle_un_or_al,
-    "al-conc-lz4=s"                 => \&handle_un_or_al,
-    "un-mates=s"                    => \&handle_un_or_al,
-    "un-mates-gz=s"                 => \&handle_un_or_al,
-    "un-mates-bz2=s"                => \&handle_un_or_al,
-    "un-mates-lz4=s"                => \&handle_un_or_al,
-    "log-file=s"                    => \$log_fName,
+        "1=s{1,}"                       => \@mate1s,
+        "2=s{1,}"                       => \@mate2s,
+        "reads|U=s{1,}"                 => \@unps,
+        "tab5=s{1,}"                    => \@tab5_mates,
+        "tab6=s{1,}"                    => \@tab6_mates,
+        "interleaved=s{1,}"             => \@interleaved_mates,
+        "b=s{1,}"                       => \@bam_files,
+        "temp-directory=s"              => \$temp_dir,
+        "bam"                           => \$bam_out,
+        "no-named-pipes"                => \$no_pipes,
+        "ref-string|reference-string=s" => \$ref_str,
+        "keep"                          => \$keep,
+        "verbose"                       => \$verbose,
+        "debug"                         => \$debug,
+        "sanitized"                     => \$sanitized,
+        "large-index"                   => \$large_idx,
+        "no-unal"                       => \$no_unal,
+        "un=s"                          => \&handle_un_or_al,
+        "un-gz=s"                       => \&handle_un_or_al,
+        "un-bz2=s"                      => \&handle_un_or_al,
+        "un-lz4=s"                      => \&handle_un_or_al,
+        "un-zst=s"                      => \&handle_un_or_al,
+        "al=s"                          => \&handle_un_or_al,
+        "al-gz=s"                       => \&handle_un_or_al,
+        "al-bz2=s"                      => \&handle_un_or_al,
+        "al-lz4=s"                      => \&handle_un_or_al,
+        "al-zst=s"                      => \&handle_un_or_al,
+        "un-conc=s"                     => \&handle_un_or_al,
+        "un-conc-gz=s"                  => \&handle_un_or_al,
+        "un-conc-bz2=s"                 => \&handle_un_or_al,
+        "un-conc-lz4=s"                 => \&handle_un_or_al,
+        "un-conc-zst=s"                 => \&handle_un_or_al,
+        "al-conc=s"                     => \&handle_un_or_al,
+        "al-conc-gz=s"                  => \&handle_un_or_al,
+        "al-conc-bz2=s"                 => \&handle_un_or_al,
+        "al-conc-lz4=s"                 => \&handle_un_or_al,
+        "al-conc-zst=s"                 => \&handle_un_or_al,
+        "un-mates=s"                    => \&handle_un_or_al,
+        "un-mates-gz=s"                 => \&handle_un_or_al,
+        "un-mates-bz2=s"                => \&handle_un_or_al,
+        "un-mates-lz4=s"                => \&handle_un_or_al,
+        "un-mates-zst=s"                => \&handle_un_or_al,
+        "log-file=s"                    => \$log_fName,
     );
 
 my @bt2_args = @ARGV;
 
 if ($verbose == 1) {
-    push @bt2_args, "--verbose";
+        push @bt2_args, "--verbose";
 }
-
 # If the user asked us to redirect some reads to files, or to suppress
 # unaligned reads, then we need to capture the output from Bowtie 2 and pass it
 # through this wrapper.
 my $passthru = 0;
-if(scalar(keys %read_fns) > 0 || $no_unal) {
-    $passthru = 1;
-    push @bt2_args, "--passthrough";
-    $cap_out = "-";
-    for(my $i = 0; $i < scalar(@bt2_args); $i++) {
-        next unless defined($bt2_args[$i]);
-        my $arg = $bt2_args[$i];
-        if($arg eq "-S" || $arg eq "--output") {
-            $i < scalar(@bt2_args)-1 || Fail("-S/--output takes an argument.\n");
-            $cap_out = $bt2_args[$i+1];
-            $bt2_args[$i] = undef;
-            $bt2_args[$i+1] = undef;
+if(scalar(keys %read_fns) > 0 || $no_unal || $bam_out) {
+        $passthru = 1;
+        push @bt2_args, "--passthrough";
+        $cap_out = "-";
+        for(my $i = 0; $i < scalar(@bt2_args); $i++) {
+                next unless defined($bt2_args[$i]);
+                my $arg = $bt2_args[$i];
+                if($arg eq "-S" || $arg eq "--output") {
+                        $i < scalar(@bt2_args)-1 || Fail("-S/--output takes an argument.\n");
+                        $cap_out = $bt2_args[$i+1];
+                        $bt2_args[$i] = undef;
+                        $bt2_args[$i+1] = undef;
+                }
         }
-    }
-    @bt2_args = grep defined, @bt2_args;
+        @bt2_args = grep defined, @bt2_args;
 }
 
 my $old_stderr;
 
 if ($log_fName) {
-    open($old_stderr, ">&STDERR") or Fail("Cannot dup STDERR!\n");
-    open(STDERR, ">", $log_fName) or Fail("Cannot redirect to log file $log_fName.\n");
+        open($old_stderr, ">&STDERR") or Fail("Cannot dup STDERR!\n");
+        open(STDERR, ">", $log_fName) or Fail("Cannot redirect to log file $log_fName.\n");
+}
+
+sub which {
+        my $exec = shift;
+
+        for my $path (split/:/, $ENV{"PATH"}) {
+                my $file_path = File::Spec->catfile($path, $exec);
+                if (-e $file_path && -x $file_path) {
+                        return 1;
+                }
+        }
+        return 0;
 }
 
 sub cat_file($$) {
-    my ($ifn, $ofh) = @_;
-    my $ifh = undef;
-    if($ifn =~ /\.gz$/) {
-        open($ifh, "gzip -dc \"$ifn\" |") ||
-            Fail("Could not open gzipped read file: $ifn \n");
-    } elsif($ifn =~ /\.bz2/) {
-        open($ifh, "bzip2 -dc \"$ifn\" |") ||
-            Fail("Could not open bzip2ed read file: $ifn \n");
-    } elsif($ifn =~ /\.lz4/) {
-        open($ifh, "lz4 -dc \"$ifn\" |") ||
-            Fail("Could not open lz4ed read file: $ifn \n");
-    } else {
-        open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
-    }
-    while(readline $ifh) { print {$ofh} $_; }
-    close($ifh);
+        my ($ifn, $ofh) = @_;
+        my $ifh = undef;
+        if($ifn =~ /\.gz$/) {
+                open($ifh, "gzip -dc \"$ifn\" |") ||
+                    Fail("Could not open gzipped read file: $ifn \n");
+        } elsif($ifn =~ /\.bz2/) {
+                open($ifh, "bzip2 -dc \"$ifn\" |") ||
+                    Fail("Could not open bzip2ed read file: $ifn \n");
+        } elsif($ifn =~ /\.lz4/) {
+                open($ifh, "lz4 -dc \"$ifn\" |") ||
+                    Fail("Could not open lz4ed read file: $ifn \n");
+        } elsif($ifn =~ /\.zst/) {
+                open($ifh, "zstd -dfc \"$ifn\" |") ||
+                    Fail("Could not open zstded read file: $ifn \n");
+        } else {
+                open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
+        }
+        while(readline $ifh) { print {$ofh} $_; }
+        close($ifh);
 }
 
 sub write_files {
-    my ($input_files, $output_file, $no_pipes) = @_;
+        my ($input_files, $output_file, $no_pipes) = @_;
 
-    if (!$no_pipes) {
-        mkfifo($output_file, 0700) || Fail("mkfifo($output_file) failed.\n");
-    }
-
-    my $pid = 0;
-    unless ($no_pipes) {
-        $pid = fork();
-        push @to_kill, $pid if $pid;
-    }
-
-    if ($pid == 0) {
-        open(my $ofh, ">$output_file") || Fail("Can't open '$output_file' for writing.\n");
-        for my $fn (@$input_files) {
-            cat_file($fn, $ofh);
-            close($ofh);
-            exit 0 unless $no_pipes;
+        if (!$no_pipes) {
+                mkfifo($output_file, 0700) || Fail("mkfifo($output_file) failed.\n");
         }
-    }
+
+        my $pid = 0;
+        unless ($no_pipes) {
+                $pid = fork();
+                push @to_kill, $pid if $pid;
+        }
+
+        if ($pid == 0) {
+                open(my $ofh, ">$output_file") || Fail("Can't open '$output_file' for writing.\n");
+                for my $fn (@$input_files) {
+                        cat_file($fn, $ofh);
+                        close($ofh);
+                        exit 0 unless $no_pipes;
+                }
+        }
 }
 
 sub maybe_wrap_input {
-    my ($orig_m1s, $orig_m2s, $ext) = @_;
-    my @m1s = ();
-    my @m2s = ();
-    my @wrapped_m1s = ();
-    my @wrapped_m2s = ();
+        my ($orig_m1s, $orig_m2s, $ext) = @_;
+        my @m1s = ();
+        my @m2s = ();
+        my @wrapped_m1s = ();
+        my @wrapped_m2s = ();
 
-    if (scalar(@$orig_m2s) == 0) {
-        my $fn = "$temp_dir/${host}_$$." . $ext;
-        for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/) {
-                push @m1s, $orig_m1s->[$i];
-            } else {
-                push @wrapped_m1s, $orig_m1s->[$i];
-            }
+        if (scalar(@$orig_m2s) == 0) {
+                my $fn = "$temp_dir/${host}_$$." . $ext;
+                for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
+                        if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/) {
+                                push @m1s, $orig_m1s->[$i];
+                        } else {
+                                push @wrapped_m1s, $orig_m1s->[$i];
+                        }
+                }
+
+                if (scalar(@wrapped_m1s) > 0) {
+                        push @m1s, $fn;
+                        push @to_delete, $fn;
+                        write_files(\@wrapped_m1s, $fn, $no_pipes);
+                }
+        } else {
+                my $fn1 = "$temp_dir/${host}_$$" . $ext . "1";
+                my $fn2 = "$temp_dir/${host}_$$" . $ext . "2";
+
+                for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
+                        if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/ && $orig_m1s->[$i]
+                            && $orig_m2s->[$i] !~ /\.bz2$/ && $orig_m2s->[$i] !~ /\.lz4$/) {
+                                push @m1s, $orig_m1s->[$i];
+                                push @m2s, $orig_m2s->[$i];
+                        } else {
+                                push @wrapped_m1s, $orig_m1s->[$i];
+                                push @wrapped_m2s, $orig_m2s->[$i];
+                        }
+                }
+
+                if (scalar(@wrapped_m1s) > 0) {
+                        push @m1s, $fn1;
+                        push @to_delete, $fn1;
+                        write_files(\@wrapped_m1s, $fn1, $no_pipes);
+                }
+
+                if (scalar(@wrapped_m2s) > 0) {
+                        push @m2s, $fn2;
+                        push @to_delete, $fn2;
+                        write_files(\@wrapped_m2s, $fn2, $no_pipes);
+                }
         }
 
-        if (scalar(@wrapped_m1s) > 0) {
-            push @m1s, $fn;
-            push @to_delete, $fn;
-            write_files(\@wrapped_m1s, $fn, $no_pipes);
-        }
-    } else {
-        my $fn1 = "$temp_dir/${host}_$$" . $ext . "1";
-        my $fn2 = "$temp_dir/${host}_$$" . $ext . "2";
-
-        for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-            if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/
-                && $orig_m2s->[$i] !~ /\.bz2$/ && $orig_m2s->[$i] !~ /\.lz4$/) {
-                push @m1s, $orig_m1s->[$i];
-                push @m2s, $orig_m2s->[$i];
-            } else {
-                push @wrapped_m1s, $orig_m1s->[$i];
-                push @wrapped_m2s, $orig_m2s->[$i];
-            }
-        }
-
-        if (scalar(@wrapped_m1s) > 0) {
-            push @m1s, $fn1;
-            push @to_delete, $fn1;
-            write_files(\@wrapped_m1s, $fn1, $no_pipes);
-        }
-
-        if (scalar(@wrapped_m2s) > 0) {
-            push @m2s, $fn2;
-            push @to_delete, $fn2;
-            write_files(\@wrapped_m2s, $fn2, $no_pipes);
-        }
-    }
-
-    @$orig_m1s = @m1s;
-    @$orig_m2s = @m2s;
+        @$orig_m1s = @m1s;
+        @$orig_m2s = @m2s;
 }
 
 sub Info {
-    if ($verbose) {
-        print STDERR "(INFO): " ,@_;
-    }
+        if ($verbose) {
+                print STDERR "(INFO): " ,@_;
+        }
 }
 
 sub Error {
-    my @msg = @_;
-    $msg[0] = "(ERR): ".$msg[0];
-    printf STDERR @msg;
+        my @msg = @_;
+        $msg[0] = "(ERR): ".$msg[0];
+        printf STDERR @msg;
 }
 
 sub Fail {
-    Error(@_);
-    die("Exiting now ...\n");
+        Error(@_);
+        die("Exiting now ...\n");
 }
 
 sub Extract_IndexName_From {
-    my $index_opt = $ref_str ? '--index' : '-x';
-    for (my $i=0; $i<@_; $i++) {
-        if ($_[$i] eq $index_opt){
-            my $idx_basename = $_[$i+1];
-            my @idx_filenames = glob($idx_basename . "*.bt2{,l}");
-            unless (@idx_filenames) {
-                if (exists $ENV{"BOWTIE2_INDEXES"}) {
-                    @idx_filenames = glob("$ENV{'BOWTIE2_INDEXES'}/$idx_basename" . "*.bt2{,l}");
-                    $idx_basename = $ENV{"BOWTIE2_INDEXES"} . "/" . $idx_basename;
-                }
+        my $index_opt = $ref_str ? '--index' : '-x';
+        for (my $i=0; $i<@_; $i++) {
+                if ($_[$i] eq $index_opt){
+                        my $idx_basename = $_[$i+1];
+                        my @idx_filenames = glob($idx_basename . "*.bt2{,l}");
+                        unless (@idx_filenames) {
+                                if (exists $ENV{"BOWTIE2_INDEXES"}) {
+                                        my $new_basename = File::Spec->catfile("$ENV{'BOWTIE2_INDEXES'}", $idx_basename);
+                                        @idx_filenames = glob("$new_basename" . "*.bt2{,l}");
+                                        $idx_basename = @idx_filenames ? $new_basename : $idx_basename;
+                                }
 
-                if (!@idx_filenames) {
-                    Fail("\"" . $idx_basename . "\" does not exist or is not a Bowtie 2 index\n");
+                                if (!@idx_filenames) {
+                                        Fail("\"" . $idx_basename . "\" does not exist or is not a Bowtie 2 index\n");
+                                }
+                        }
+                        return $idx_basename;
                 }
-            }
-            return $idx_basename;
         }
-    }
-    Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");
+        Info("Cannot find any index option (--reference-string, --ref-string or -x) in the given command line.\n");
 }
 
 
 if(scalar(@mate2s) > 0) {
-    # Just pass all the mate arguments along to the binary
-    maybe_wrap_input(\@mate1s, \@mate2s, "mate");
-    push @bt2_args, ("-1", join(",", @mate1s));
-    push @bt2_args, ("-2", join(",", @mate2s));
+        # Just pass all the mate arguments along to the binary
+        maybe_wrap_input(\@mate1s, \@mate2s, "mate");
+        push @bt2_args, ("-1", join(",", @mate1s));
+        push @bt2_args, ("-2", join(",", @mate2s));
 }
 if(scalar(@unps) > 0) {
-    maybe_wrap_input(\@unps, [], "unps");
-    push @bt2_args, ("-U", join(",", @unps));
+        maybe_wrap_input(\@unps, [], "unps");
+        push @bt2_args, ("-U", join(",", @unps));
 }
 if (scalar(@tab5_mates) > 0) {
-    maybe_wrap_input(\@tab5_mates, [], "tab5");
-    push @bt2_args, ("--tab5", join(",", @tab5_mates));
+        maybe_wrap_input(\@tab5_mates, [], "tab5");
+        push @bt2_args, ("--tab5", join(",", @tab5_mates));
 }
 if (scalar(@tab6_mates) > 0) {
-    maybe_wrap_input(\@tab6_mates, [], "tab6");
-    push @bt2_args, ("--tab6", join(",", @tab6_mates));
+        maybe_wrap_input(\@tab6_mates, [], "tab6");
+        push @bt2_args, ("--tab6", join(",", @tab6_mates));
 }
 if (scalar(@interleaved_mates) > 0) {
-    maybe_wrap_input(\@interleaved_mates, [], "int");
-    push @bt2_args, ("--interleaved", join(",", @interleaved_mates));
+        maybe_wrap_input(\@interleaved_mates, [], "int");
+        push @bt2_args, ("--interleaved", join(",", @interleaved_mates));
 }
 if (scalar(@bam_files) > 0) {
-    maybe_wrap_input(\@bam_files, [], "bam");
-    push @bt2_args, ("-b", join(",", @bam_files));
+        maybe_wrap_input(\@bam_files, [], "bam");
+        push @bt2_args, ("-b", join(",", @bam_files));
 }
 
 if(defined($ref_str)) {
-    my $ofn = "$temp_dir/${host}_$$.ref_str.fa";
-    open(my $ofh, ">$ofn") ||
-        Fail("could not open temporary fasta file '$ofn' for writing.\n");
-    print {$ofh} ">1\n$ref_str\n";
-    close($ofh);
-    push @to_delete, $ofn;
-    system("$build_bin $ofn $ofn") == 0 ||
-        Fail("bowtie2-build returned non-0 exit level.\n");
-    push @bt2_args, ("--index", "$ofn");
-    push @to_delete, ("$ofn.1.".$idx_ext, "$ofn.2.".$idx_ext,
-                      "$ofn.3.".$idx_ext, "$ofn.4.".$idx_ext,
-                      "$ofn.rev.1.".$idx_ext, "$ofn.rev.2.".$idx_ext);
+        my $ofn = "$temp_dir/${host}_$$.ref_str.fa";
+        open(my $ofh, ">$ofn") ||
+            Fail("could not open temporary fasta file '$ofn' for writing.\n");
+        print {$ofh} ">1\n$ref_str\n";
+        close($ofh);
+        push @to_delete, $ofn;
+        system("$build_bin $ofn $ofn") == 0 ||
+            Fail("bowtie2-build returned non-0 exit level.\n");
+        push @bt2_args, ("--index", "$ofn");
+        push @to_delete, ("$ofn.1.".$idx_ext, "$ofn.2.".$idx_ext,
+                          "$ofn.3.".$idx_ext, "$ofn.4.".$idx_ext,
+                          "$ofn.rev.1.".$idx_ext, "$ofn.rev.2.".$idx_ext);
 }
 
 Info("After arg handling:\n");
@@ -427,33 +448,33 @@ Info("  Binary args:\n[ @bt2_args ]\n");
 my $index_name = Extract_IndexName_From(@bt2_args);
 
 if ($large_idx) {
-    Info("Using a large index enforced by user.\n");
-    $align_prog  = $align_prog_l;
-    $idx_ext     = $idx_ext_l;
-    if (not -f $index_name.".1.".$idx_ext_l) {
-        Fail("Cannot find the large index ${index_name}.1.${idx_ext_l}\n");
-    }
-    Info("Using large index (${index_name}.1.${idx_ext_l}).\n");
-}
-else {
-    if ((-f $index_name.".1.".$idx_ext_l) &&
-        (not -f $index_name.".1.".$idx_ext_s)) {
-        Info("Cannot find a small index but a large one seems to be present.\n");
-        Info("Switching to using the large index (${index_name}.1.${idx_ext_l}).\n");
+        Info("Using a large index enforced by user.\n");
         $align_prog  = $align_prog_l;
         $idx_ext     = $idx_ext_l;
-    }
-    else {
-        Info("Using the small index (${index_name}.1.${idx_ext_s}).\n")
-    }
+        if (not -f $index_name.".1.".$idx_ext_l) {
+                Fail("Cannot find the large index ${index_name}.1.${idx_ext_l}\n");
+        }
+        Info("Using large index (${index_name}.1.${idx_ext_l}).\n");
+}
+else {
+        if ((-f $index_name.".1.".$idx_ext_l) &&
+            (not -f $index_name.".1.".$idx_ext_s)) {
+                Info("Cannot find a small index but a large one seems to be present.\n");
+                Info("Switching to using the large index (${index_name}.1.${idx_ext_l}).\n");
+                $align_prog  = $align_prog_l;
+                $idx_ext     = $idx_ext_l;
+        }
+        else {
+                Info("Using the small index (${index_name}.1.${idx_ext_s}).\n")
+        }
 }
 
 my $suffix = "";
 if ($debug) {
-    $suffix = "-debug";
+        $suffix = "-debug";
 }
 elsif($sanitized) {
-    $suffix = "-sanitized";
+        $suffix = "-sanitized";
 }
 
 # Construct command invoking bowtie2-align
@@ -466,146 +487,161 @@ $cmd = "$readpipe $cmd" if defined($readpipe);
 Info("$cmd\n");
 my $ret;
 if(defined($cap_out)) {
-    # Open Bowtie 2 pipe
-    open(BT, "$cmd |") || Fail("Could not open Bowtie 2 pipe: '$cmd |'\n");
-    # Open output pipe
-    my $ofh = *STDOUT;
-    my @fhs_to_close = ();
-    if($cap_out ne "-") {
-        open($ofh, ">$cap_out") ||
-            Fail("Could not open output file '$cap_out' for writing.\n");
-    }
-    my %read_fhs = ();
-    for my $i ("al", "un", "al-conc", "un-conc", "un-mates") {
-        if(defined($read_fns{$i})) {
-            my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
-            if (-d $read_fns{$i}) {
-                $base_spec_dir = $read_fns{$i};
-                $base_fname = undef;
-            }
-            if($i =~ /-conc$|^un-mate$/) {
-                # Open 2 output files, one for mate 1, one for mate 2
-                my ($fn1, $fn2);
-                if ($base_fname) {
-                    ($fn1, $fn2) = ($base_fname,$base_fname);
+        # Open Bowtie 2 pipe
+        open(BT, "$cmd |") || Fail("Could not open Bowtie 2 pipe: '$cmd |'\n");
+        # Open output pipe
+        my $ofh = *STDOUT;
+        my @fhs_to_close = ();
+        if ($bam_out) {
+                if (!which("samtools")) {
+                        Fail("samtools is needed when outputting BAM");
                 }
-                else {
-                    ($fn1, $fn2) = ($i.'-mate',$i.'-mate');
-                }
-                if($fn1 =~ /%/) {
-                    $fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
-                } elsif($fn1 =~ /\.[^.]*$/) {
-                    $fn1 =~ s/\.([^.]*)$/.1.$1/;
-                    $fn2 =~ s/\.([^.]*)$/.2.$1/;
+                my $open_expr = "| samtools view -b -";
+                if ($cap_out eq "-") {
+                        open($ofh, $open_expr) ||
+                            Fail("Error while writing BAM to STDOUT.\n");
                 } else {
-                    $fn1 .= ".1";
-                    $fn2 .= ".2";
+                        open($ofh, $open_expr . " >$cap_out")
+                            || Fail("Error while writing BAM to file '$cap_out'.\n");
                 }
-                $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
-                $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
-                $fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
-                my ($redir1, $redir2) = (">$fn1", ">$fn2");
-                $redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
-                $redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
-                $redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
-                $redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
-                $redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
-                $redir2 = "| lz4 -c $redir2" if $read_compress{$i} eq "lz4";
-                open($read_fhs{$i}{1}, $redir1) || Fail("Could not open --$i mate-1 output file '$fn1'\n");
-                open($read_fhs{$i}{2}, $redir2) || Fail("Could not open --$i mate-2 output file '$fn2'\n");
-                push @fhs_to_close, $read_fhs{$i}{1};
-                push @fhs_to_close, $read_fhs{$i}{2};
-            } else {
-                my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
-                if ($base_fname) {
-                    $redir = ">$read_fns{$i}";
-                }
-                $redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
-                $redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
-                $redir = "| lz4 -c $redir" if $read_compress{$i} eq "lz4";
-                open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
-                push @fhs_to_close, $read_fhs{$i};
-            }
+        } else {
+                open($ofh, ">$cap_out") ||
+                    Fail("Could not open output file '$cap_out' for writing.\n");
         }
-    }
-    while(<BT>) {
-        chomp;
-        my $filt = 0;
-        unless(substr($_, 0, 1) eq "@") {
-            # If we are supposed to output certain reads to files...
-            my $tab1_i = index($_, "\t") + 1;
-            my $tab2_i = index($_, "\t", $tab1_i);
-            my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
-            my $unal = ($fl & 4) != 0;
-            $filt = 1 if $no_unal && $unal;
-            if($passthru) {
-                if(scalar(keys %read_fhs) == 0 || ($fl & 256) != 0) {
-                    # Next line is read with some whitespace escaped
-                    my $l = <BT>;
-                } else {
-                    my $mate1 = (($fl &  64) != 0);
-                    my $mate2 = (($fl & 128) != 0);
-                    my $unp = !$mate1 && !$mate2;
-                    my $pair = !$unp;
-                    # Next line is read with some whitespace escaped
-                    my $l = <BT>;
-                    chomp($l);
-                    $l =~ s/%(..)/chr(hex($1))/eg;
-                    if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
-                        if($unal) {
-                            # Failed to align
-                            print {$read_fhs{un}} $l if defined($read_fhs{un});
+        my %read_fhs = ();
+        for my $i ("al", "un", "al-conc", "un-conc", "un-mates") {
+                if(defined($read_fns{$i})) {
+                        my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
+                        if (-d $read_fns{$i}) {
+                                $base_spec_dir = $read_fns{$i};
+                                $base_fname = undef;
+                        }
+                        if($i =~ /-conc$|^un-mates$/) {
+                                # Open 2 output files, one for mate 1, one for mate 2
+                                my ($fn1, $fn2);
+                                if ($base_fname) {
+                                        ($fn1, $fn2) = ($base_fname,$base_fname);
+                                }
+                                else {
+                                        ($fn1, $fn2) = ($i.'-mate',$i.'-mate');
+                                }
+                                if($fn1 =~ /%/) {
+                                        $fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
+                                } elsif($fn1 =~ /\.[^.]*$/) {
+                                        $fn1 =~ s/\.([^.]*)$/.1.$1/;
+                                        $fn2 =~ s/\.([^.]*)$/.2.$1/;
+                                } else {
+                                        $fn1 .= ".1";
+                                        $fn2 .= ".2";
+                                }
+                                $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
+                                $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
+                                $fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
+                                my ($redir1, $redir2) = (">$fn1", ">$fn2");
+                                $redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
+                                $redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
+                                $redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
+                                $redir1 = "| zstd -c $redir1" if $read_compress{$i} eq "zstd";
+                                $redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
+                                $redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
+                                $redir2 = "| lz4 -c $redir2" if $read_compress{$i} eq "lz4";
+                                $redir2 = "| zstd -c $redir2" if $read_compress{$i} eq "zstd";
+                                open($read_fhs{$i}{1}, $redir1) || Fail("Could not open --$i mate-1 output file '$fn1'\n");
+                                open($read_fhs{$i}{2}, $redir2) || Fail("Could not open --$i mate-2 output file '$fn2'\n");
+                                push @fhs_to_close, $read_fhs{$i}{1};
+                                push @fhs_to_close, $read_fhs{$i}{2};
                         } else {
-                            # Aligned
-                            print {$read_fhs{al}} $l if defined($read_fhs{al});
+                                my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
+                                if ($base_fname) {
+                                        $redir = ">$read_fns{$i}";
+                                }
+                                $redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
+                                $redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
+                                $redir = "| lz4 -c $redir" if $read_compress{$i} eq "lz4";
+                                $redir = "| zstd -c $redir" if $read_compress{$i} eq "zstd";
+                                open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
+                                push @fhs_to_close, $read_fhs{$i};
                         }
-                    }
-                    if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-                        my $conc = (($fl & 2) != 0);
-                        if ($conc && $mate1) {
-                            print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
-                        } elsif($conc && $mate2) {
-                            print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
-                        } elsif(!$conc && $mate1) {
-                            print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
-                        } elsif(!$conc && $mate2) {
-                            print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
-                        }
-                    }
-                    # paired read failed to align concordantly or discordantly
-                    if (defined($read_fhs{"un-mates"}) && $pair && $unal && ($fl & 8) != 0) {
-                        if ($mate1) {
-                            print {$read_fhs{"un-mates"}{1}} $l if defined($read_fhs{"un-mates"});
-                        } else {
-                            print {$read_fhs{"un-mates"}{2}} $l if defined($read_fhs{"un-mates"});
-                        }
-                    }
                 }
-            }
         }
-        print {$ofh} "$_\n" if !$filt;
-    }
-    for my $k (@fhs_to_close) { close($k); }
-    close($ofh);
-    close(BT);
-    $ret = $?;
+        while(<BT>) {
+                chomp;
+                my $filt = 0;
+                unless(substr($_, 0, 1) eq "@") {
+                        # If we are supposed to output certain reads to files...
+                        my $tab1_i = index($_, "\t") + 1;
+                        my $tab2_i = index($_, "\t", $tab1_i);
+                        my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
+                        my $unal = ($fl & 4) != 0;
+                        $filt = 1 if $no_unal && $unal;
+                        if($passthru) {
+                                if(scalar(keys %read_fhs) == 0 || ($fl & 256) != 0) {
+                                        # Next line is read with some whitespace escaped
+                                        my $l = <BT>;
+                                } else {
+                                        my $mate1 = (($fl &  64) != 0);
+                                        my $mate2 = (($fl & 128) != 0);
+                                        my $unp = !$mate1 && !$mate2;
+                                        my $pair = !$unp;
+                                        # Next line is read with some whitespace escaped
+                                        my $l = <BT>;
+                                        chomp($l);
+                                        $l =~ s/%(..)/chr(hex($1))/eg;
+                                        if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+                                                if($unal) {
+                                                        # Failed to align
+                                                        print {$read_fhs{un}} $l if defined($read_fhs{un});
+                                                } else {
+                                                        # Aligned
+                                                        print {$read_fhs{al}} $l if defined($read_fhs{al});
+                                                }
+                                        }
+                                        if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
+                                                my $conc = (($fl & 2) != 0);
+                                                if ($conc && $mate1) {
+                                                        print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
+                                                } elsif($conc && $mate2) {
+                                                        print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
+                                                } elsif(!$conc && $mate1) {
+                                                        print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
+                                                } elsif(!$conc && $mate2) {
+                                                        print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+                                                }
+                                        }
+                                        # paired read failed to align concordantly or discordantly
+                                        if (defined($read_fhs{"un-mates"}) && $pair && $unal && ($fl & 4) != 0) {
+                                                if ($mate1) {
+                                                        print {$read_fhs{"un-mates"}{1}} $l if defined($read_fhs{"un-mates"});
+                                                } else {
+                                                        print {$read_fhs{"un-mates"}{2}} $l if defined($read_fhs{"un-mates"});
+                                                }
+                                        }
+                                }
+                        }
+                }
+                print {$ofh} "$_\n" if !$filt;
+        }
+        for my $k (@fhs_to_close) { close($k); }
+        close($ofh);
+        close(BT);
+        $ret = $?;
 } else {
-    $ret = system($cmd);
+        $ret = system($cmd);
 }
 if(!$keep) { for(@to_delete) { unlink($_); } }
 kill 'HUP', @to_kill;
 
 if ($ret == -1) {
-    Error("Failed to execute bowtie2-align: $!\n");
-    exit 1;
+        Error("Failed to execute bowtie2-align: $!\n");
+        exit 1;
 } elsif ($ret & 127) {
-    my $signm = "(unknown)";
-    $signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
-    my $ad = "";
-    $ad = "(core dumped)" if (($ret & 128) != 0);
-    Error("bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm);
-    exit 1;
+        my $signm = "(unknown)";
+        $signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
+        my $ad = "";
+        $ad = "(core dumped)" if (($ret & 128) != 0);
+        Error("bowtie2-align died with signal %d (%s) $ad\n", ($ret & 127), $signm);
+        exit 1;
 } elsif($ret != 0) {
-    Error("bowtie2-align exited with value %d\n", ($ret >> 8));
+        Error("bowtie2-align exited with value %d\n", ($ret >> 8));
 }
 exit ($ret >> 8);

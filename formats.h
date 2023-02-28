@@ -27,7 +27,8 @@
  */
 
 enum file_format {
-	FASTA = 1,
+	UNKNOWN = 0,
+	FASTA,
 	FASTA_CONT,
 	FASTQ,
 	BAM,
@@ -51,8 +52,8 @@ static const std::string file_format_names[] = {
 	"Raw",
 	"Command line",
 	"Qseq",
-    "SRA Fasta",
-    "SRA Fastq"
+	"SRA Fasta",
+	"SRA Fastq"
 };
 
 #endif /*FORMATS_H_*/

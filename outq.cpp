@@ -17,6 +17,8 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <atomic>
+
 #include "outq.h"
 
 /**
@@ -24,11 +26,7 @@
  * the read with the given id.
  */
 void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
-#ifdef WITH_TBB
 	nstarted_.fetch_add(1);
-#else
-	nstarted_++;
-#endif
 	if(reorder_) {
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
@@ -145,7 +143,7 @@ void OutputQueue::flushImpl(bool force) {
  */
 void OutputQueue::flush(bool force, bool getLock) {
 	if(getLock && threadSafe_) {
-		ThreadSafe ts(mutex_m);
+		ThreadSafe ts (mutex_m);
 		flushImpl(force);
 	} else {
 		flushImpl(force);

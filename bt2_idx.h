@@ -54,9 +54,10 @@
 #include "random_source.h"
 #include "mem_ids.h"
 #include "btypes.h"
+#include "threadpool.h"
 
 #ifdef POPCNT_CAPABILITY
-    #include "processor_support.h"
+#include "processor_support.h"
 #endif
 
 #if __cplusplus <= 199711L
@@ -76,21 +77,21 @@ static const uint64_t c_table[4] = {
 };
 
 #ifndef VMSG_NL
-#define VMSG_NL(...) \
-if(this->verbose()) { \
-	stringstream tmp; \
-	tmp << __VA_ARGS__ << endl; \
-	this->verbose(tmp.str()); \
-}
+#define VMSG_NL(...)				\
+	if(this->verbose()) {			\
+		stringstream tmp;		\
+		tmp << __VA_ARGS__ << endl;	\
+		this->verbose(tmp.str());	\
+	}
 #endif
 
 #ifndef VMSG
-#define VMSG(...) \
-if(this->verbose()) { \
-	stringstream tmp; \
-	tmp << __VA_ARGS__; \
-	this->verbose(tmp.str()); \
-}
+#define VMSG(...)				\
+	if(this->verbose()) {			\
+		stringstream tmp;		\
+		tmp << __VA_ARGS__;		\
+		this->verbose(tmp.str());	\
+	}
 #endif
 
 /**
@@ -100,7 +101,7 @@ enum EBWT_FLAGS {
 	EBWT_COLOR = 2,     // true -> Ebwt is colorspace
 	EBWT_ENTIRE_REV = 4 // true -> reverse Ebwt is the whole
 	                    // concatenated string reversed, rather than
-						// each stretch reversed
+	// each stretch reversed
 };
 
 /**
@@ -120,9 +121,9 @@ public:
 		int32_t ftabChars,
 		bool color,
 		bool entireReverse)
-	{
-		init(len, lineRate, offRate, ftabChars, color, entireReverse);
-	}
+		{
+			init(len, lineRate, offRate, ftabChars, color, entireReverse);
+		}
 
 	EbwtParams(const EbwtParams& eh) {
 		init(eh._len, eh._lineRate, eh._offRate,
@@ -136,34 +137,34 @@ public:
 		int32_t ftabChars,
 		bool color,
 		bool entireReverse)
-	{
-		_color = color;
-		_entireReverse = entireReverse;
-		_len = len;
-		_bwtLen = _len + 1;
-		_sz = (len+3)/4;
-		_bwtSz = (len/4 + 1);
-		_lineRate = lineRate;
-		_origOffRate = offRate;
-		_offRate = offRate;
-		_offMask = OFF_MASK << _offRate;
-		_ftabChars = ftabChars;
-		_eftabLen = _ftabChars*2;
-		_eftabSz = _eftabLen*OFF_SIZE;
-		_ftabLen = (1 << (_ftabChars*2))+1;
-		_ftabSz = _ftabLen*OFF_SIZE;
-		_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
-		_offsSz = (uint64_t)_offsLen*OFF_SIZE;
-		_lineSz = 1 << _lineRate;
-		_sideSz = _lineSz * 1 /* lines per side */;
-		_sideBwtSz = _sideSz - OFF_SIZE*4;
-		_sideBwtLen = _sideBwtSz*4;
-		_numSides = (_bwtSz+(_sideBwtSz)-1)/(_sideBwtSz);
-		_numLines = _numSides * 1 /* lines per side */;
-		_ebwtTotLen = _numSides * _sideSz;
-		_ebwtTotSz = _ebwtTotLen;
-		assert(repOk());
-	}
+		{
+			_color = color;
+			_entireReverse = entireReverse;
+			_len = len;
+			_bwtLen = _len + 1;
+			_sz = (len+3)/4;
+			_bwtSz = (len/4 + 1);
+			_lineRate = lineRate;
+			_origOffRate = offRate;
+			_offRate = offRate;
+			_offMask = OFF_MASK << _offRate;
+			_ftabChars = ftabChars;
+			_eftabLen = _ftabChars*2;
+			_eftabSz = _eftabLen*OFF_SIZE;
+			_ftabLen = (1 << (_ftabChars*2))+1;
+			_ftabSz = _ftabLen*OFF_SIZE;
+			_offsLen = (_bwtLen + (1 << _offRate) - 1) >> _offRate;
+			_offsSz = (uint64_t)_offsLen*OFF_SIZE;
+			_lineSz = 1 << _lineRate;
+			_sideSz = _lineSz * 1 /* lines per side */;
+			_sideBwtSz = _sideSz - OFF_SIZE*4;
+			_sideBwtLen = _sideBwtSz*4;
+			_numSides = (_bwtSz+(_sideBwtSz)-1)/(_sideBwtSz);
+			_numLines = _numSides * 1 /* lines per side */;
+			_ebwtTotLen = _numSides * _sideSz;
+			_ebwtTotSz = _ebwtTotLen;
+			assert(repOk());
+		}
 
 	TIndexOffU len() const           { return _len; }
 	TIndexOffU lenNucs() const       { return _len + (_color ? 1 : 0); }
@@ -304,11 +305,11 @@ static inline int64_t fileSize(const char* name) {
  */
 struct SideLocus {
 	SideLocus() :
-	_sideByteOff(0),
-	_sideNum(0),
-	_charOff(0),
-	_by(-1),
-	_bp(-1) { }
+		_sideByteOff(0),
+		_sideNum(0),
+		_charOff(0),
+		_by(-1),
+		_bp(-1) { }
 
 	/**
 	 * Construct from row and other relevant information about the Ebwt.
@@ -327,43 +328,96 @@ struct SideLocus {
 		const EbwtParams& ep,
 		const uint8_t* ebwt,
 		SideLocus& ltop,
-		SideLocus& lbot)
-	{
-		const TIndexOffU sideBwtLen = ep._sideBwtLen;
-		assert_gt(bot, top);
-		ltop.initFromRow(top, ep, ebwt);
-		TIndexOffU spread = bot - top;
-		// Many cache misses on the following lines
-		if(ltop._charOff + spread < sideBwtLen) {
-			lbot._charOff = (uint32_t)(ltop._charOff + spread);
-			lbot._sideNum = ltop._sideNum;
-			lbot._sideByteOff = ltop._sideByteOff;
-			lbot._by = lbot._charOff >> 2;
-			assert_lt(lbot._by, (int)ep._sideBwtSz);
-			lbot._bp = lbot._charOff & 3;
-		} else {
-			lbot.initFromRow(bot, ep, ebwt);
+		SideLocus& lbot,
+		bool prefetch=true)
+		{
+			const TIndexOffU sideBwtLen = ep._sideBwtLen;
+			assert_gt(bot, top);
+			ltop.initFromRow(top, ep, ebwt, prefetch);
+			TIndexOffU spread = bot - top;
+			// Many cache misses on the following lines
+			const TIndexOffU charOffSum = ltop._charOff + spread;
+			if(charOffSum < sideBwtLen) {
+				const uint32_t bcharOff = (uint32_t) charOffSum;
+				lbot._charOff = bcharOff;
+				lbot._sideNum = ltop._sideNum;
+				lbot._sideByteOff = ltop._sideByteOff;
+				lbot._by = bcharOff >> 2;
+				assert_lt(lbot._by, (int)ep._sideBwtSz);
+				lbot._bp = bcharOff & 3;
+				// no need for any prefetch, same _sideByteOff
+			} else {
+				lbot.initFromRow(bot, ep, ebwt, prefetch);
+			}
 		}
-	}
+
+	static void prefetchFromTopBot(
+		TIndexOffU top,
+		TIndexOffU bot,
+		const EbwtParams& ep,
+		const uint8_t* ebwt)
+		{
+			prefetchFromRow(top, ep, ebwt);
+			// not trying to be smart... prefetches are cheap
+			prefetchFromRow(bot, ep, ebwt);
+		}
 
 	/**
 	 * Calculate SideLocus based on a row and other relevant
 	 * information about the shape of the Ebwt.
 	 */
-	void initFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+	void initFromRow(TIndexOffU row,
+			const EbwtParams& ep,
+			const uint8_t* ebwt,
+			bool prefetch=true) {
 		const int32_t sideSz     = ep._sideSz;
 		// Side length is hard-coded for now; this allows the compiler
 		// to do clever things to accelerate / and %.
-		_sideNum                  = row / (48*OFF_SIZE);
-		assert_lt(_sideNum, ep._numSides);
-		_charOff                  = row % (48*OFF_SIZE);
-		_sideByteOff              = _sideNum * sideSz;
+		const TIndexOffU sideNum  = row / (48*OFF_SIZE);
+		assert_lt(sideNum, ep._numSides);
+		const int32_t charOff     = row % (48*OFF_SIZE);
+		_sideNum                  = sideNum;
+		_charOff                  = charOff;
+		const TIndexOffU sByteOff = sideNum * sideSz;
+		if (prefetch) {
+			__builtin_prefetch(ebwt + sByteOff);
+			__builtin_prefetch(ebwt + sByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+			__builtin_prefetch(ebwt + sByteOff + 2*64);
+#endif
+                }
+
+		_sideByteOff              = sByteOff;
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
 		// Tons of cache misses on the next line
-		_by = _charOff >> 2; // byte within side
+		_by = charOff >> 2; // byte within side
 		assert_lt(_by, (int)ep._sideBwtSz);
-		_bp = _charOff & 3;  // bit-pair within byte
+		_bp = charOff & 3;  // bit-pair within byte
+	}
+
+	/**
+ 	 * Prefetch cache lines used by side(row). 
+ 	 */ 
+	static void prefetchFromRow(TIndexOffU row, const EbwtParams& ep, const uint8_t* ebwt) {
+		const int32_t sideSz         = ep._sideSz;
+		// Side length is hard-coded for now; this allows the compiler
+		// to do clever things to accelerate / and %.
+		const TIndexOffU sideNum     = row / (48*OFF_SIZE);
+		const TIndexOffU sideByteOff = sideNum * sideSz;
+		__builtin_prefetch(ebwt + sideByteOff);
+		__builtin_prefetch(ebwt + sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+		__builtin_prefetch(ebwt + sideByteOff + 2*64);
+#endif
+	}
+
+	void prefetch(const uint8_t* ebwt) const {
+                __builtin_prefetch(ebwt + _sideByteOff);
+                __builtin_prefetch(ebwt + _sideByteOff + 64); //64 byte cache lines
+#if (OFF_SIZE>4)
+                __builtin_prefetch(ebwt + _sideByteOff + 2*64);
+#endif
 	}
 
 	/**
@@ -432,16 +486,16 @@ struct SideLocus {
 struct USE_POPCNT_GENERIC {
 #endif
 // Use this standard bit-bashing population count
-inline static int pop64(uint64_t x) {
-	// Lots of cache misses on following lines (>10K)
-	x = x - ((x >> 1) & 0x5555555555555555llu);
-	x = (x & 0x3333333333333333llu) + ((x >> 2) & 0x3333333333333333llu);
-	x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Fllu;
-	x = x + (x >> 8);
-	x = x + (x >> 16);
-	x = x + (x >> 32);
-	return (int)(x & 0x3Fllu);
-}
+	inline static int pop64(uint64_t x) {
+		// Lots of cache misses on following lines (>10K)
+		x = x - ((x >> 1) & 0x5555555555555555llu);
+		x = (x & 0x3333333333333333llu) + ((x >> 2) & 0x3333333333333333llu);
+		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0Fllu;
+		x = x + (x >> 8);
+		x = x + (x >> 16);
+		x = x + (x >> 32);
+		return (int)(x & 0x3Fllu);
+	}
 #ifdef POPCNT_CAPABILITY  // wrapping a "struct"
 };
 #endif
@@ -468,9 +522,9 @@ inline static int countInU64(int c, uint64_t dw) {
 	uint64_t x2 = x1 & (0x5555555555555555);
 	uint64_t x3 = x0 & x2;
 #ifdef POPCNT_CAPABILITY
-    uint64_t tmp = Operation().pop64(x3);
+	uint64_t tmp = Operation().pop64(x3);
 #else
-    uint64_t tmp = pop64(x3);
+	uint64_t tmp = pop64(x3);
 #endif
 	return (int) tmp;
 }
@@ -489,37 +543,37 @@ class EbwtSearchParams;
  */
 class Ebwt {
 public:
-	#define Ebwt_INITS \
-	    _toBigEndian(currentlyBigEndian()), \
-	    _overrideOffRate(overrideOffRate), \
-	    _verbose(verbose), \
-	    _passMemExc(passMemExc), \
-	    _sanity(sanityCheck), \
-	    fw_(fw), \
-	    _in1(NULL), \
-	    _in2(NULL), \
-	    _zOff(OFF_MASK), \
-	    _zEbwtByteOff(OFF_MASK), \
-	    _zEbwtBpOff(-1), \
-	    _nPat(0), \
-	    _nFrag(0), \
-	    _plen(EBWT_CAT), \
-	    _rstarts(EBWT_CAT), \
-	    _fchr(EBWT_CAT), \
-	    _ftab(EBWT_CAT), \
-	    _eftab(EBWT_CAT), \
-	    _offs(EBWT_CAT), \
-	    _ebwt(EBWT_CAT), \
-	    _useMm(false), \
-	    useShmem_(false), \
-	    _refnames(EBWT_CAT), \
-	    mmFile1_(NULL), \
-	    mmFile2_(NULL)
+#define Ebwt_INITS					\
+	_switchEndian(false),				\
+		_overrideOffRate(overrideOffRate),	\
+		_verbose(verbose),			\
+		_passMemExc(passMemExc),		\
+		_sanity(sanityCheck),			\
+		fw_(fw),				\
+		_in1(NULL),				\
+		_in2(NULL),				\
+		_zOff(OFF_MASK),			\
+		_zEbwtByteOff(OFF_MASK),		\
+		_zEbwtBpOff(-1),			\
+		_nPat(0),				\
+		_nFrag(0),				\
+		_plen(EBWT_CAT),			\
+		_rstarts(EBWT_CAT),			\
+		_fchr(EBWT_CAT),			\
+		_ftab(EBWT_CAT),			\
+		_eftab(EBWT_CAT),			\
+		_offs(EBWT_CAT),			\
+		_ebwt(EBWT_CAT),			\
+		_useMm(false),				\
+		useShmem_(false),			\
+		_refnames(EBWT_CAT),			\
+		mmFile1_(NULL),				\
+		mmFile2_(NULL)
 
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
 	     int color,
-		 int needEntireReverse,
+	     int needEntireReverse,
 	     bool fw,
 	     int32_t overrideOffRate, // = -1,
 	     int32_t offRatePlus, // = -1,
@@ -527,19 +581,19 @@ public:
 	     bool useShmem, // = false,
 	     bool mmSweep, // = false,
 	     bool loadNames, // = false,
-		 bool loadSASamp, // = true,
-		 bool loadFtab, // = true,
-		 bool loadRstarts, // = true,
+	     bool loadSASamp, // = true,
+	     bool loadFtab, // = true,
+	     bool loadRstarts, // = true,
 	     bool verbose, // = false,
 	     bool startVerbose, // = false,
 	     bool passMemExc, // = false,
 	     bool sanityCheck) : // = false) :
-	     Ebwt_INITS
+		Ebwt_INITS
 	{
 		assert(!useMm || !useShmem);
 #ifdef POPCNT_CAPABILITY
-        ProcessorSupport ps;
-        _usePOPCNTinstruction = ps.POPCNTenabled();
+		ProcessorSupport ps;
+		_usePOPCNTinstruction = ps.POPCNTenabled();
 #endif
 		packed_ = false;
 		_useMm = useMm;
@@ -582,7 +636,7 @@ public:
 		int32_t lineRate,
 		int32_t offRate,
 		int32_t ftabChars,
-        int nthreads,
+		int nthreads,
 		const string& file,   // base filename for EBWT files
 		bool fw,
 		bool useBlockwise,
@@ -602,20 +656,20 @@ public:
 		bool passMemExc = false,
 		bool sanityCheck = false) :
 		Ebwt_INITS,
-		_eh(
-			joinedLen(szs),
-			lineRate,
-			offRate,
-			ftabChars,
-			color,
-			refparams.reverse == REF_READ_REVERSE)
+	_eh(
+		joinedLen(szs),
+		lineRate,
+		offRate,
+		ftabChars,
+		color,
+		refparams.reverse == REF_READ_REVERSE)
 	{
 #ifdef POPCNT_CAPABILITY
-        ProcessorSupport ps;
-        _usePOPCNTinstruction = ps.POPCNTenabled();
+		ProcessorSupport ps;
+		_usePOPCNTinstruction = ps.POPCNTenabled();
 #endif
-		_in1Str = file + ".1." + gEbwt_ext;
-		_in2Str = file + ".2." + gEbwt_ext;
+		_in1Str = file + ".1." + gEbwt_ext + ".tmp";
+		_in2Str = file + ".2." + gEbwt_ext + ".tmp";
 		packed_ = packed;
 		// Open output files
 		ofstream fout1(_in1Str.c_str(), ios::binary);
@@ -639,8 +693,8 @@ public:
 			saOut = new ofstream(_inSaStr.c_str(), ios::binary);
 			if(!saOut->good()) {
 				cerr << "Could not open suffix-array file for writing: \"" << _inSaStr.c_str() << "\"" << endl
-			         << "Please make sure the directory exists and that permissions allow writing by" << endl
-			         << "Bowtie." << endl;
+				     << "Please make sure the directory exists and that permissions allow writing by" << endl
+				     << "Bowtie." << endl;
 				throw 1;
 			}
 		}
@@ -648,8 +702,8 @@ public:
 			bwtOut = new ofstream(_inBwtStr.c_str(), ios::binary);
 			if(!bwtOut->good()) {
 				cerr << "Could not open suffix-array file for writing: \"" << _inBwtStr.c_str() << "\"" << endl
-			         << "Please make sure the directory exists and that permissions allow writing by" << endl
-			         << "Bowtie." << endl;
+				     << "Please make sure the directory exists and that permissions allow writing by" << endl
+				     << "Bowtie." << endl;
 				throw 1;
 			}
 		}
@@ -704,7 +758,7 @@ public:
 			if(tellpSzSa > fileSize(_inSaStr.c_str())) {
 				err = true;
 				cerr << "Index is corrupt: File size for " << _inSaStr.c_str() << " should have been " << tellpSzSa
-					 << " but is actually " << fileSize(_inSaStr.c_str()) << "." << endl;
+				     << " but is actually " << fileSize(_inSaStr.c_str()) << "." << endl;
 			}
 		}
 
@@ -717,7 +771,7 @@ public:
 			if(tellpSzBwt > fileSize(_inBwtStr.c_str())) {
 				err = true;
 				cerr << "Index is corrupt: File size for " << _inBwtStr.c_str() << " should have been " << tellpSzBwt
-					 << " but is actually " << fileSize(_inBwtStr.c_str()) << "." << endl;
+				     << " but is actually " << fileSize(_inBwtStr.c_str()) << "." << endl;
 			}
 		}
 
@@ -774,29 +828,29 @@ public:
 		bool verbose,
 		bool autoMem,
 		bool sanity)
-	{
-		EList<std::string> strs(EBWT_CAT);
-		strs.push_back(std::string(str));
-		return fromStrings<TStr>(
-			strs,
-			packed,
-			color,
-			reverse,
-			bigEndian,
-			lineRate,
-			offRate,
-			ftabChars,
-			file,
-			useBlockwise,
-			bmax,
-			bmaxSqrtMult,
-			bmaxDivN,
-			dcv,
-			seed,
-			verbose,
-			autoMem,
-			sanity);
-	}
+		{
+			EList<std::string> strs(EBWT_CAT);
+			strs.push_back(std::string(str));
+			return fromStrings<TStr>(
+				strs,
+				packed,
+				color,
+				reverse,
+				bigEndian,
+				lineRate,
+				offRate,
+				ftabChars,
+				file,
+				useBlockwise,
+				bmax,
+				bmaxSqrtMult,
+				bmaxDivN,
+				dcv,
+				seed,
+				verbose,
+				autoMem,
+				sanity);
+		}
 
 	/**
 	 * Static constructor for a pair of forward/reverse indexes for the
@@ -823,82 +877,82 @@ public:
 		bool verbose,
 		bool autoMem,
 		bool sanity)
-	{
-		assert(!strs.empty());
-		EList<FileBuf*> is(EBWT_CAT);
-		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
-		// Adapt sequence strings to stringstreams open for input
-		unique_ptr<stringstream> ss(new stringstream());
-		for(TIndexOffU i = 0; i < strs.size(); i++) {
-			(*ss) << ">" << i << endl << strs[i] << endl;
+		{
+			assert(!strs.empty());
+			EList<FileBuf*> is(EBWT_CAT);
+			RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
+			// Adapt sequence strings to stringstreams open for input
+			unique_ptr<stringstream> ss(new stringstream());
+			for(TIndexOffU i = 0; i < strs.size(); i++) {
+				(*ss) << ">" << i << endl << strs[i] << endl;
+			}
+			unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
+			assert(!fb->eof());
+			assert(fb->get() == '>');
+			ASSERT_ONLY(fb->reset());
+			assert(!fb->eof());
+			is.push_back(fb.get());
+			// Vector for the ordered list of "records" comprising the input
+			// sequences.  A record represents a stretch of unambiguous
+			// characters in one of the input sequences.
+			EList<RefRecord> szs(EBWT_CAT);
+			std::pair<TIndexOffU, TIndexOffU> sztot;
+			sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
+			// Construct Ebwt from input strings and parameters
+			Ebwt *ebwtFw = new Ebwt(
+				TStr(),
+				packed,
+				refparams.color ? 1 : 0,
+				-1,           // fw
+				lineRate,
+				offRate,      // suffix-array sampling rate
+				ftabChars,    // number of chars in initial arrow-pair calc
+				file,         // basename for .?.ebwt files
+				true,         // fw?
+				useBlockwise, // useBlockwise
+				bmax,         // block size for blockwise SA builder
+				bmaxSqrtMult, // block size as multiplier of sqrt(len)
+				bmaxDivN,     // block size as divisor of len
+				dcv,          // difference-cover period
+				is,           // list of input streams
+				szs,          // list of reference sizes
+				sztot.first,  // total size of all unambiguous ref chars
+				refparams,    // reference read-in parameters
+				seed,         // pseudo-random number generator seed
+				-1,           // override offRate
+				verbose,      // be talkative
+				autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
+				sanity);      // verify results and internal consistency
+			refparams.reverse = reverse;
+			szs.clear();
+			sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
+			// Construct Ebwt from input strings and parameters
+			Ebwt *ebwtBw = new Ebwt(
+				TStr(),
+				packed,
+				refparams.color ? 1 : 0,
+				reverse == REF_READ_REVERSE,
+				lineRate,
+				offRate,      // suffix-array sampling rate
+				ftabChars,    // number of chars in initial arrow-pair calc
+				file + ".rev",// basename for .?.ebwt files
+				false,        // fw?
+				useBlockwise, // useBlockwise
+				bmax,         // block size for blockwise SA builder
+				bmaxSqrtMult, // block size as multiplier of sqrt(len)
+				bmaxDivN,     // block size as divisor of len
+				dcv,          // difference-cover period
+				is,           // list of input streams
+				szs,          // list of reference sizes
+				sztot.first,  // total size of all unambiguous ref chars
+				refparams,    // reference read-in parameters
+				seed,         // pseudo-random number generator seed
+				-1,           // override offRate
+				verbose,      // be talkative
+				autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
+				sanity);      // verify results and internal consistency
+			return make_pair(ebwtFw, ebwtBw);
 		}
-		unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
-		assert(!fb->eof());
-		assert(fb->get() == '>');
-		ASSERT_ONLY(fb->reset());
-		assert(!fb->eof());
-		is.push_back(fb.get());
-		// Vector for the ordered list of "records" comprising the input
-		// sequences.  A record represents a stretch of unambiguous
-		// characters in one of the input sequences.
-		EList<RefRecord> szs(EBWT_CAT);
-		std::pair<TIndexOffU, TIndexOffU> sztot;
-		sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
-		// Construct Ebwt from input strings and parameters
-		Ebwt *ebwtFw = new Ebwt(
-			TStr(),
-			packed,
-			refparams.color ? 1 : 0,
-			-1,           // fw
-			lineRate,
-			offRate,      // suffix-array sampling rate
-			ftabChars,    // number of chars in initial arrow-pair calc
-			file,         // basename for .?.ebwt files
-			true,         // fw?
-			useBlockwise, // useBlockwise
-			bmax,         // block size for blockwise SA builder
-			bmaxSqrtMult, // block size as multiplier of sqrt(len)
-			bmaxDivN,     // block size as divisor of len
-			dcv,          // difference-cover period
-			is,           // list of input streams
-			szs,          // list of reference sizes
-			sztot.first,  // total size of all unambiguous ref chars
-			refparams,    // reference read-in parameters
-			seed,         // pseudo-random number generator seed
-			-1,           // override offRate
-			verbose,      // be talkative
-			autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
-			sanity);      // verify results and internal consistency
-		refparams.reverse = reverse;
-		szs.clear();
-		sztot = BitPairReference::szsFromFasta(is, file, bigEndian, refparams, szs, sanity);
-		// Construct Ebwt from input strings and parameters
-		Ebwt *ebwtBw = new Ebwt(
-			TStr(),
-			packed,
-			refparams.color ? 1 : 0,
-			reverse == REF_READ_REVERSE,
-			lineRate,
-			offRate,      // suffix-array sampling rate
-			ftabChars,    // number of chars in initial arrow-pair calc
-			file + ".rev",// basename for .?.ebwt files
-			false,        // fw?
-			useBlockwise, // useBlockwise
-			bmax,         // block size for blockwise SA builder
-			bmaxSqrtMult, // block size as multiplier of sqrt(len)
-			bmaxDivN,     // block size as divisor of len
-			dcv,          // difference-cover period
-			is,           // list of input streams
-			szs,          // list of reference sizes
-			sztot.first,  // total size of all unambiguous ref chars
-			refparams,    // reference read-in parameters
-			seed,         // pseudo-random number generator seed
-			-1,           // override offRate
-			verbose,      // be talkative
-			autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
-			sanity);      // verify results and internal consistency
-		return make_pair(ebwtFw, ebwtBw);
-	}
 
 	/// Return true iff the Ebwt is packed
 	bool isPacked() { return packed_; }
@@ -936,196 +990,201 @@ public:
 	                    int dcv,
 	                    uint32_t seed,
 	                    bool verbose)
-	{
-		// Compose text strings into single string
-		VMSG_NL("Calculating joined length");
-		TStr s; // holds the entire joined reference after call to joinToDisk
-		TIndexOffU jlen;
-		jlen = joinedLen(szs);
-		assert_geq(jlen, sztot);
-		VMSG_NL("Writing header");
-		writeFromMemory(true, out1, out2);
-		try {
-			VMSG_NL("Reserving space for joined string");
-			s.resize(jlen);
-			VMSG_NL("Joining reference sequences");
-			if(refparams.reverse == REF_READ_REVERSE) {
-				{
+		{
+			// Compose text strings into single string
+			VMSG_NL("Calculating joined length");
+			TStr s; // holds the entire joined reference after call to joinToDisk
+			TIndexOffU jlen;
+			jlen = joinedLen(szs);
+			assert_geq(jlen, sztot);
+			VMSG_NL("Writing header");
+			writeFromMemory(true, out1, out2);
+			try {
+				VMSG_NL("Reserving space for joined string");
+				s.resize(jlen);
+				VMSG_NL("Joining reference sequences");
+				if(refparams.reverse == REF_READ_REVERSE) {
+					{
+						Timer timer(cout, "  Time to join reference sequences: ", _verbose);
+						joinToDisk(is, szs, sztot, refparams, s, out1, out2);
+					}
+					{
+						Timer timer(cout, "  Time to reverse reference sequence: ", _verbose);
+						EList<RefRecord> tmp(EBWT_CAT);
+						s.reverse();
+						reverseRefRecords(szs, tmp, false, verbose);
+						szsToDisk(tmp, out1, refparams.reverse);
+					}
+				} else {
 					Timer timer(cout, "  Time to join reference sequences: ", _verbose);
 					joinToDisk(is, szs, sztot, refparams, s, out1, out2);
+					szsToDisk(szs, out1, refparams.reverse);
 				}
-                                {
-					Timer timer(cout, "  Time to reverse reference sequence: ", _verbose);
-					EList<RefRecord> tmp(EBWT_CAT);
-					s.reverse();
-					reverseRefRecords(szs, tmp, false, verbose);
-					szsToDisk(tmp, out1, refparams.reverse);
+				// Joined reference sequence now in 's'
+			} catch(bad_alloc& e) {
+				// If we throw an allocation exception in the try block,
+				// that means that the joined version of the reference
+				// string itself is too larger to fit in memory.  The only
+				// alternatives are to tell the user to give us more memory
+				// or to try again with a packed representation of the
+				// reference (if we haven't tried that already).
+				cerr << "Could not allocate space for a joined string of " << jlen << " elements." << endl;
+				if(!isPacked() && _passMemExc) {
+					// Pass the exception up so that we can retry using a
+					// packed string representation
+					throw e;
 				}
-			} else {
-				Timer timer(cout, "  Time to join reference sequences: ", _verbose);
-				joinToDisk(is, szs, sztot, refparams, s, out1, out2);
-				szsToDisk(szs, out1, refparams.reverse);
-			}
-			// Joined reference sequence now in 's'
-		} catch(bad_alloc& e) {
-			// If we throw an allocation exception in the try block,
-			// that means that the joined version of the reference
-			// string itself is too larger to fit in memory.  The only
-			// alternatives are to tell the user to give us more memory
-			// or to try again with a packed representation of the
-			// reference (if we haven't tried that already).
-			cerr << "Could not allocate space for a joined string of " << jlen << " elements." << endl;
-			if(!isPacked() && _passMemExc) {
-				// Pass the exception up so that we can retry using a
-				// packed string representation
-				throw e;
-			}
-			// There's no point passing this exception on.  The fact
-			// that we couldn't allocate the joined string means that
-			// --bmax is irrelevant - the user should re-run with
-			// ebwt-build-packed
-			if(isPacked()) {
-				cerr << "Please try running bowtie-build on a computer with more memory." << endl;
-			} else {
-				cerr << "Please try running bowtie-build in packed mode (-p/--packed) or in automatic" << endl
-				     << "mode (-a/--auto), or try again on a computer with more memory." << endl;
-			}
-			if(sizeof(void*) == 4) {
-				cerr << "If this computer has more than 4 GB of memory, try using a 64-bit executable;" << endl
-				     << "this executable is 32-bit." << endl;
-			}
-			throw 1;
-		}
-		// Succesfully obtained joined reference string
-		assert_geq(s.length(), jlen);
-		if(bmax != OFF_MASK) {
-			VMSG_NL("bmax according to bmax setting: " << bmax);
-		}
-		else if(bmaxSqrtMult != OFF_MASK) {
-			bmax *= bmaxSqrtMult;
-			VMSG_NL("bmax according to bmaxSqrtMult setting: " << bmax);
-		}
-		else if(bmaxDivN != OFF_MASK) {
-			bmax = max<TIndexOffU>(jlen / bmaxDivN, 1);
-			VMSG_NL("bmax according to bmaxDivN setting: " << bmax);
-		}
-		else {
-			bmax = (TIndexOffU)sqrt(s.length());
-			VMSG_NL("bmax defaulted to: " << bmax);
-		}
-		int iter = 0;
-		bool first = true;
-		streampos out1pos = out1.tellp();
-		streampos out2pos = out2.tellp();
-		// Look for bmax/dcv parameters that work.
-		while(true) {
-			if(!first && bmax < 40 && _passMemExc) {
-				cerr << "Could not find approrpiate bmax/dcv settings for building this index." << endl;
-				if(!isPacked()) {
-					// Throw an exception exception so that we can
-					// retry using a packed string representation
-					throw bad_alloc();
+				// There's no point passing this exception on.  The fact
+				// that we couldn't allocate the joined string means that
+				// --bmax is irrelevant - the user should re-run with
+				// ebwt-build-packed
+				if(isPacked()) {
+					cerr << "Please try running bowtie-build on a computer with more memory." << endl;
 				} else {
-					cerr << "Already tried a packed string representation." << endl;
+					cerr << "Please try running bowtie-build in packed mode (-p/--packed) or in automatic" << endl
+					     << "mode (-a/--auto), or try again on a computer with more memory." << endl;
 				}
-				cerr << "Please try indexing this reference on a computer with more memory." << endl;
 				if(sizeof(void*) == 4) {
 					cerr << "If this computer has more than 4 GB of memory, try using a 64-bit executable;" << endl
-						 << "this executable is 32-bit." << endl;
+					     << "this executable is 32-bit." << endl;
 				}
 				throw 1;
 			}
-			if(!first) {
-				out1.seekp(out1pos);
-				out2.seekp(out2pos);
+			// Succesfully obtained joined reference string
+			assert_geq(s.length(), jlen);
+			if(bmax != OFF_MASK) {
+				VMSG_NL("bmax according to bmax setting: " << bmax);
 			}
-			if(dcv > 4096) dcv = 4096;
-			if((iter % 6) == 5 && dcv < 4096 && dcv != 0) {
-				dcv <<= 1; // double difference-cover period
-			} else {
-				bmax -= (bmax >> 2); // reduce by 25%
+			else if(bmaxSqrtMult != OFF_MASK) {
+				bmax *= bmaxSqrtMult;
+				VMSG_NL("bmax according to bmaxSqrtMult setting: " << bmax);
 			}
-			VMSG("Using parameters --bmax " << bmax);
-			if(dcv == 0) {
-				VMSG_NL(" and *no difference cover*");
-			} else {
-				VMSG_NL(" --dcv " << dcv);
+			else if(bmaxDivN != OFF_MASK) {
+				bmax = max<TIndexOffU>(jlen / bmaxDivN, 1);
+				VMSG_NL("bmax according to bmaxDivN setting: " << bmax);
 			}
-			iter++;
-			try {
-				{
-					VMSG_NL("  Doing ahead-of-time memory usage test");
-					// Make a quick-and-dirty attempt to force a bad_alloc iff
-					// we would have thrown one eventually as part of
-					// constructing the DifferenceCoverSample
-					dcv <<= 1;
-					TIndexOffU sz = (TIndexOffU)DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
-					if(nthreads > 1) sz *= (nthreads + 1);
-					AutoArray<uint8_t> tmp(sz, EBWT_CAT);
-					dcv >>= 1;
-					// Likewise with the KarkkainenBlockwiseSA
-					sz = (TIndexOffU)KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
-					AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
-					// Now throw in the 'ftab' and 'isaSample' structures
-					// that we'll eventually allocate in buildToDisk
-					AutoArray<TIndexOffU> ftab(_eh._ftabLen * 2, EBWT_CAT);
-					AutoArray<uint8_t> side(_eh._sideSz, EBWT_CAT);
-					// Grab another 20 MB out of caution
-					AutoArray<uint32_t> extra(20*1024*1024, EBWT_CAT);
-					// If we made it here without throwing bad_alloc, then we
-					// passed the memory-usage stress test
-					VMSG("  Passed!  Constructing with these parameters: --bmax " << bmax << " --dcv " << dcv);
-					if(isPacked()) {
-						VMSG(" --packed");
+			else {
+				bmax = (TIndexOffU)sqrt(s.length());
+				VMSG_NL("bmax defaulted to: " << bmax);
+			}
+			int iter = 0;
+			bool first = true;
+			streampos out1pos = out1.tellp();
+			streampos out2pos = out2.tellp();
+			// Look for bmax/dcv parameters that work.
+			thread_pool pool(nthreads - 1);
+			while(true) {
+				if(!first && bmax < 40 && _passMemExc) {
+					cerr << "Could not find approrpiate bmax/dcv settings for building this index." << endl;
+					if(!isPacked()) {
+						// Throw an exception exception so that we can
+						// retry using a packed string representation
+						throw bad_alloc();
+					} else {
+						cerr << "Already tried a packed string representation." << endl;
 					}
-					VMSG_NL("");
-				}
-				VMSG_NL("Constructing suffix-array element generator");
-				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
-				assert(bsa.suffixItrIsReset());
-				assert_eq(bsa.size(), s.length()+1);
-				VMSG_NL("Converting suffix-array elements to index image");
-				buildToDisk(bsa, s, out1, out2, saOut, bwtOut);
-				out1.flush(); out2.flush();
-				bool failed = out1.fail() || out2.fail();
-				if(saOut != NULL) {
-					saOut->flush();
-					failed = failed || saOut->fail();
-				}
-				if(bwtOut != NULL) {
-					bwtOut->flush();
-					failed = failed || bwtOut->fail();
-				}
-				if(failed) {
-					cerr << "An error occurred writing the index to disk.  Please check if the disk is full." << endl;
+					cerr << "Please try indexing this reference on a computer with more memory." << endl;
+					if(sizeof(void*) == 4) {
+						cerr << "If this computer has more than 4 GB of memory, try using a 64-bit executable;" << endl
+						     << "this executable is 32-bit." << endl;
+					}
 					throw 1;
 				}
-				break;
-			} catch(bad_alloc& e) {
-				if(_passMemExc) {
-					VMSG_NL("  Ran out of memory; automatically trying more memory-economical parameters.");
+				if(!first) {
+					out1.seekp(out1pos);
+					out2.seekp(out2pos);
+				}
+				if(dcv > 4096) dcv = 4096;
+				if((iter % 6) == 5 && dcv < 4096 && dcv != 0) {
+					dcv <<= 1; // double difference-cover period
 				} else {
-					cerr << "Out of memory while constructing suffix array.  Please try using a smaller" << endl
-						 << "number of blocks by specifying a smaller --bmax or a larger --bmaxdivn" << endl;
-					throw 1;
+					bmax -= (bmax >> 2); // reduce by 25%
 				}
+				VMSG("Using parameters --bmax " << bmax);
+				if(dcv == 0) {
+					VMSG_NL(" and *no difference cover*");
+				} else {
+					VMSG_NL(" --dcv " << dcv);
+				}
+				iter++;
+				try {
+					{
+						VMSG_NL("  Doing ahead-of-time memory usage test");
+						// Make a quick-and-dirty attempt to force a bad_alloc iff
+						// we would have thrown one eventually as part of
+						// constructing the DifferenceCoverSample
+						dcv <<= 1;
+						TIndexOffU sz = (TIndexOffU)DifferenceCoverSample<TStr>::simulateAllocs(s, dcv >> 1);
+						if(nthreads > 1) sz *= (nthreads + 1);
+						AutoArray<uint8_t> tmp(sz, EBWT_CAT);
+						dcv >>= 1;
+						// Likewise with the KarkkainenBlockwiseSA
+						sz = (TIndexOffU)KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
+						AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
+						// Now throw in the 'ftab' and 'isaSample' structures
+						// that we'll eventually allocate in buildToDisk
+						AutoArray<TIndexOffU> ftab(_eh._ftabLen * 2, EBWT_CAT);
+						AutoArray<uint8_t> side(_eh._sideSz, EBWT_CAT);
+						// Grab another 20 MB out of caution
+						AutoArray<uint32_t> extra(20*1024*1024, EBWT_CAT);
+						// If we made it here without throwing bad_alloc, then we
+						// passed the memory-usage stress test
+						VMSG("  Passed!  Constructing with these parameters: --bmax " << bmax << " --dcv " << dcv);
+						if(isPacked()) {
+							VMSG(" --packed");
+						}
+						VMSG_NL("");
+					}
+					VMSG_NL("Constructing suffix-array element generator");
+#ifdef USE_SAIS
+					SAISBlockwiseSA<TStr> bsa(s, bmax, nthreads);
+#else
+					KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, pool, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
+#endif
+					assert(bsa.suffixItrIsReset());
+					assert_eq(bsa.size(), s.length()+1);
+					VMSG_NL("Converting suffix-array elements to index image");
+					buildToDisk(bsa, s, out1, out2, saOut, bwtOut);
+					out1.flush(); out2.flush();
+					bool failed = out1.fail() || out2.fail();
+					if(saOut != NULL) {
+						saOut->flush();
+						failed = failed || saOut->fail();
+					}
+					if(bwtOut != NULL) {
+						bwtOut->flush();
+						failed = failed || bwtOut->fail();
+					}
+					if(failed) {
+						cerr << "An error occurred writing the index to disk.  Please check if the disk is full." << endl;
+						throw 1;
+					}
+					break;
+				} catch(bad_alloc& e) {
+					if(_passMemExc) {
+						VMSG_NL("  Ran out of memory; automatically trying more memory-economical parameters.");
+					} else {
+						cerr << "Out of memory while constructing suffix array.  Please try using a smaller" << endl
+						     << "number of blocks by specifying a smaller --bmax or a larger --bmaxdivn" << endl;
+						throw 1;
+					}
+				}
+				first = false;
 			}
-			first = false;
+			assert(repOk());
+			// Now write reference sequence names on the end
+			assert_eq(this->_refnames.size(), this->_nPat);
+			for(TIndexOffU i = 0; i < this->_refnames.size(); i++) {
+				out1 << this->_refnames[i].c_str() << endl;
+			}
+			out1 << '\0';
+			out1.flush(); out2.flush();
+			if(out1.fail() || out2.fail()) {
+				cerr << "An error occurred writing the index to disk.  Please check if the disk is full." << endl;
+				throw 1;
+			}
+			VMSG_NL("Returning from initFromVector");
 		}
-		assert(repOk());
-		// Now write reference sequence names on the end
-		assert_eq(this->_refnames.size(), this->_nPat);
-		for(TIndexOffU i = 0; i < this->_refnames.size(); i++) {
-			out1 << this->_refnames[i].c_str() << endl;
-		}
-		out1 << '\0';
-		out1.flush(); out2.flush();
-		if(out1.fail() || out2.fail()) {
-			cerr << "An error occurred writing the index to disk.  Please check if the disk is full." << endl;
-			throw 1;
-		}
-		VMSG_NL("Returning from initFromVector");
-	}
 
 	/**
 	 * Return the length that the joined string of the given string
@@ -1181,7 +1240,6 @@ public:
 	inline const TIndexOffU* plen() const    { return _plen.get(); }
 	inline const TIndexOffU* rstarts() const { return _rstarts.get(); }
 	inline const uint8_t*  ebwt() const    { return _ebwt.get(); }
-	bool        toBe() const         { return _toBigEndian; }
 	bool        verbose() const      { return _verbose; }
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
@@ -1209,9 +1267,9 @@ public:
 		const char *str,
 		TIndexOffU *top = NULL,
 		TIndexOffU *bot = NULL) const
-	{
-		return contains(BTDnaString(str, true), top, bot);
-	}
+		{
+			return contains(BTDnaString(str, true), top, bot);
+		}
 
 	/// Return true iff the Ebwt is currently in memory
 	bool isInMemory() const {
@@ -1257,19 +1315,19 @@ public:
 		bool loadRstarts,
 		bool loadNames,
 		bool verbose)
-	{
-		readIntoMemory(
-			color,       // expect index to be colorspace?
-			needEntireReverse, // require reverse index to be concatenated reference reversed
-			loadSASamp,  // load the SA sample portion?
-			loadFtab,    // load the ftab (_ftab[] and _eftab[])?
-			loadRstarts, // load the r-starts (_rstarts[])?
-			false,       // stop after loading the header portion?
-			NULL,        // params
-			false,       // mmSweep
-			loadNames,   // loadNames
-			verbose);    // startVerbose
-	}
+		{
+			readIntoMemory(
+				color,       // expect index to be colorspace?
+				needEntireReverse, // require reverse index to be concatenated reference reversed
+				loadSASamp,  // load the SA sample portion?
+				loadFtab,    // load the ftab (_ftab[] and _eftab[])?
+				loadRstarts, // load the r-starts (_rstarts[])?
+				false,       // stop after loading the header portion?
+				NULL,        // params
+				false,       // mmSweep
+				loadNames,   // loadNames
+				verbose);    // startVerbose
+		}
 
 	/**
 	 * Frees memory associated with the Ebwt.
@@ -1298,27 +1356,27 @@ public:
 		const BTDnaString& seq,
 		size_t off,
 		bool rev) const
-	{
-		int fc = _eh._ftabChars;
-		size_t lo = off, hi = lo + fc;
-		assert_leq(hi, seq.length());
-		TIndexOffU ftabOff = 0;
-		for(int i = 0; i < fc; i++) {
-			bool fwex = fw();
-			if(rev) fwex = !fwex;
-			// We add characters to the ftabOff in the order they would
-			// have been consumed in a normal search.  For BWT, this
-			// means right-to-left order; for BWT' it's left-to-right.
-			int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
-			if(c > 3) {
-				return std::numeric_limits<TIndexOffU>::max();
+		{
+			int fc = _eh._ftabChars;
+			size_t lo = off, hi = lo + fc;
+			assert_leq(hi, seq.length());
+			TIndexOffU ftabOff = 0;
+			for(int i = 0; i < fc; i++) {
+				bool fwex = fw();
+				if(rev) fwex = !fwex;
+				// We add characters to the ftabOff in the order they would
+				// have been consumed in a normal search.  For BWT, this
+				// means right-to-left order; for BWT' it's left-to-right.
+				int c = (fwex ? seq[lo + i] : seq[hi - i - 1]);
+				if(c > 3) {
+					return std::numeric_limits<TIndexOffU>::max();
+				}
+				assert_range(0, 3, c);
+				ftabOff <<= 2;
+				ftabOff |= c;
 			}
-			assert_range(0, 3, c);
-			ftabOff <<= 2;
-			ftabOff |= c;
+			return ftabOff;
 		}
-		return ftabOff;
-	}
 
 	/**
 	 * Non-static facade for static function ftabHi.
@@ -1330,6 +1388,12 @@ public:
 			_eh._len,
 			_eh._ftabLen,
 			_eh._eftabLen,
+			i);
+	}
+
+	void ftabHiPrefetch(TIndexOffU i) const {
+		Ebwt::ftabHiPrefetch(
+			ftab(),
 			i);
 	}
 
@@ -1349,16 +1413,23 @@ public:
 		TIndexOffU ftabLen,
 		TIndexOffU eftabLen,
 		TIndexOffU i)
-	{
-		assert_lt(i, ftabLen);
-		if(ftab[i] <= len) {
-			return ftab[i];
-		} else {
-			TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
-			assert_lt(efIdx*2+1, eftabLen);
-			return eftab[efIdx*2+1];
+		{
+			assert_lt(i, ftabLen);
+			if(ftab[i] <= len) {
+				return ftab[i];
+			} else {
+				TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
+				assert_lt(efIdx*2+1, eftabLen);
+				return eftab[efIdx*2+1];
+			}
 		}
-	}
+
+	static void ftabHiPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
+		}
 
 	/**
 	 * Non-static facade for static function ftabLo.
@@ -1372,6 +1443,32 @@ public:
 			_eh._eftabLen,
 			i);
 	}
+
+	void ftabLoPrefetch(TIndexOffU i) const {
+		Ebwt::ftabLoPrefetch(
+			ftab(),
+			i);
+	}
+
+	/**
+	 * Get low and high bound of ftab range.
+	 */
+	void
+	ftabLoHi(
+		TIndexOffU i,
+		TIndexOffU& top,
+		TIndexOffU& bot) const
+		{
+			top = ftabHi(i);
+			bot = ftabLo(i+1);
+			assert_geq(bot, top);
+		}
+
+	void ftabLoHiPrefetch(TIndexOffU i) const
+		{
+			ftabHiPrefetch(i);
+			ftabLoPrefetch(i+1);
+		}
 
 	/**
 	 * Get low bound of ftab range.
@@ -1401,16 +1498,14 @@ public:
 		bool rev,               // reverse while extracting
 		TIndexOffU& top,
 		TIndexOffU& bot) const
-	{
-		TIndexOffU fi = ftabSeqToInt(seq, off, rev);
-		if(fi == std::numeric_limits<TIndexOffU>::max()) {
-			return false;
+		{
+			TIndexOffU fi = ftabSeqToInt(seq, off, rev);
+			if(fi == std::numeric_limits<TIndexOffU>::max()) {
+				return false;
+			}
+			ftabLoHi(fi, top, bot);
+			return true;
 		}
-		top = ftabHi(fi);
-		bot = ftabLo(fi+1);
-		assert_geq(bot, top);
-		return true;
-	}
 
 	/**
 	 * Get "low interpretation" of ftab entry at index i.  The low
@@ -1428,16 +1523,23 @@ public:
 		TIndexOffU ftabLen,
 		TIndexOffU eftabLen,
 		TIndexOffU i)
-	{
-		assert_lt(i, ftabLen);
-		if(ftab[i] <= len) {
-			return ftab[i];
-		} else {
-			TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
-			assert_lt(efIdx*2+1, eftabLen);
-			return eftab[efIdx*2];
+		{
+			assert_lt(i, ftabLen);
+			if(ftab[i] <= len) {
+				return ftab[i];
+			} else {
+				TIndexOffU efIdx = ftab[i] ^ OFF_MASK;
+				assert_lt(efIdx*2+1, eftabLen);
+				return eftab[efIdx*2];
+			}
 		}
-	}
+
+	static void ftabLoPrefetch(
+		const TIndexOffU *ftab,
+		TIndexOffU i)
+		{
+			__builtin_prefetch(&(ftab[i]));
+		}
 
 	/**
 	 * Try to resolve the reference offset of the BW element 'elt'.  If
@@ -1468,17 +1570,17 @@ public:
 		TIndexOffU elt,
 		bool fw,
 		TIndexOffU hitlen) const
-	{
-		TIndexOffU off = tryOffset(elt);
-		if(off != OFF_MASK && !fw) {
-			assert_lt(off, _eh._len);
-			off = _eh._len - off - 1;
-			assert_geq(off, hitlen-1);
-			off -= (hitlen-1);
-			assert_lt(off, _eh._len);
+		{
+			TIndexOffU off = tryOffset(elt);
+			if(off != OFF_MASK && !fw) {
+				assert_lt(off, _eh._len);
+				off = _eh._len - off - 1;
+				assert_geq(off, hitlen-1);
+				off -= (hitlen-1);
+				assert_lt(off, _eh._len);
+			}
+			return off;
 		}
-		return off;
-	}
 
 	/**
 	 * Walk 'steps' steps to the left and return the row arrived at.
@@ -1606,22 +1708,22 @@ public:
 	// Searching and reporting
 	void joinedToTextOff(TIndexOffU qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
 
-#define WITHIN_BWT_LEN(x) \
-	assert_leq(x[0], this->_eh._sideBwtLen); \
-	assert_leq(x[1], this->_eh._sideBwtLen); \
-	assert_leq(x[2], this->_eh._sideBwtLen); \
+#define WITHIN_BWT_LEN(x)				\
+	assert_leq(x[0], this->_eh._sideBwtLen);	\
+	assert_leq(x[1], this->_eh._sideBwtLen);	\
+	assert_leq(x[2], this->_eh._sideBwtLen);	\
 	assert_leq(x[3], this->_eh._sideBwtLen)
 
-#define WITHIN_FCHR(x) \
-	assert_leq(x[0], this->fchr()[1]); \
-	assert_leq(x[1], this->fchr()[2]); \
-	assert_leq(x[2], this->fchr()[3]); \
+#define WITHIN_FCHR(x)				\
+	assert_leq(x[0], this->fchr()[1]);	\
+	assert_leq(x[1], this->fchr()[2]);	\
+	assert_leq(x[2], this->fchr()[3]);	\
 	assert_leq(x[3], this->fchr()[4])
 
-#define WITHIN_FCHR_DOLLARA(x) \
-	assert_leq(x[0], this->fchr()[1]+1); \
-	assert_leq(x[1], this->fchr()[2]); \
-	assert_leq(x[2], this->fchr()[3]); \
+#define WITHIN_FCHR_DOLLARA(x)			\
+	assert_leq(x[0], this->fchr()[1]+1);	\
+	assert_leq(x[1], this->fchr()[2]);	\
+	assert_leq(x[2], this->fchr()[3]);	\
 	assert_leq(x[3], this->fchr()[4])
 
 	/**
@@ -1655,19 +1757,19 @@ public:
 		// Now factor in the occ[] count at the side break
 		const uint8_t *acgt8 = side + _eh._sideBwtSz;
 		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(acgt8);
-		assert_leq(acgt[0], this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
-		assert_leq(acgt[1], this->_eh._len);
-		assert_leq(acgt[2], this->_eh._len);
-		assert_leq(acgt[3], this->_eh._len);
-		ret = acgt[c] + cCnt + this->fchr()[c];
-	#ifndef NDEBUG
+		assert_leq(endianizeU<TIndexOffU>(acgt[0], _switchEndian), this->_eh._numSides * this->_eh._sideBwtLen); // b/c it's used as padding
+		assert_leq(endianizeU<TIndexOffU>(acgt[1], _switchEndian), this->_eh._len);
+		assert_leq(endianizeU<TIndexOffU>(acgt[2], _switchEndian), this->_eh._len);
+		assert_leq(endianizeU<TIndexOffU>(acgt[3], _switchEndian), this->_eh._len);
+		ret = endianizeU<TIndexOffU>(acgt[c], _switchEndian) + cCnt + this->fchr()[c];
+#ifndef NDEBUG
 		assert_leq(ret, this->fchr()[c+1]); // can't have jumpded into next char's section
 		if(c == 0) {
 			assert_leq(cCnt, this->_eh._sideBwtLen);
 		} else {
 			assert_leq(ret, this->_eh._bwtLen);
 		}
-	#endif
+#endif
 		return ret;
 	}
 
@@ -1686,62 +1788,62 @@ public:
 		TIndexOffU* cntsUpto, // A/C/G/T counts up to top
 		TIndexOffU* cntsIn,   // A/C/G/T counts within range
 		EList<bool> *masks) const // masks indicating which range elts = A/C/G/T
-	{
-		assert_gt(num, 0);
-		assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
-		assert_range(0, 3, (int)l._bp);
-		countUpToEx(l, cntsUpto);
-		WITHIN_FCHR_DOLLARA(cntsUpto);
-		WITHIN_BWT_LEN(cntsUpto);
-		const uint8_t *side = l.side(this->ebwt());
-		if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
-			// Adjust for the fact that we represented $ with an 'A', but
-			// shouldn't count it as an 'A' here
-			if((l._sideByteOff + l._by > _zEbwtByteOff) ||
-			   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
-			{
-				cntsUpto[0]--; // Adjust for '$' looking like an 'A'
+		{
+			assert_gt(num, 0);
+			assert_range(0, (int)this->_eh._sideBwtSz-1, (int)l._by);
+			assert_range(0, 3, (int)l._bp);
+			countUpToEx(l, cntsUpto);
+			WITHIN_FCHR_DOLLARA(cntsUpto);
+			WITHIN_BWT_LEN(cntsUpto);
+			const uint8_t *side = l.side(this->ebwt());
+			if(l._sideByteOff <= _zEbwtByteOff && l._sideByteOff + l._by >= _zEbwtByteOff) {
+				// Adjust for the fact that we represented $ with an 'A', but
+				// shouldn't count it as an 'A' here
+				if((l._sideByteOff + l._by > _zEbwtByteOff) ||
+				   (l._sideByteOff + l._by == _zEbwtByteOff && l._bp > _zEbwtBpOff))
+				{
+					cntsUpto[0]--; // Adjust for '$' looking like an 'A'
+				}
 			}
-		}
-		// Now factor in the occ[] count at the side break
-		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(side + _eh._sideBwtSz);
-		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
-		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
-		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
-		assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
-		assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
-		assert_leq(acgt[1], this->_eh._len);
-		assert_leq(acgt[2], this->_eh._len);
-		assert_leq(acgt[3], this->_eh._len);
-		cntsUpto[0] += (acgt[0] + this->fchr()[0]);
-		cntsUpto[1] += (acgt[1] + this->fchr()[1]);
-		cntsUpto[2] += (acgt[2] + this->fchr()[2]);
-		cntsUpto[3] += (acgt[3] + this->fchr()[3]);
-		masks[0].resize(num);
-		masks[1].resize(num);
-		masks[2].resize(num);
-		masks[3].resize(num);
-		WITHIN_FCHR_DOLLARA(cntsUpto);
-		WITHIN_FCHR_DOLLARA(cntsIn);
-		// 'cntsUpto' is complete now.
-		// Walk forward until we've tallied the entire 'In' range
-		TIndexOffU nm = 0;
-		// Rest of this side
-		nm += countBt2SideRange2(l, true, num - nm, cntsIn, masks, nm);
-		assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
-		assert_leq(nm, num);
-		SideLocus lcopy = l;
-		while(nm < num) {
-			// Subsequent sides, if necessary
-			lcopy.nextSide(this->_eh);
-			nm += countBt2SideRange2(lcopy, false, num - nm, cntsIn, masks, nm);
+			// Now factor in the occ[] count at the side break
+			const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(side + _eh._sideBwtSz);
+			assert_leq(endianizeU<TIndexOffU>(acgt[0], _switchEndian), this->fchr()[1] + this->_eh.sideBwtLen());
+			assert_leq(endianizeU<TIndexOffU>(acgt[1], _switchEndian), this->fchr()[2]-this->fchr()[1]);
+			assert_leq(endianizeU<TIndexOffU>(acgt[2], _switchEndian), this->fchr()[3]-this->fchr()[2]);
+			assert_leq(endianizeU<TIndexOffU>(acgt[3], _switchEndian), this->fchr()[4]-this->fchr()[3]);
+			assert_leq(endianizeU<TIndexOffU>(acgt[0], _switchEndian), this->_eh._len + this->_eh.sideBwtLen());
+			assert_leq(endianizeU<TIndexOffU>(acgt[1], _switchEndian), this->_eh._len);
+			assert_leq(endianizeU<TIndexOffU>(acgt[2], _switchEndian), this->_eh._len);
+			assert_leq(endianizeU<TIndexOffU>(acgt[3], _switchEndian), this->_eh._len);
+			cntsUpto[0] += (endianizeU<TIndexOffU>(acgt[0], _switchEndian) + this->fchr()[0]);
+			cntsUpto[1] += (endianizeU<TIndexOffU>(acgt[1], _switchEndian) + this->fchr()[1]);
+			cntsUpto[2] += (endianizeU<TIndexOffU>(acgt[2], _switchEndian) + this->fchr()[2]);
+			cntsUpto[3] += (endianizeU<TIndexOffU>(acgt[3], _switchEndian) + this->fchr()[3]);
+			masks[0].resize(num);
+			masks[1].resize(num);
+			masks[2].resize(num);
+			masks[3].resize(num);
+			WITHIN_FCHR_DOLLARA(cntsUpto);
 			WITHIN_FCHR_DOLLARA(cntsIn);
-			assert_leq(nm, num);
+			// 'cntsUpto' is complete now.
+			// Walk forward until we've tallied the entire 'In' range
+			TIndexOffU nm = 0;
+			// Rest of this side
+			nm += countBt2SideRange2(l, true, num - nm, cntsIn, masks, nm);
 			assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+			assert_leq(nm, num);
+			SideLocus lcopy = l;
+			while(nm < num) {
+				// Subsequent sides, if necessary
+				lcopy.nextSide(this->_eh);
+				nm += countBt2SideRange2(lcopy, false, num - nm, cntsIn, masks, nm);
+				WITHIN_FCHR_DOLLARA(cntsIn);
+				assert_leq(nm, num);
+				assert_eq(nm, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+			}
+			assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+			WITHIN_FCHR_DOLLARA(cntsIn);
 		}
-		assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
-		WITHIN_FCHR_DOLLARA(cntsIn);
-	}
 
 	/**
 	 * Count all occurrences of character c from the beginning of the
@@ -1782,18 +1884,18 @@ public:
 		const uint8_t *side = l.side(this->ebwt());
 		const uint8_t *acgt16 = side + this->_eh._sideSz - OFF_SIZE*4;
 		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(acgt16);
-		assert_leq(acgt[0], this->fchr()[1] + this->_eh.sideBwtLen());
-		assert_leq(acgt[1], this->fchr()[2]-this->fchr()[1]);
-		assert_leq(acgt[2], this->fchr()[3]-this->fchr()[2]);
-		assert_leq(acgt[3], this->fchr()[4]-this->fchr()[3]);
-		assert_leq(acgt[0], this->_eh._len + this->_eh.sideBwtLen());
-		assert_leq(acgt[1], this->_eh._len);
-		assert_leq(acgt[2], this->_eh._len);
-		assert_leq(acgt[3], this->_eh._len);
-		arrs[0] += (acgt[0] + this->fchr()[0]);
-		arrs[1] += (acgt[1] + this->fchr()[1]);
-		arrs[2] += (acgt[2] + this->fchr()[2]);
-		arrs[3] += (acgt[3] + this->fchr()[3]);
+		assert_leq(endianizeU<TIndexOffU>(acgt[0], _switchEndian), this->fchr()[1] + this->_eh.sideBwtLen());
+		assert_leq(endianizeU<TIndexOffU>(acgt[1], _switchEndian), this->fchr()[2]-this->fchr()[1]);
+		assert_leq(endianizeU<TIndexOffU>(acgt[2], _switchEndian), this->fchr()[3]-this->fchr()[2]);
+		assert_leq(endianizeU<TIndexOffU>(acgt[3], _switchEndian), this->fchr()[4]-this->fchr()[3]);
+		assert_leq(endianizeU<TIndexOffU>(acgt[0], _switchEndian), this->_eh._len + this->_eh.sideBwtLen());
+		assert_leq(endianizeU<TIndexOffU>(acgt[1], _switchEndian), this->_eh._len);
+		assert_leq(endianizeU<TIndexOffU>(acgt[2], _switchEndian), this->_eh._len);
+		assert_leq(endianizeU<TIndexOffU>(acgt[3], _switchEndian), this->_eh._len);
+		arrs[0] += (endianizeU<TIndexOffU>(acgt[0], _switchEndian) + this->fchr()[0]);
+		arrs[1] += (endianizeU<TIndexOffU>(acgt[1], _switchEndian) + this->fchr()[1]);
+		arrs[2] += (endianizeU<TIndexOffU>(acgt[2], _switchEndian) + this->fchr()[2]);
+		arrs[3] += (endianizeU<TIndexOffU>(acgt[3], _switchEndian) + this->fchr()[3]);
 		WITHIN_FCHR(arrs);
 	}
 
@@ -1801,10 +1903,13 @@ public:
 	 * Counts the number of occurrences of character 'c' in the given Ebwt
 	 * side up to (but not including) the given byte/bitpair (by/bp).
 	 *
-	 * This is a performance-critical function.  This is the top search-
+	 * This is a performance-critical function.  This used to be the top search-
 	 * related hit in the time profile.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
 	 *
-	 * Function gets 11.09% in profile
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
+	 *
 	 */
 	inline TIndexOffU countUpTo(const SideLocus& l, int c) const { // @double-check
 		// Count occurrences of c in each 64-bit (using bit trickery);
@@ -1814,20 +1919,20 @@ public:
 		const uint8_t *side = l.side(this->ebwt());
 		int i = 0;
 #ifdef POPCNT_CAPABILITY
-        if ( _usePOPCNTinstruction) {
-            for(; i + 7 < l._by; i += 8) {
-                cCnt += countInU64<USE_POPCNT_INSTRUCTION>(c, *(uint64_t*)&side[i]);
-            }
-        }
-        else {
-            for(; i + 7 < l._by; i += 8) {
-                cCnt += countInU64<USE_POPCNT_GENERIC>(c, *(uint64_t*)&side[i]);
-            }
-        }
+		if ( _usePOPCNTinstruction) {
+			for(; i + 7 < l._by; i += 8) {
+				cCnt += countInU64<USE_POPCNT_INSTRUCTION>(c, *(uint64_t*)&side[i]);
+			}
+		}
+		else {
+			for(; i + 7 < l._by; i += 8) {
+				cCnt += countInU64<USE_POPCNT_GENERIC>(c, *(uint64_t*)&side[i]);
+			}
+		}
 #else
-        for(; i + 7 < l._by; i += 8) {
-            cCnt += countInU64(c, *(uint64_t*)&side[i]);
-        }
+		for(; i + 7 < l._by; i += 8) {
+			cCnt += countInU64(c, *(uint64_t*)&side[i]);
+		}
 #endif
 		// Count occurences of c in the rest of the side (using LUT)
 		for(; i < l._by; i++) {
@@ -1847,7 +1952,7 @@ public:
 	 * Function gets 2.32% in profile
 	 */
 #ifdef POPCNT_CAPABILITY
-template<typename Operation>
+	template<typename Operation>
 #endif
 	inline static void countInU64Ex(uint64_t dw, TIndexOffU* arrs) {
 		uint64_t c0 = c_table[0];
@@ -1903,6 +2008,13 @@ template<typename Operation>
 	 * Counts the number of occurrences of all four nucleotides in the
 	 * given side up to (but not including) the given byte/bitpair (by/bp).
 	 * Count for 'a' goes in arrs[0], 'c' in arrs[1], etc.
+	 *
+	 * This is a performance-critical function.  This used to be the top search-
+	 * related hit in the time profile.
+	 * The bottleneck was due to cache misses due to random memory access pattern.
+	 *
+	 * The use of prefetch instructions in initFromRow, when applied enough in advance,
+	 * mostly eliminate the cache misses. 
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
 		int i = 0;
@@ -1958,22 +2070,22 @@ template<typename Operation>
 		TIndexOffU *arrs
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		assert_eq(0, arrs[0]);
-		assert_eq(0, arrs[1]);
-		assert_eq(0, arrs[2]);
-		assert_eq(0, arrs[3]);
-		countBt2SideEx(l, arrs);
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			assert_eq(mapLF(l, 0, true), arrs[0]);
-			assert_eq(mapLF(l, 1, true), arrs[1]);
-			assert_eq(mapLF(l, 2, true), arrs[2]);
-			assert_eq(mapLF(l, 3, true), arrs[3]);
+		{
+			assert_eq(0, arrs[0]);
+			assert_eq(0, arrs[1]);
+			assert_eq(0, arrs[2]);
+			assert_eq(0, arrs[3]);
+			countBt2SideEx(l, arrs);
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with individual calls to mapLF;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				assert_eq(mapLF(l, 0, true), arrs[0]);
+				assert_eq(mapLF(l, 1, true), arrs[1]);
+				assert_eq(mapLF(l, 2, true), arrs[2]);
+				assert_eq(mapLF(l, 3, true), arrs[3]);
+			}
 		}
-	}
 #endif
 
 	/**
@@ -1987,11 +2099,11 @@ template<typename Operation>
 		TIndexOffU *bots
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		SideLocus ltop, lbot;
-		SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
-		mapLFEx(ltop, lbot, tops, bots ASSERT_ONLY(, overrideSanity));
-	}
+		{
+			SideLocus ltop, lbot;
+			SideLocus::initFromTopBot(top, bot, _eh, ebwt(), ltop, lbot);
+			mapLFEx(ltop, lbot, tops, bots ASSERT_ONLY(, overrideSanity));
+		}
 
 	/**
 	 * Given top and bot loci, calculate counts of all four DNA chars up to
@@ -2004,31 +2116,34 @@ template<typename Operation>
 		TIndexOffU *bots
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		assert(ltop.repOk(this->eh()));
-		assert(lbot.repOk(this->eh()));
-		assert_eq(0, tops[0]); assert_eq(0, bots[0]);
-		assert_eq(0, tops[1]); assert_eq(0, bots[1]);
-		assert_eq(0, tops[2]); assert_eq(0, bots[2]);
-		assert_eq(0, tops[3]); assert_eq(0, bots[3]);
-		countBt2SideEx(ltop, tops);
-		countBt2SideEx(lbot, bots);
+		{
+			assert(ltop.repOk(this->eh()));
+			assert(lbot.repOk(this->eh()));
+			assert_eq(0, tops[0]); assert_eq(0, bots[0]);
+			assert_eq(0, tops[1]); assert_eq(0, bots[1]);
+			assert_eq(0, tops[2]); assert_eq(0, bots[2]);
+			assert_eq(0, tops[3]); assert_eq(0, bots[3]);
+			// hopefully ltop and lbot were already prefetched
+			// if not, we have time to prefetch lbot while procssing ltop
+			lbot.prefetch(this->ebwt());
+			countBt2SideEx(ltop, tops);
+			countBt2SideEx(lbot, bots);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			assert_eq(mapLF(ltop, 0, true), tops[0]);
-			assert_eq(mapLF(ltop, 1, true), tops[1]);
-			assert_eq(mapLF(ltop, 2, true), tops[2]);
-			assert_eq(mapLF(ltop, 3, true), tops[3]);
-			assert_eq(mapLF(lbot, 0, true), bots[0]);
-			assert_eq(mapLF(lbot, 1, true), bots[1]);
-			assert_eq(mapLF(lbot, 2, true), bots[2]);
-			assert_eq(mapLF(lbot, 3, true), bots[3]);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with individual calls to mapLF;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				assert_eq(mapLF(ltop, 0, true), tops[0]);
+				assert_eq(mapLF(ltop, 1, true), tops[1]);
+				assert_eq(mapLF(ltop, 2, true), tops[2]);
+				assert_eq(mapLF(ltop, 3, true), tops[3]);
+				assert_eq(mapLF(lbot, 0, true), bots[0]);
+				assert_eq(mapLF(lbot, 1, true), bots[1]);
+				assert_eq(mapLF(lbot, 2, true), bots[2]);
+				assert_eq(mapLF(lbot, 3, true), bots[3]);
+			}
 #endif
-	}
+		}
 
 	/**
 	 * Counts the number of occurrences of all four nucleotides in the
@@ -2047,63 +2162,63 @@ template<typename Operation>
 		TIndexOffU* arrs,
 		EList<bool> *masks,
 		TIndexOffU maskOff) const
-	{
-		assert(!masks[0].empty());
-		assert_eq(masks[0].size(), masks[1].size());
-		assert_eq(masks[0].size(), masks[2].size());
-		assert_eq(masks[0].size(), masks[3].size());
-		ASSERT_ONLY(TIndexOffU myarrs[4] = {0, 0, 0, 0});
-		TIndexOffU nm = 0; // number of nucleotides tallied so far
-		int iby = 0;      // initial byte offset
-		int ibp = 0;      // initial base-pair offset
-		if(startAtLocus) {
-			iby = l._by;
-			ibp = l._bp;
-		} else {
-			// Start at beginning
-		}
-		int by = iby, bp = ibp;
-		assert_lt(bp, 4);
-		assert_lt(by, (int)this->_eh._sideBwtSz);
-		const uint8_t *side = l.side(this->ebwt());
-		while(nm < num) {
-			int c = (side[by] >> (bp * 2)) & 3;
-			assert_lt(maskOff + nm, masks[c].size());
-			masks[0][maskOff + nm] = masks[1][maskOff + nm] =
-			masks[2][maskOff + nm] = masks[3][maskOff + nm] = false;
-			assert_range(0, 3, c);
-			// Note: we tally $ just like an A
-			arrs[c]++; // tally it
-			ASSERT_ONLY(myarrs[c]++);
-			masks[c][maskOff + nm] = true; // not dead
-			nm++;
-			if(++bp == 4) {
-				bp = 0;
-				by++;
-				assert_leq(by, (int)this->_eh._sideBwtSz);
-				if(by == (int)this->_eh._sideBwtSz) {
-					// Fell off the end of the side
-					break;
+		{
+			assert(!masks[0].empty());
+			assert_eq(masks[0].size(), masks[1].size());
+			assert_eq(masks[0].size(), masks[2].size());
+			assert_eq(masks[0].size(), masks[3].size());
+			ASSERT_ONLY(TIndexOffU myarrs[4] = {0, 0, 0, 0});
+			TIndexOffU nm = 0; // number of nucleotides tallied so far
+			int iby = 0;      // initial byte offset
+			int ibp = 0;      // initial base-pair offset
+			if(startAtLocus) {
+				iby = l._by;
+				ibp = l._bp;
+			} else {
+				// Start at beginning
+			}
+			int by = iby, bp = ibp;
+			assert_lt(bp, 4);
+			assert_lt(by, (int)this->_eh._sideBwtSz);
+			const uint8_t *side = l.side(this->ebwt());
+			while(nm < num) {
+				int c = (side[by] >> (bp * 2)) & 3;
+				assert_lt(maskOff + nm, masks[c].size());
+				masks[0][maskOff + nm] = masks[1][maskOff + nm] =
+					masks[2][maskOff + nm] = masks[3][maskOff + nm] = false;
+				assert_range(0, 3, c);
+				// Note: we tally $ just like an A
+				arrs[c]++; // tally it
+				ASSERT_ONLY(myarrs[c]++);
+				masks[c][maskOff + nm] = true; // not dead
+				nm++;
+				if(++bp == 4) {
+					bp = 0;
+					by++;
+					assert_leq(by, (int)this->_eh._sideBwtSz);
+					if(by == (int)this->_eh._sideBwtSz) {
+						// Fell off the end of the side
+						break;
+					}
 				}
 			}
-		}
-		WITHIN_FCHR_DOLLARA(arrs);
+			WITHIN_FCHR_DOLLARA(arrs);
 #ifndef NDEBUG
-		if(_sanity) {
-			// Make sure results match up with a call to mapLFEx.
-			TIndexOffU tops[4] = {0, 0, 0, 0};
-			TIndexOffU bots[4] = {0, 0, 0, 0};
-			TIndexOffU top = l.toBWRow();
-			TIndexOffU bot = top + nm;
-			mapLFEx(top, bot, tops, bots, false);
-			assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
-			assert_eq(myarrs[1], bots[1] - tops[1]);
-			assert_eq(myarrs[2], bots[2] - tops[2]);
-			assert_eq(myarrs[3], bots[3] - tops[3]);
-		}
+			if(_sanity) {
+				// Make sure results match up with a call to mapLFEx.
+				TIndexOffU tops[4] = {0, 0, 0, 0};
+				TIndexOffU bots[4] = {0, 0, 0, 0};
+				TIndexOffU top = l.toBWRow();
+				TIndexOffU bot = top + nm;
+				mapLFEx(top, bot, tops, bots, false);
+				assert(myarrs[0] == (bots[0] - tops[0]) || myarrs[0] == (bots[0] - tops[0])+1);
+				assert_eq(myarrs[1], bots[1] - tops[1]);
+				assert_eq(myarrs[2], bots[2] - tops[2]);
+				assert_eq(myarrs[3], bots[3] - tops[3]);
+			}
 #endif
-		return nm;
-	}
+			return nm;
+		}
 
 	/**
 	 * Return the final character in row i (i.e. the i'th character in the
@@ -2140,38 +2255,38 @@ template<typename Operation>
 		EList<bool> *masks
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		assert(ltop.repOk(this->eh()));
-		assert(lbot.repOk(this->eh()));
-		assert_eq(num, lbot.toBWRow() - ltop.toBWRow());
-		assert_eq(0, cntsUpto[0]); assert_eq(0, cntsIn[0]);
-		assert_eq(0, cntsUpto[1]); assert_eq(0, cntsIn[1]);
-		assert_eq(0, cntsUpto[2]); assert_eq(0, cntsIn[2]);
-		assert_eq(0, cntsUpto[3]); assert_eq(0, cntsIn[3]);
-		countBt2SideRange(ltop, num, cntsUpto, cntsIn, masks);
-		assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
-#ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			TIndexOffU tops[4] = {0, 0, 0, 0};
-			TIndexOffU bots[4] = {0, 0, 0, 0};
+		{
 			assert(ltop.repOk(this->eh()));
 			assert(lbot.repOk(this->eh()));
-			mapLFEx(ltop, lbot, tops, bots, false);
-			for(int i = 0; i < 4; i++) {
-				assert(cntsUpto[i] == tops[i] || tops[i] == bots[i]);
-				if(i == 0) {
-					assert(cntsIn[i] == bots[i]-tops[i] ||
-						   cntsIn[i] == bots[i]-tops[i]+1);
-				} else {
-					assert_eq(cntsIn[i], bots[i]-tops[i]);
+			assert_eq(num, lbot.toBWRow() - ltop.toBWRow());
+			assert_eq(0, cntsUpto[0]); assert_eq(0, cntsIn[0]);
+			assert_eq(0, cntsUpto[1]); assert_eq(0, cntsIn[1]);
+			assert_eq(0, cntsUpto[2]); assert_eq(0, cntsIn[2]);
+			assert_eq(0, cntsUpto[3]); assert_eq(0, cntsIn[3]);
+			countBt2SideRange(ltop, num, cntsUpto, cntsIn, masks);
+			assert_eq(num, cntsIn[0] + cntsIn[1] + cntsIn[2] + cntsIn[3]);
+#ifndef NDEBUG
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with individual calls to mapLF;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				TIndexOffU tops[4] = {0, 0, 0, 0};
+				TIndexOffU bots[4] = {0, 0, 0, 0};
+				assert(ltop.repOk(this->eh()));
+				assert(lbot.repOk(this->eh()));
+				mapLFEx(ltop, lbot, tops, bots, false);
+				for(int i = 0; i < 4; i++) {
+					assert(cntsUpto[i] == tops[i] || tops[i] == bots[i]);
+					if(i == 0) {
+						assert(cntsIn[i] == bots[i]-tops[i] ||
+						       cntsIn[i] == bots[i]-tops[i]+1);
+					} else {
+						assert_eq(cntsIn[i], bots[i]-tops[i]);
+					}
 				}
 			}
-		}
 #endif
-	}
+		}
 
 	/**
 	 * Given row i, return the row that the LF mapping maps i to.
@@ -2180,28 +2295,28 @@ template<typename Operation>
 		const SideLocus& l
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		ASSERT_ONLY(TIndexOffU srcrow = l.toBWRow());
-		TIndexOffU ret;
-		assert(l.side(this->ebwt()) != NULL);
-		int c = rowL(l);
-		assert_lt(c, 4);
-		assert_geq(c, 0);
-		ret = countBt2Side(l, c);
-		assert_lt(ret, this->_eh._bwtLen);
-		assert_neq(srcrow, ret);
+		{
+			ASSERT_ONLY(TIndexOffU srcrow = l.toBWRow());
+			TIndexOffU ret;
+			assert(l.side(this->ebwt()) != NULL);
+			int c = rowL(l);
+			assert_lt(c, 4);
+			assert_geq(c, 0);
+			ret = countBt2Side(l, c);
+			assert_lt(ret, this->_eh._bwtLen);
+			assert_neq(srcrow, ret);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with results from mapLFEx;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			TIndexOffU arrs[] = { 0, 0, 0, 0 };
-			mapLFEx(l, arrs, true);
-			assert_eq(arrs[c], ret);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with results from mapLFEx;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				TIndexOffU arrs[] = { 0, 0, 0, 0 };
+				mapLFEx(l, arrs, true);
+				assert_eq(arrs[c], ret);
+			}
 #endif
-		return ret;
-	}
+			return ret;
+		}
 
 	/**
 	 * Given row i and character c, return the row that the LF mapping maps
@@ -2211,24 +2326,24 @@ template<typename Operation>
 		const SideLocus& l, int c
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		TIndexOffU ret;
-		assert_lt(c, 4);
-		assert_geq(c, 0);
-		ret = countBt2Side(l, c);
-		assert_lt(ret, this->_eh._bwtLen);
+		{
+			TIndexOffU ret;
+			assert_lt(c, 4);
+			assert_geq(c, 0);
+			ret = countBt2Side(l, c);
+			assert_lt(ret, this->_eh._bwtLen);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with results from mapLFEx;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			TIndexOffU arrs[] = { 0, 0, 0, 0 };
-			mapLFEx(l, arrs, true);
-			assert_eq(arrs[c], ret);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with results from mapLFEx;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				TIndexOffU arrs[] = { 0, 0, 0, 0 };
+				mapLFEx(l, arrs, true);
+				assert_eq(arrs[c], ret);
+			}
 #endif
-		return ret;
-	}
+			return ret;
+		}
 
 	/**
 	 * Given top and bot loci, calculate counts of all four DNA chars up to
@@ -2244,39 +2359,39 @@ template<typename Operation>
 		TIndexOffU *botsP
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
+		{
 #ifndef NDEBUG
-		for(int i = 0; i < 4; i++) {
-			assert_eq(0, tops[0]);  assert_eq(0, bots[0]);
-		}
+			for(int i = 0; i < 4; i++) {
+				assert_eq(0, tops[0]);  assert_eq(0, bots[0]);
+			}
 #endif
-		countBt2SideEx(ltop, tops);
-		countBt2SideEx(lbot, bots);
+			countBt2SideEx(ltop, tops);
+			countBt2SideEx(lbot, bots);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with individual calls to mapLF;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			assert_eq(mapLF(ltop, 0, true), tops[0]);
-			assert_eq(mapLF(ltop, 1, true), tops[1]);
-			assert_eq(mapLF(ltop, 2, true), tops[2]);
-			assert_eq(mapLF(ltop, 3, true), tops[3]);
-			assert_eq(mapLF(lbot, 0, true), bots[0]);
-			assert_eq(mapLF(lbot, 1, true), bots[1]);
-			assert_eq(mapLF(lbot, 2, true), bots[2]);
-			assert_eq(mapLF(lbot, 3, true), bots[3]);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with individual calls to mapLF;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				assert_eq(mapLF(ltop, 0, true), tops[0]);
+				assert_eq(mapLF(ltop, 1, true), tops[1]);
+				assert_eq(mapLF(ltop, 2, true), tops[2]);
+				assert_eq(mapLF(ltop, 3, true), tops[3]);
+				assert_eq(mapLF(lbot, 0, true), bots[0]);
+				assert_eq(mapLF(lbot, 1, true), bots[1]);
+				assert_eq(mapLF(lbot, 2, true), bots[2]);
+				assert_eq(mapLF(lbot, 3, true), bots[3]);
+			}
 #endif
-		// bots[0..3] - tops[0..3] = # of ways to extend the suffix with an
-		// A, C, G, T
-		botsP[0] = topsP[0] + (bots[0] - tops[0]);
-		topsP[1] = botsP[0];
-		botsP[1] = topsP[1] + (bots[1] - tops[1]);
-		topsP[2] = botsP[1];
-		botsP[2] = topsP[2] + (bots[2] - tops[2]);
-		topsP[3] = botsP[2];
-		botsP[3] = topsP[3] + (bots[3] - tops[3]);
-	}
+			// bots[0..3] - tops[0..3] = # of ways to extend the suffix with an
+			// A, C, G, T
+			botsP[0] = topsP[0] + (bots[0] - tops[0]);
+			topsP[1] = botsP[0];
+			botsP[1] = topsP[1] + (bots[1] - tops[1]);
+			topsP[2] = botsP[1];
+			botsP[2] = topsP[2] + (bots[2] - tops[2]);
+			topsP[3] = botsP[2];
+			botsP[3] = topsP[3] + (bots[3] - tops[3]);
+		}
 
 	/**
 	 * Given row and its locus information, proceed on the given character
@@ -2289,25 +2404,25 @@ template<typename Operation>
 		int c               // character to proceed on
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		if(rowL(l) != c || row == _zOff) return OFF_MASK;
-		TIndexOffU ret;
-		assert_lt(c, 4);
-		assert_geq(c, 0);
-		ret = countBt2Side(l, c);
-		assert_lt(ret, this->_eh._bwtLen);
+		{
+			if(rowL(l) != c || row == _zOff) return OFF_MASK;
+			TIndexOffU ret;
+			assert_lt(c, 4);
+			assert_geq(c, 0);
+			ret = countBt2Side(l, c);
+			assert_lt(ret, this->_eh._bwtLen);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with results from mapLFEx;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			TIndexOffU arrs[] = { 0, 0, 0, 0 };
-			mapLFEx(l, arrs, true);
-			assert_eq(arrs[c], ret);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with results from mapLFEx;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				TIndexOffU arrs[] = { 0, 0, 0, 0 };
+				mapLFEx(l, arrs, true);
+				assert_eq(arrs[c], ret);
+			}
 #endif
-		return ret;
-	}
+			return ret;
+		}
 
 
 	/**
@@ -2319,24 +2434,24 @@ template<typename Operation>
 		const SideLocus& l  // locus for starting row
 		ASSERT_ONLY(, bool overrideSanity = false)
 		) const
-	{
-		if(row == _zOff) return -1;
-		int c = rowL(l);
-		assert_range(0, 3, c);
-		row = countBt2Side(l, c);
-		assert_lt(row, this->_eh._bwtLen);
+		{
+			if(row == _zOff) return -1;
+			int c = rowL(l);
+			assert_range(0, 3, c);
+			row = countBt2Side(l, c);
+			assert_lt(row, this->_eh._bwtLen);
 #ifndef NDEBUG
-		if(_sanity && !overrideSanity) {
-			// Make sure results match up with results from mapLFEx;
-			// be sure to override sanity-checking in the callee, or we'll
-			// have infinite recursion
-			TIndexOffU arrs[] = { 0, 0, 0, 0 };
-			mapLFEx(l, arrs, true);
-			assert_eq(arrs[c], row);
-		}
+			if(_sanity && !overrideSanity) {
+				// Make sure results match up with results from mapLFEx;
+				// be sure to override sanity-checking in the callee, or we'll
+				// have infinite recursion
+				TIndexOffU arrs[] = { 0, 0, 0, 0 };
+				mapLFEx(l, arrs, true);
+				assert_eq(arrs[c], row);
+			}
 #endif
-		return c;
-	}
+			return c;
+		}
 
 #ifndef NDEBUG
 	/// Check that in-memory Ebwt is internally consistent with respect
@@ -2346,7 +2461,7 @@ template<typename Operation>
 		assert_lt(_zEbwtBpOff, 4);
 		assert_lt(_zEbwtByteOff, eh._ebwtTotSz);
 		assert_lt(_zOff, eh._bwtLen);
-		assert_geq(_nFrag, _nPat);
+		// assert_geq(_nFrag, _nPat);
 		return true;
 	}
 
@@ -2372,7 +2487,7 @@ template<typename Operation>
 	}
 #endif
 
-	bool       _toBigEndian;
+	bool       _switchEndian;
 	int32_t    _overrideOffRate;
 	bool       _verbose;
 	bool       _passMemExc;
@@ -2535,9 +2650,6 @@ TStr Ebwt::join(EList<FileBuf*>& l,
 		while(!l[i]->eof()) {
 			RefRecord rec = fastaRefReadAppend(*l[i], first, ret, dstoff, rpcp);
 			first = false;
-			if(rec.first && rec.len == 0) {
-				continue;
-			}
 			TIndexOffU bases = rec.len;
 			assert_eq(rec.off, szs[szsi].off);
 			assert_eq(rec.len, szs[szsi].len);
@@ -2582,39 +2694,36 @@ void Ebwt::joinToDisk(
 	this->_nFrag = 0;
 	for(TIndexOffU i = 0; i < szs.size(); i++) {
 		if(szs[i].len > 0) this->_nFrag++;
-		if(szs[i].first && szs[i].len > 0) this->_nPat++;
+		if(szs[i].first) this->_nPat++;
 	}
 	assert_gt(this->_nPat, 0);
-	assert_geq(this->_nFrag, this->_nPat);
+	// assert_geq(this->_nFrag, this->_nPat);
 	_rstarts.reset();
-	writeU<TIndexOffU>(out1, this->_nPat, this->toBe());
+	writeU<TIndexOffU>(out1, this->_nPat, _switchEndian);
 	// Allocate plen[]
 	try {
 		this->_plen.init(new TIndexOffU[this->_nPat], this->_nPat);
 	} catch(bad_alloc& e) {
-		cerr << "Out of memory allocating plen[] in Ebwt::join()"
+		cerr << "Out of memory allocating plen[] in Ebwt::join)"
 		     << " at " << __FILE__ << ":" << __LINE__ << endl;
 		throw e;
 	}
 	// For each pattern, set plen
 	TIndexOff npat = -1;
 	for(TIndexOffU i = 0; i < szs.size(); i++) {
-		if(szs[i].first && szs[i].len > 0) {
+		if(szs[i].first) {
 			if(npat >= 0) {
-				writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
+				writeU<TIndexOffU>(out1, this->plen()[npat], _switchEndian);
 			}
 			this->plen()[++npat] = (szs[i].len + szs[i].off);
-		} else if(!szs[i].first) {
-			// edge case, but we could get here with npat == -1
-			// e.g. when building from a reference of all Ns
-			if (npat < 0) npat = 0;
+		} else {
 			this->plen()[npat] += (szs[i].len + szs[i].off);
 		}
 	}
 	assert_eq((TIndexOffU)npat, this->_nPat-1);
-	writeU<TIndexOffU>(out1, this->plen()[npat], this->toBe());
+	writeU<TIndexOffU>(out1, this->plen()[npat], _switchEndian);
 	// Write the number of fragments
-	writeU<TIndexOffU>(out1, this->_nFrag, this->toBe());
+	writeU<TIndexOffU>(out1, this->_nFrag, _switchEndian);
 	TIndexOffU seqsRead = 0;
 	ASSERT_ONLY(TIndexOffU szsi = 0);
 	ASSERT_ONLY(TIndexOffU entsWritten = 0);
@@ -2623,7 +2732,6 @@ void Ebwt::joinToDisk(
 	for(unsigned int i = 0; i < l.size(); i++) {
 		assert(!l[i]->eof());
 		bool first = true;
-		TIndexOffU patoff = 0;
 		// For each *fragment* (not necessary an entire sequence) we
 		// can pull out of istream l[i]...
 		while(!l[i]->eof()) {
@@ -2634,7 +2742,7 @@ void Ebwt::joinToDisk(
 				*l[i], first, ret, dstoff, rpcp, &_refnames.back());
 			first = false;
 			TIndexOffU bases = rec.len;
-			if(rec.first && rec.len > 0) {
+			if(rec.first) {
 				if(_refnames.back().length() == 0) {
 					// If name was empty, replace with an index
 					ostringstream stm;
@@ -2644,11 +2752,8 @@ void Ebwt::joinToDisk(
 			} else {
 				// This record didn't actually start a new sequence so
 				// no need to add a name
-				//assert_eq(0, _refnames.back().length());
+				// assert_eq(0, _refnames.back().length());
 				_refnames.pop_back();
-			}
-			if(rec.first && rec.len == 0) {
-				continue;
 			}
 			assert_lt(szsi, szs.size());
 			assert_eq(rec.off, szs[szsi].off);
@@ -2656,21 +2761,14 @@ void Ebwt::joinToDisk(
 			assert_eq(rec.first, szs[szsi].first);
 			assert(rec.first || rec.off > 0);
 			ASSERT_ONLY(szsi++);
+
 			// Increment seqsRead if this is the first fragment
 			if(rec.first) seqsRead++;
 			if(bases == 0) continue;
 			assert_leq(bases, this->plen()[seqsRead-1]);
-			// Reset the patoff if this is the first fragment
-			if(rec.first) patoff = 0;
-			patoff += rec.off; // add fragment's offset from end of last frag.
 			// Adjust rpcps
 			//uint32_t seq = seqsRead-1;
 			ASSERT_ONLY(entsWritten++);
-			// This is where rstarts elements are written to the output stream
-			//writeU32(out1, oldRetLen, this->toBe()); // offset from beginning of joined string
-			//writeU32(out1, seq,       this->toBe()); // sequence id
-			//writeU32(out1, patoff,    this->toBe()); // offset into sequence
-			patoff += bases;
 		}
 		assert_gt(szsi, 0);
 		l[i]->reset();
@@ -2800,15 +2898,14 @@ void Ebwt::buildToDisk(
 	// array, including $
 	if(saOut != NULL) {
 		// Write length word
-		writeU<TIndexOffU>(*saOut, len+1, this->toBe());
+		writeU<TIndexOffU>(*saOut, len+1, _switchEndian);
 	}
 
 	// First integer in the BWT output file is the length of BWT(T), including $
 	if(bwtOut != NULL) {
 		// Write length word
-		writeU<TIndexOffU>(*bwtOut, len+1, this->toBe());
+		writeU<TIndexOffU>(*bwtOut, len+1, _switchEndian);
 	}
-
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
@@ -2820,117 +2917,117 @@ void Ebwt::buildToDisk(
 #ifdef SIXTY4_FORMAT
 		for(int bpi = 0; bpi < 32; bpi++, si++)
 #else
-		for(int bpi = 0; bpi < 4; bpi++, si++)
+			for(int bpi = 0; bpi < 4; bpi++, si++)
 #endif
-		{
-			int bwtChar;
-			bool count = true;
-			if(si <= len) {
-				// Still in the SA; extract the bwtChar
-				TIndexOffU saElt = sa.nextSuffix();
-				// Write it to the optional suffix-array output file
-				if(saOut != NULL) {
-					writeU<TIndexOffU>(*saOut, saElt, this->toBe());
-				}
-				// TODO: what exactly to write to the BWT output file?  How to
-				// represent $?  How to pack nucleotides into bytes/words?
+			{
+				int bwtChar;
+				bool count = true;
+				if(si <= len) {
+					// Still in the SA; extract the bwtChar
+					TIndexOffU saElt = sa.nextSuffix();
+					// Write it to the optional suffix-array output file
+					if(saOut != NULL) {
+						writeU<TIndexOffU>(*saOut, saElt, _switchEndian);
+					}
+					// TODO: what exactly to write to the BWT output file?  How to
+					// represent $?  How to pack nucleotides into bytes/words?
 
-				// (that might have triggered sa to calc next suf block)
-				if(saElt == 0) {
-					// Don't add the '$' in the last column to the BWT
-					// transform; we can't encode a $ (only A C T or G)
-					// and counting it as, say, an A, will mess up the
-					// LR mapping
-					bwtChar = 0; count = false;
-					ASSERT_ONLY(dollarSkipped = true);
-					zOff = si; // remember the SA row that
-					           // corresponds to the 0th suffix
-				} else {
-					bwtChar = (int)(s[saElt-1]);
-					assert_lt(bwtChar, 4);
-					// Update the fchr
-					fchr[bwtChar]++;
-				}
-				// Update ftab
-				if((len-saElt) >= (TIndexOffU)eh._ftabChars) {
-					// Turn the first ftabChars characters of the
-					// suffix into an integer index into ftab.  The
-					// leftmost (lowest index) character of the suffix
-					// goes in the most significant bit pair if the
-					// integer.
-					TIndexOffU sufInt = 0;
-					for(int i = 0; i < eh._ftabChars; i++) {
-						sufInt <<= 2;
-						assert_lt((TIndexOffU)i, len-saElt);
-						sufInt |= (unsigned char)(s[saElt+i]);
+					// (that might have triggered sa to calc next suf block)
+					if(saElt == 0) {
+						// Don't add the '$' in the last column to the BWT
+						// transform; we can't encode a $ (only A C T or G)
+						// and counting it as, say, an A, will mess up the
+						// LR mapping
+						bwtChar = 0; count = false;
+						ASSERT_ONLY(dollarSkipped = true);
+						zOff = si; // remember the SA row that
+						// corresponds to the 0th suffix
+					} else {
+						bwtChar = (int)(s[saElt-1]);
+						assert_lt(bwtChar, 4);
+						// Update the fchr
+						fchr[bwtChar]++;
 					}
-					// Assert that this prefix-of-suffix is greater
-					// than or equal to the last one (true b/c the
-					// suffix array is sorted)
-					#ifndef NDEBUG
-					if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
-					lastSufInt = sufInt;
-					#endif
 					// Update ftab
-					assert_lt(sufInt+1, ftabLen);
-					ftab[sufInt+1]++;
-					if(absorbCnt > 0) {
-						// Absorb all short suffixes since the last
-						// transition into this transition
-						absorbFtab[sufInt] = absorbCnt;
-						absorbCnt = 0;
+					if((len-saElt) >= (TIndexOffU)eh._ftabChars) {
+						// Turn the first ftabChars characters of the
+						// suffix into an integer index into ftab.  The
+						// leftmost (lowest index) character of the suffix
+						// goes in the most significant bit pair if the
+						// integer.
+						TIndexOffU sufInt = 0;
+						for(int i = 0; i < eh._ftabChars; i++) {
+							sufInt <<= 2;
+							assert_lt((TIndexOffU)i, len-saElt);
+							sufInt |= (unsigned char)(s[saElt+i]);
+						}
+						// Assert that this prefix-of-suffix is greater
+						// than or equal to the last one (true b/c the
+						// suffix array is sorted)
+#ifndef NDEBUG
+						if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
+						lastSufInt = sufInt;
+#endif
+						// Update ftab
+						assert_lt(sufInt+1, ftabLen);
+						ftab[sufInt+1]++;
+						if(absorbCnt > 0) {
+							// Absorb all short suffixes since the last
+							// transition into this transition
+							absorbFtab[sufInt] = absorbCnt;
+							absorbCnt = 0;
+						}
+					} else {
+						// Otherwise if suffix is fewer than ftabChars
+						// characters long, then add it to the 'absorbCnt';
+						// it will be absorbed into the next transition
+						assert_lt(absorbCnt, 255);
+						absorbCnt++;
+					}
+					// Suffix array offset boundary? - update offset array
+					if((si & eh._offMask) == si) {
+						assert_lt((si >> eh._offRate), eh._offsLen);
+						// Write offsets directly to the secondary output
+						// stream, thereby avoiding keeping them in memory
+						writeU<TIndexOffU>(out2, saElt, _switchEndian);
 					}
 				} else {
-					// Otherwise if suffix is fewer than ftabChars
-					// characters long, then add it to the 'absorbCnt';
-					// it will be absorbed into the next transition
-					assert_lt(absorbCnt, 255);
-					absorbCnt++;
-				}
-				// Suffix array offset boundary? - update offset array
-				if((si & eh._offMask) == si) {
-					assert_lt((si >> eh._offRate), eh._offsLen);
-					// Write offsets directly to the secondary output
-					// stream, thereby avoiding keeping them in memory
-					writeU<TIndexOffU>(out2, saElt, this->toBe());
-				}
-			} else {
-				// Strayed off the end of the SA, now we're just
-				// padding out a bucket
-				#ifndef NDEBUG
-				if(inSA) {
-					// Assert that we wrote all the characters in the
-					// string before now
-					assert_eq(si, len+1);
-					inSA = false;
-				}
-				#endif
-				// 'A' used for padding; important that padding be
-				// counted in the occ[] array
-				bwtChar = 0;
-			}
-			if(count) occ[bwtChar]++;
-			// Append BWT char to bwt section of current side
-			if(fw) {
-				// Forward bucket: fill from least to most
-#ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
-#else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
-				assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
+					// Strayed off the end of the SA, now we're just
+					// padding out a bucket
+#ifndef NDEBUG
+					if(inSA) {
+						// Assert that we wrote all the characters in the
+						// string before now
+						assert_eq(si, len+1);
+						inSA = false;
+					}
 #endif
-			} else {
-				// Backward bucket: fill from most to least
+					// 'A' used for padding; important that padding be
+					// counted in the occ[] array
+					bwtChar = 0;
+				}
+				if(count) occ[bwtChar]++;
+				// Append BWT char to bwt section of current side
+				if(fw) {
+					// Forward bucket: fill from least to most
 #ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
 #else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
-				assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
+					assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
 #endif
-			}
-		} // end loop over bit-pairs
+				} else {
+					// Backward bucket: fill from most to least
+#ifdef SIXTY4_FORMAT
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+#else
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
+					assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+#endif
+				}
+			} // end loop over bit-pairs
 		assert_eq(dollarSkipped ? 3 : 0, (occ[0] + occ[1] + occ[2] + occ[3]) & 3);
 #ifdef SIXTY4_FORMAT
 		assert_eq(0, si & 31);
@@ -2946,15 +3043,15 @@ void Ebwt::buildToDisk(
 			side += sideSz;
 			assert_leq(side, eh._ebwtTotSz);
 #ifdef BOWTIE_64BIT_INDEX
-			cpptr[(sideSz >> 3)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
-			cpptr[(sideSz >> 3)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
-			cpptr[(sideSz >> 3)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
-			cpptr[(sideSz >> 3)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
+			cpptr[(sideSz >> 3)-4] = endianizeU<TIndexOffU>(occSave[0], _switchEndian);
+			cpptr[(sideSz >> 3)-3] = endianizeU<TIndexOffU>(occSave[1], _switchEndian);
+			cpptr[(sideSz >> 3)-2] = endianizeU<TIndexOffU>(occSave[2], _switchEndian);
+			cpptr[(sideSz >> 3)-1] = endianizeU<TIndexOffU>(occSave[3], _switchEndian);
 #else
-			cpptr[(sideSz >> 2)-4] = endianizeU<TIndexOffU>(occSave[0], this->toBe());
-			cpptr[(sideSz >> 2)-3] = endianizeU<TIndexOffU>(occSave[1], this->toBe());
-			cpptr[(sideSz >> 2)-2] = endianizeU<TIndexOffU>(occSave[2], this->toBe());
-			cpptr[(sideSz >> 2)-1] = endianizeU<TIndexOffU>(occSave[3], this->toBe());
+			cpptr[(sideSz >> 2)-4] = endianizeU<TIndexOffU>(occSave[0], _switchEndian);
+			cpptr[(sideSz >> 2)-3] = endianizeU<TIndexOffU>(occSave[1], _switchEndian);
+			cpptr[(sideSz >> 2)-2] = endianizeU<TIndexOffU>(occSave[2], _switchEndian);
+			cpptr[(sideSz >> 2)-1] = endianizeU<TIndexOffU>(occSave[3], _switchEndian);
 #endif
 			occSave[0] = occ[0];
 			occSave[1] = occ[1];
@@ -2980,7 +3077,7 @@ void Ebwt::buildToDisk(
 	//
 	// Write zOff to primary stream
 	//
-	writeU<TIndexOffU>(out1, zOff, this->toBe());
+	writeU<TIndexOffU>(out1, zOff, _switchEndian);
 
 	//
 	// Finish building fchr
@@ -3001,7 +3098,7 @@ void Ebwt::buildToDisk(
 	}
 	// Write fchr to primary file
 	for(int i = 0; i < 5; i++) {
-		writeU<TIndexOffU>(out1, fchr[i], this->toBe());
+		writeU<TIndexOffU>(out1, fchr[i], _switchEndian);
 	}
 
 	//
@@ -3044,11 +3141,11 @@ void Ebwt::buildToDisk(
 	assert_eq(Ebwt::ftabHi(ftab.ptr(), eftab.ptr(), len, ftabLen, eftabLen, ftabLen-1), len+1);
 	// Write ftab to primary file
 	for(TIndexOffU i = 0; i < ftabLen; i++) {
-		writeU<TIndexOffU>(out1, ftab[i], this->toBe());
+		writeU<TIndexOffU>(out1, ftab[i], _switchEndian);
 	}
 	// Write eftab to primary file
 	for(TIndexOffU i = 0; i < eftabLen; i++) {
-		writeU<TIndexOffU>(out1, eftab[i], this->toBe());
+		writeU<TIndexOffU>(out1, eftab[i], _switchEndian);
 	}
 
 	// Note: if you'd like to sanity-check the Ebwt, you'll have to
@@ -3065,8 +3162,8 @@ void Ebwt::buildToDisk(
  * "$BOWTIE2_INDEXES/".
  */
 string adjustEbwtBase(const string& cmdline,
-					  const string& ebwtFileBase,
-					  bool verbose);
+		      const string& ebwtFileBase,
+		      bool verbose);
 
 
 extern string gLastIOErrMsg;

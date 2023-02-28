@@ -24,27 +24,27 @@
 PREFIX := /usr/local
 bindir := $(PREFIX)/bin
 
-LDLIBS := -lz
-GCC_PREFIX := $(shell dirname `which gcc`)
-GCC_SUFFIX :=
-CC ?= $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
-CPP ?= $(GCC_PREFIX)/g++$(GCC_SUFFIX)
-CXX ?= $(CPP)
+LDLIBS := -lpthread -lz
 
 HEADERS := $(wildcard *.h)
 BOWTIE_MM := 1
 BOWTIE_SHARED_MEM :=
 
-NGS_VER ?= 2.9.2
-VDB_VER ?= 2.9.2-1
+CXXFLAGS += -std=c++11
+
+NGS_VER ?= 2.10.2
+VDB_VER ?= 2.10.2
 
 # Detect Cygwin or MinGW
 WINDOWS :=
 MINGW :=
-ifneq (,$(findstring MINGW,$(shell uname)))
+ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
   WINDOWS := 1
   MINGW := 1
   # POSIX memory-mapped files not currently supported on Windows
+endif
+
+ifeq (1, $(WINDOWS))
   BOWTIE_MM :=
   BOWTIE_SHARED_MEM :=
 endif
@@ -60,12 +60,47 @@ ifneq (,$(findstring Darwin,$(shell uname)))
   endif
 endif
 
+BITS := 32
+ARCH ?= $(shell uname -m)
+ifneq (,$(findstring $(ARCH), x86_64 amd64))
+  BITS := 64
+  ifeq (1, $(SSE_AVX2))
+	SSE_FLAG := -mavx2 -faligned-new -DSSE_AVX2
+  else
+	SSE_FLAG := -msse2
+  endif
+
+  POPCNT_CAPABILITY ?= 1
+else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
+  BITS := 64
+  SSE_FLAG :=
+  CXXFLAGS += -fopenmp-simd
+  CPPFLAGS += -Ithird_party
+  POPCNT_CAPABILITY ?= 0
+endif
+
+ifdef USE_SAIS
+  CPPFLAGS += -Ithird_party/libsais/include
+  CXXFLAGS += -fopenmp -DUSE_SAIS
+  LDFLAGS += -Lthird_party/libsais/lib
+  LDLIBS += -lsais
+endif
+
+# msys will always be 32 bit so look at the cpu arch instead.
+ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
+  ifeq (1,$(MINGW))
+    BITS := 64
+  endif
+endif
+ifeq (32,$(BITS))
+  $(error bowtie2 compilation requires a 64-bit platform )
+endif
+
 ifdef STATIC_BUILD
   LDFLAGS += -L$(CURDIR)/.tmp/lib
   CPPFLAGS += -I$(CURDIR)/.tmp/include
 endif
 
-POPCNT_CAPABILITY ?= 1
 ifeq (1, $(POPCNT_CAPABILITY))
   CXXFLAGS += -DPOPCNT_CAPABILITY
   CPPFLAGS += -I third_party
@@ -86,11 +121,6 @@ endif
 PTHREAD_PKG :=
 PTHREAD_LIB :=
 
-#if we're not using TBB, then we can't use queuing locks
-ifeq (1,$(NO_TBB))
-  NO_QUEUELOCK := 1
-endif
-
 ifeq (1,$(MINGW))
   PTHREAD_LIB :=
 else
@@ -99,22 +129,6 @@ endif
 
 ifeq (1,$(NO_SPINLOCK))
   CXXFLAGS += -DNO_SPINLOCK
-endif
-
-#default is to use Intel TBB
-ifneq (1,$(NO_TBB))
-  LDLIBS += $(PTHREAD_LIB) -ltbb
-  ifdef STATIC_BUILD
-    LDLIBS += -ltbbmalloc
-    ifndef MINGW
-      LDLIBS += -ldl
-    endif
-  else
-    LDLIBS += -ltbbmalloc_proxy
-  endif
-  CXXFLAGS += -DWITH_TBB -std=c++11
-else
-  LDLIBS += $(PTHREAD_LIB)
 endif
 
 USE_SRA ?=
@@ -142,20 +156,16 @@ ifeq (1,$(WITH_AFFINITY))
   CXXFLAGS += -DWITH_AFFINITY=1
 endif
 
-#default is to use Intel TBB's queuing lock for better thread scaling performance
+#default is to use queue lock for better thread scaling performance
 ifneq (1,$(NO_QUEUELOCK))
   CXXFLAGS += -DNO_SPINLOCK
   CXXFLAGS += -DWITH_QUEUELOCK=1
 endif
 
 SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
-  edit.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
+  edit.cpp bt2_locks.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
   reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
   random_source.cpp
-
-ifeq (1,$(NO_TBB))
-  SHARED_CPPS += tinythread.cpp
-endif
 
 SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   read_qseq.cpp aligner_seed_policy.cpp \
@@ -175,6 +185,12 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   aligner_swsse_loc_u8.cpp \
   aligner_swsse_ee_u8.cpp \
   aligner_driver.cpp
+
+ifeq (1, $(WITH_ZSTD))
+  LDLIBS += -lzstd
+  CXXFLAGS += -DWITH_ZSTD
+  SHARED_CPPS += zstd_decompress.cpp
+endif
 
 SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
 
@@ -196,40 +212,6 @@ else ifeq (0,$(shell $(CXX) -E -fsanitize=address btypes.h > /dev/null 2>&1; ech
   SANITIZER_FLAGS := -fsanitize=address
 else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; echo $$?))
   SANITIZER_FLAGS := -fsanitize=undefined
-endif
-
-BITS := 32
-SSE_FLAG := -msse2
-ifeq (x86_64,$(shell uname -m))
-  BITS := 64
-else ifeq (amd64,$(shell uname -m))
-  BITS := 64
-else ifeq (aarch64,$(shell uname -m))
-  BITS := 64
-  SSE_FLAG :=
-  CXXFLAGS += -fopenmp-simd
-  CPPFLAGS += -Ithird_party/simde
-else ifeq (s390x,$(shell uname -m))
-  BITS := 64
-  SSE_FLAG :=
-  CXXFLAGS += -fopenmp-simd
-  CPPFLAGS += -Ithird_party/simde
-  SANITIZER_FLAGS :=
-else ifeq (ppc64le,$(shell uname -m))
-  BITS := 64
-  SSE_FLAG :=
-  CXXFLAGS += -fopenmp-simd
-  CPPFLAGS += -Ithird_party/simde
-  SANITIZER_FLAGS :=
-endif
-# msys will always be 32 bit so look at the cpu arch instead.
-ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
-  ifeq (1,$(MINGW))
-    BITS := 64
-  endif
-endif
-ifeq (32,$(BITS))
-  $(error bowtie2 compilation requires a 64-bit platform )
 endif
 
 DEBUG_FLAGS    := -O0 -g3 $(SSE_FLAG)
@@ -286,11 +268,7 @@ GENERAL_LIST := $(wildcard scripts/*.sh) \
 
 ifeq (1,$(WINDOWS))
   BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_LIST) bowtie2.bat bowtie2-build.bat bowtie2-inspect.bat
-  ifneq (1,$(NO_TBB))
-    CXXFLAGS += -static-libgcc -static-libstdc++
-  else
-    CXXFLAGS += -static -static-libgcc -static-libstdc++
-  endif
+  CXXFLAGS += -static-libgcc -static-libstdc++ -static
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
@@ -322,7 +300,7 @@ both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-alig
 
 DEFS := -fno-strict-aliasing \
   -DBOWTIE2_VERSION="\"`cat BOWTIE2_VERSION`\"" \
-  -DBUILD_HOST="\"${HOSTNAME:-`hostname`}\"" \
+  -DBUILD_HOST="\"$${HOSTNAME:-`hostname`}\"" \
   -DBUILD_TIME="\"`date -u`\"" \
   -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
   $(FILE_FLAGS) \
@@ -340,7 +318,6 @@ endif
 #
 # bowtie2-build targets
 #
-
 bowtie2-build-s-sanitized bowtie2-build-s: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) -Wall \
@@ -419,7 +396,7 @@ bowtie2-inspect-s-sanitized bowtie2-inspect-s: bt2_inspect.cpp $(HEADERS) $(SHAR
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -428,7 +405,7 @@ bowtie2-inspect-l-sanitized bowtie2-inspect-l: bt2_inspect.cpp $(HEADERS) $(SHAR
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN  -DBOWTIE_64BIT_INDEX -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -437,7 +414,7 @@ bowtie2-inspect-s-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -446,7 +423,7 @@ bowtie2-inspect-l-debug: bt2_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -459,7 +436,7 @@ bowtie2-dp: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 		$(RELEASE_DEFS) $(CXXFLAGS) $(NOASSERT_FLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -468,7 +445,7 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_DP_MAIN -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		$(DP_CPPS) $(SHARED_CPPS) \
 		$(LDFLAGS) $(LDLIBS)
@@ -498,7 +475,7 @@ bowtie2-src-pkg: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: bowtie2-bin-pkg
-bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-x86_64
+bowtie2-bin-pkg: PKG_DIR := bowtie2-$(VERSION)-$(if $(USE_SRA),sra-)$(if $(MACOS),macos,$(if $(MINGW),mingw,linux))-$(ARCH)
 bowtie2-bin-pkg: $(BIN_PKG_LIST) $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG)
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
@@ -519,7 +496,7 @@ bowtie2-seeds-debug: aligner_seed.cpp ccnt_lut.cpp alphabet.cpp aligner_seed.h b
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		-DSCAN_MAIN \
 		$(DEFS) -Wall \
-		$(CPPFLAGS) -I . \
+		$(CPPFLAGS) \
 		-o $@ $< \
 		aligner_seed.cpp bt2_idx.cpp ccnt_lut.cpp alphabet.cpp bt2_io.cpp \
 		$(LDFLAGS) $(LDLIBS)
@@ -532,12 +509,13 @@ doc/manual.html: MANUAL.markdown
 	pandoc -B .tmp.head \
 	       --metadata title:"Bowtie 2 Manual"\
 	       --css doc/style.css -o $@ \
-	       --from markdown --to HTML \
+	       --from markdown-smart \
+	       --to HTML \
 	       --table-of-contents $^
 	rm -f .tmp.head
 
 MANUAL: MANUAL.markdown
-	pandoc -f markdown -t plain $^ -o $@
+	pandoc -f markdown-smart -t plain $^ -o $@
 
 .PHONY: install
 install: all
@@ -578,18 +556,17 @@ static-libs:
 	cd $(CURDIR)/.tmp ; \
 	DL=$$( ( which wget >/dev/null 2>&1 && echo "wget --no-check-certificate" ) || echo "curl -LOk") ; \
 	if [ ! -f "$(CURDIR)/.tmp/include/zlib.h" ] ; then \
-		$$DL https://zlib.net/zlib-1.2.11.tar.gz && tar xzf zlib-1.2.11.tar.gz && cd zlib-1.2.11 ; \
+		$$DL https://zlib.net/zlib-1.2.13.tar.gz && tar xzf zlib-1.2.13.tar.gz && cd zlib-1.2.13 ; \
 		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) ; \
 		cp zlib.h zconf.h $(CURDIR)/.tmp/include && cp libz.a $(CURDIR)/.tmp/lib ; \
-		rm -f zlib-1.2.11 ; \
+		rm -f zlib-1.2.13 ; \
 	fi ; \
-	if [ ! -d "$(CURDIR)/.tmp/include/tbb" ] ; then \
-		cd $(CURDIR)/.tmp ; \
-		$$DL https://github.com/01org/tbb/archive/2019_U4.tar.gz && tar xzf 2019_U4.tar.gz && cd tbb-2019_U4; \
-		$(if $(MINGW), mingw32-make compiler=gcc arch=ia64 runtime=mingw, make) extra_inc=big_iron.inc -j4 \
-		&& cp -r include/tbb $(CURDIR)/.tmp/include && cp build/*_release/*.a $(CURDIR)/.tmp/lib ; \
-		rm -f 2019_U4.tar.gz ; \
-	fi
+        if [ ! -f "$(CURDIR)/.tmp/include/zstd.h" ]; then \
+                cd $(CURDIR)/.tmp ; \
+                $$DL https://github.com/facebook/zstd/releases/download/v1.5.1/zstd-1.5.1.tar.gz && tar xzf zstd-1.5.1.tar.gz ; \
+                cd zstd-1.5.1 && $(MAKE) lib ; \
+                cd $(CURDIR)/.tmp/zstd-1.5.1/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
+        fi
 
 .PHONY: sra-deps
 sra-deps:

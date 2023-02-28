@@ -23,12 +23,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <condition_variable>
 #include <sys/stat.h>
 #include <zlib.h>
 #include <cassert>
 #include <string>
 #include <ctype.h>
 #include <vector>
+#include <queue>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -39,6 +41,9 @@
 #include "ds.h"
 #include "read.h"
 #include "util.h"
+#ifdef WITH_ZSTD
+#include "zstd_decompress.h"
+#endif
 
 #ifdef USE_SRA
 #include <ncbi-vdb/NGS.hpp>
@@ -77,7 +82,7 @@ struct PatternParams {
 		int sampleLen_,
 		int sampleFreq_,
 		size_t skip_,
-		size_t upto_,
+		uint64_t upto_,
 		int nthreads_,
 		bool fixName_,
 		bool preserve_tags_,
@@ -116,7 +121,7 @@ struct PatternParams {
 	int sampleLen;		  // length of sampled reads for FastaContinuous...
 	int sampleFreq;		  // frequency of sampled reads for FastaContinuous...
 	size_t skip;		  // skip the first 'skip' patterns
-	size_t upto;		  // max number of queries to read
+	uint64_t upto;		  // max number of queries to read
 	int nthreads;		  // number of threads for locking
 	bool fixName;		  //
 	bool preserve_tags;       // keep existing tags when aligning BAM files
@@ -128,12 +133,11 @@ struct PatternParams {
  */
 struct PerThreadReadBuf {
 
-	PerThreadReadBuf(size_t max_buf, int tid) :
+	PerThreadReadBuf(size_t max_buf) :
 		max_buf_(max_buf),
 		bufa_(max_buf),
 		bufb_(max_buf),
-		rdid_(),
-		tid_(tid)
+		rdid_()
 	{
 		bufa_.resize(max_buf);
 		bufb_.resize(max_buf);
@@ -177,7 +181,7 @@ struct PerThreadReadBuf {
 	/**
 	 * Return true when there's nothing left for next().
 	 */
-	bool exhausted() {
+	bool exhausted() const {
 		assert_leq(cur_buf_, bufa_.size());
 		return cur_buf_ >= bufa_.size()-1 || bufa_[cur_buf_+1].readOrigBuf.empty();
 	}
@@ -202,7 +206,6 @@ struct PerThreadReadBuf {
 	EList<Read> bufb_;	   // Read buffer for mate bs
 	size_t cur_buf_;	   // Read buffer currently active
 	TReadId rdid_;		   // index of read at offset 0 of bufa_/bufb_
-	int tid_;
 };
 
 extern void wrongQualityFormat(const BTString& read_name);
@@ -340,6 +343,13 @@ private:
  * critical section.
  */
 class CFilePatternSource : public PatternSource {
+	enum CompressionType {
+		NONE,
+		GZIP,
+#ifdef WITH_ZSTD
+		ZSTD,
+#endif
+	};
 public:
 	CFilePatternSource(
 		const EList<std::string>& infiles,
@@ -349,10 +359,13 @@ public:
 		filecur_(0),
 		fp_(NULL),
 		zfp_(NULL),
+#ifdef WITH_ZSTD
+		zstdfp_(NULL),
+#endif
 		is_open_(false),
 		skip_(p.skip),
 		first_(true),
-		compressed_(false)
+		compressionType_(CompressionType::NONE)
 	{
 		assert_gt(infiles.size(), 0);
 		errs_.resize(infiles_.size());
@@ -366,13 +379,21 @@ public:
 	 */
 	virtual ~CFilePatternSource() {
 		if(is_open_) {
-			if (compressed_) {
-				assert(zfp_ != NULL);
-				gzclose(zfp_);
-			}
-			else {
+			switch (compressionType_) {
+			case CompressionType::NONE:
 				assert(fp_ != NULL);
 				fclose(fp_);
+				break;
+			case CompressionType::GZIP:
+				assert(zfp_ != NULL);
+				gzclose(zfp_);
+				break;
+#ifdef WITH_ZSTD
+			case CompressionType::ZSTD:
+				assert(zstdfp_ != NULL);
+				zstdClose(zstdfp_);
+				break;
+#endif
 			}
 		}
 	}
@@ -424,15 +445,30 @@ protected:
 
 	int getc_wrapper() {
 		int c;
+
 		do {
-			c = compressed_ ? gzgetc(zfp_) : getc_unlocked(fp_);
+			if (compressionType_ == CompressionType::GZIP)
+				c = gzgetc(zfp_);
+#ifdef WITH_ZSTD
+			else if (compressionType_ == CompressionType::ZSTD)
+				c = zstdGetc(zstdfp_);
+#endif
+			else
+				c = getc_unlocked(fp_);
 		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
 
 		return c;
 	}
 
 	int ungetc_wrapper(int c) {
-		return compressed_ ? gzungetc(c, zfp_) : ungetc(c, fp_);
+		if (compressionType_ == CompressionType::GZIP)
+			return gzungetc(c, zfp_);
+#ifdef WITH_ZSTD
+		else if (compressionType_ == CompressionType::ZSTD)
+			return zstdUngetc(c, zstdfp_);
+#endif
+		else
+			return ungetc(c, fp_);
 	}
 
 	int zread(voidp buf, unsigned len) {
@@ -469,16 +505,36 @@ protected:
 		return false;
 	}
 
+#ifdef WITH_ZSTD
+	bool is_zstd_file(int fd) {
+		if (fd == -1)
+			return false;
+
+		unsigned magic;
+
+                if (read(fd, &magic, sizeof(unsigned)) != sizeof(unsigned)) {
+			std::cerr << "is_zstd_file: unable to read magic number" << std::endl;
+			return false;
+                }
+		lseek(fd, 0, SEEK_SET);
+
+                return magic == 0xfd2fb528;
+	}
+#endif
+
 	EList<std::string> infiles_;	 // filenames for read files
 	EList<bool> errs_;		 // whether we've already printed an error for each file
 	size_t filecur_;		 // index into infiles_ of next file to read
 	FILE *fp_;			 // read file currently being read from
 	gzFile zfp_;			 // compressed version of fp_
+#ifdef WITH_ZSTD
+	zstdStrm *zstdfp_;	         // zstd compressed file
+#endif
 	bool is_open_;			 // whether fp_ is currently open
 	TReadId skip_;			 // number of reads to skip
 	bool first_;			 // parsing first record in first file?
 	char buf_[64*1024];		 // file buffer
-	bool compressed_;
+	CompressionType compressionType_;
 
 private:
 
@@ -770,28 +826,6 @@ class BAMPatternSource : public CFilePatternSource {
 		ftr_t ftr;
 	};
 
-	struct orphan_mate_t {
-		orphan_mate_t() :
-			data(NULL),
-			size(0),
-			cap(0),
-			hash(0) {}
-
-		void reset() {
-			size = 0;
-			hash = 0;
-		}
-
-		bool empty() const {
-			return size == 0;
-		}
-
-		uint8_t* data;
-		uint16_t size;
-		uint16_t cap;
-		uint32_t hash;
-	};
-
 	struct BAMField {
 		enum aln_rec_field_name {
 			refID,
@@ -816,15 +850,15 @@ public:
 		const PatternParams& p) :
 		CFilePatternSource(infiles, p),
 		first_(true),
-		bam_batches_(p.nthreads),
-		bam_batch_indexes_(p.nthreads),
-		orphan_mates(p.nthreads * 2),
-		orphan_mates_mutex_(),
-		pp_(p) {
-			// uncompressed size of BGZF block is limited to 2**16 bytes
-			for (size_t i = 0; i < bam_batches_.size(); ++i) {
-				bam_batches_[i].reserve(1 << 16);
-			}
+		alignment_batch(0),
+		alignment_offset(0),
+		delta_(0),
+		pp_(p)
+		{
+			stream.zalloc = Z_NULL;
+			stream.zfree = Z_NULL;
+			stream.opaque = Z_NULL;
+			alignment_batch.reserve(1 << 16);
 		}
 
 	virtual void reset() {
@@ -838,11 +872,6 @@ public:
 	virtual bool parse(Read& ra, Read& rb, TReadId rdid) const;
 
 	~BAMPatternSource() {
-		for (size_t i = 0; i < orphan_mates.size(); i++) {
-			if (orphan_mates[i].data != NULL) {
-				delete[] orphan_mates[i].data;
-			}
-		}
 	}
 
 
@@ -868,18 +897,14 @@ private:
 
 	int decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_t *src, size_t src_len);
 	std::pair<bool, int> get_alignments(PerThreadReadBuf& pt, bool batch_a, unsigned& readi, bool lock);
-	void store_orphan_mate(const uint8_t* read, size_t read_len);
-	void get_orphaned_pairs(EList<Read>& buf_a, EList<Read>& buf_b, const size_t max_buf, unsigned& readi);
-	void get_or_store_orhaned_mate(EList<Read>& buf_a, EList<Read>& buf_b, unsigned& readi, const uint8_t *mate, size_t mate_len);
-	size_t get_matching_read(const uint8_t* rec);
 
-	static const int offset[];
+        static const int offset[];
 	static const uint8_t EOF_MARKER[];
 
-	std::vector<std::vector<uint8_t> > bam_batches_;
-	std::vector<size_t> bam_batch_indexes_;
-	std::vector<orphan_mate_t> orphan_mates;
-	MUTEX_T orphan_mates_mutex_;
+	std::vector<uint8_t> alignment_batch;
+	size_t alignment_offset;
+	size_t delta_;
+	z_stream stream;
 
 	PatternParams pp_;
 };
@@ -1128,12 +1153,15 @@ public:
 
 	PatternSourcePerThread(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		buf_(pp.max_buf, tid),
+		buf_(pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
 		last_batch_size_(0) { }
+
+	// If it returns true, nextReadPair is non-blocking and should return success
+	bool nextReadPairReady() const {return !buf_.exhausted();}
 
 	/**
 	 * Use objects in the PatternSource and/or PatternComposer
@@ -1218,16 +1246,15 @@ class PatternSourcePerThreadFactory {
 public:
 	PatternSourcePerThreadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp, int tid) :
+		const PatternParams& pp) :
 		composer_(composer),
-		pp_(pp),
-		tid_(tid) { }
+		pp_(pp) {}
 
 	/**
 	 * Create a new heap-allocated PatternSourcePerThreads.
 	 */
 	virtual PatternSourcePerThread* create() const {
-		return new PatternSourcePerThread(composer_, pp_, tid_);
+		return new PatternSourcePerThread(composer_, pp_);
 	}
 
 	/**
@@ -1237,7 +1264,7 @@ public:
 	virtual EList<PatternSourcePerThread*>* create(uint32_t n) const {
 		EList<PatternSourcePerThread*>* v = new EList<PatternSourcePerThread*>;
 		for(size_t i = 0; i < n; i++) {
-			v->push_back(new PatternSourcePerThread(composer_, pp_, tid_));
+			v->push_back(new PatternSourcePerThread(composer_, pp_));
 			assert(v->back() != NULL);
 		}
 		return v;
@@ -1249,7 +1276,152 @@ private:
 	/// Container for obtaining paired reads from PatternSources
 	PatternComposer& composer_;
 	const PatternParams& pp_;
-	int tid_;
+};
+
+class PatternSourceReadAheadFactory {
+public:
+	class ReadElement {
+	public:
+		PatternSourcePerThread *ps;  // not owned, just a pointer
+		std::pair<bool, bool>   readResult;
+	};
+
+	PatternSourceReadAheadFactory(
+		PatternComposer& composer,
+		const PatternParams& pp, size_t n) :
+		psfact_(composer,pp),
+		psq_ready_(),
+		psq_idle_(psfact_,n),
+		asynct_(readAsync, this) {}
+
+	~PatternSourceReadAheadFactory() {
+		returnUnready(NULL); // this will signal asynct_ it is time to quit
+		asynct_.join();
+	}
+
+	// wait for data, if none in the queue
+	ReadElement nextReadPair() {
+		return psq_ready_.pop();
+	}
+
+	void returnUnready(PatternSourcePerThread* ps) {
+		psq_idle_.push(ps);
+	}
+
+	void returnUnready(ReadElement& re) {
+		returnUnready(re.ps);
+	}
+
+private:
+
+	template <typename T>
+	class LockedQueue {
+	public:
+		virtual ~LockedQueue() {}
+
+		bool empty() {
+			bool ret = false;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				ret = q_.empty();
+			}
+			return ret;
+		}
+
+		void push(T& ps) {
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				q_.push(ps);
+			}
+			cv_.notify_all();
+		}
+
+		// wait for data, if none in the queue
+		T pop() {
+			T ret;
+			{
+				std::unique_lock<std::mutex> lk(m_);
+				while (q_.empty()) cv_.wait(lk);
+				ret = q_.front();
+				q_.pop();
+			}
+			return ret;
+		}
+
+	protected:
+		std::mutex m_;
+		std::condition_variable cv_;
+		std::queue<T> q_;
+	};
+
+	class LockedPSQueue : public LockedQueue<PatternSourcePerThread*> {
+	public:
+		LockedPSQueue(PatternSourcePerThreadFactory& psfact, size_t n) : 
+			LockedQueue<PatternSourcePerThread*>() {
+			for (size_t i=0; i<n; i++) {
+				q_.push(psfact.create());
+			}
+		}
+
+		virtual ~LockedPSQueue() {
+			while (!q_.empty()) {
+				delete q_.front();
+				q_.pop();
+			}
+		}
+	};
+
+	class LockedREQueue : public LockedQueue<ReadElement> {
+	public:
+		virtual ~LockedREQueue() {
+			// we actually own ps while in the queue
+			while (!q_.empty()) {
+				delete q_.front().ps;
+				q_.pop();
+			}
+		}
+	};
+
+        static void readAsync(PatternSourceReadAheadFactory *obj) {
+		LockedREQueue &psq_ready = obj->psq_ready_;
+		LockedPSQueue &psq_idle = obj->psq_idle_;
+                while(true) {
+			ReadElement re;
+			re.ps = psq_idle.pop();
+			if (re.ps==NULL) break; // the destructor added this in the queue
+
+			if (re.ps->nextReadPairReady()) {
+				// Should never get in here, but just in case
+				re.readResult = make_pair(true, false);
+			} else {
+				re.readResult = re.ps->nextReadPair();
+			}
+			psq_ready.push(re);
+                }
+	}
+
+	PatternSourcePerThreadFactory psfact_;
+	LockedREQueue psq_ready_;
+	LockedPSQueue psq_idle_;
+	std::thread asynct_;
+};
+
+// Simple wrapper for safely holding the result of PatternSourceReadAheadFactory
+class PatternSourceReadAhead {
+public:
+	PatternSourceReadAhead(PatternSourceReadAheadFactory& fact) :
+		fact_(fact),
+		re_(fact.nextReadPair()) {}
+
+	~PatternSourceReadAhead() {
+		fact_.returnUnready(re_);
+	}
+
+	const std::pair<bool, bool>& readResult() const { return re_.readResult;}
+	PatternSourcePerThread* ptr() {return re_.ps;}
+private:
+	PatternSourceReadAheadFactory& fact_;
+	PatternSourceReadAheadFactory::ReadElement re_;
 };
 
 #ifdef USE_SRA
@@ -1272,7 +1444,6 @@ public:
 		sra_acc_cur_(0),
 		cur_(0),
 		first_(true),
-		sra_its_(p.nthreads),
 		mutex_m(),
 		pp_(p)
 	{
@@ -1284,12 +1455,7 @@ public:
 	}
 
 	virtual ~SRAPatternSource() {
-		for (size_t i = 0; i < sra_its_.size(); i++) {
-			if(sra_its_[i] != NULL) {
-				delete sra_its_[i];
-				sra_its_[i] = NULL;
-			}
-		}
+		delete read_iter_;
 	}
 
 	/**
@@ -1316,7 +1482,9 @@ public:
 	 */
 	virtual void reset() {
 		PatternSource::reset();
-		sra_acc_cur_ = 0,
+		sra_acc_cur_ = 0;
+		if (read_iter_)
+			delete read_iter_;
 		open();
 		sra_acc_cur_++;
 	}
@@ -1338,7 +1506,7 @@ protected:
 	size_t cur_;             // current read id
 	bool first_;
 
-	std::vector<ngs::ReadIterator*> sra_its_;
+	ngs::ReadIterator* read_iter_;
 
 	/// Lock enforcing mutual exclusion for (a) file I/O, (b) writing fields
 	/// of this or another other shared object.

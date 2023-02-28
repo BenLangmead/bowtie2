@@ -39,6 +39,15 @@ static inline bool currentlyBigEndian() {
 	static uint8_t endianCheck[] = {1, 0, 0, 0};
 	return *((uint32_t*)endianCheck) != 1;
 }
+/**
+ * Return copy of uint16_t argument with byte order reversed.
+ */
+static inline uint16_t endianSwapU16(uint16_t u) {
+	uint16_t tmp = 0;
+	tmp |= ((u >> 8) & (0xff << 0));
+	tmp |= ((u << 8) & (0xff << 8));
+	return tmp;
+}
 
 /**
  * Return copy of uint32_t argument with byte order reversed.
@@ -102,8 +111,8 @@ static inline int64_t endianSwapI64(int64_t u) {
  * that u currently has the endianness of the current machine.
  */
 template <typename T>
-static inline T endianizeU(T u, bool toBig) {
-	if(toBig == currentlyBigEndian()) {
+static inline T endianizeU(T u, bool switchEndian) {
+	if(!switchEndian) {
 		return u;
 	}
 	if(sizeof(T) == 4) {
@@ -121,8 +130,8 @@ static inline T endianizeU(T u, bool toBig) {
  * that u currently has the endianness of the current machine.
  */
 template <typename T>
-static inline T endianizeI(T i, bool toBig) {
-	if(toBig == currentlyBigEndian()) {
+static inline T endianizeI(T i, bool switchEndian) {
+	if(!switchEndian) {
 		return i;
 	}
 	if(sizeof(T) == 4) {

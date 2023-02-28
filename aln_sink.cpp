@@ -834,7 +834,9 @@ void AlnSinkWrap::finishRead(
 			} else {
 				met.nconcord_uni++;
 				assert(!rs1_.empty());
-				if(rs1_.size() == 1) {
+				AlnScore sc1 = concordSumm.bestUnchosenP1Score();
+				AlnScore sc2 = concordSumm.bestUnchosenP2Score();
+				if(!sc1.valid() && !sc2.valid()) {
 					met.nconcord_uni1++;
 				} else {
 					met.nconcord_uni2++;
@@ -2112,7 +2114,14 @@ void AlnSinkSam::appendMate(
 			sc);         // scoring scheme
 	}
 	samc_.printPreservedOptFlags(o, rd);
+	samc_.printComment(o, rd.name);
 	o.append('\n');
+	if(samc_.passthrough()) {
+		// Original read string
+		samc_.printOptFieldNewlineEscapedZ(o, rd.readOrigBuf);
+		o.append('\n');
+	}
+
 }
 
 #ifdef ALN_SINK_MAIN

@@ -1,0 +1,67 @@
+name: Random Tests
+on:
+  push:
+    branches:
+      - 'bug_fixes'
+      - 'master'
+    paths:
+      - '**.h'
+      - '**.cpp'
+      - 'bowtie2'
+      - 'bowtie2-build'
+      - 'bowtie2-inspect'
+      - 'Makefile'
+      - 'scripts/sim/**'
+      - 'scripts/test/**'
+  pull_request:
+    branches:
+      - 'master'
+    paths:
+      - '**.h'
+      - '**.cpp'
+      - 'bowtie2'
+      - 'bowtie2-build'
+      - 'bowtie2-inspect'
+      - 'Makefile'
+      - 'scripts/sim/**'
+      - 'scripts/test/**'
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install zlib development files
+        run: |
+          sudo apt-get update
+          sudo apt-get install zlib1g-dev
+  linux:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run random tests
+        run: |
+          make clean; make -j4 allall
+          export NUM_CORES=1
+          make random-test
+  linux-avx2:
+    runs-on: ubuntu-latest
+    needs: linux
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run random tests using avx2
+        run: |
+          export SSE_AVX2=1
+          make clean; make -j4 allall
+          export NUM_CORES=1
+          make random-test
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run random tests
+        run: |
+          make clean; make -j4 allall
+          export NUM_CORES=1
+          make random-test

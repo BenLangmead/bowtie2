@@ -21,6 +21,7 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <getopt.h>
 #include <stdexcept>
 
@@ -38,8 +39,9 @@ static int names_only   = 0;  // just print the sequence names in the index
 static int summarize_only = 0; // just print summary of index and quit
 static int across       = 60; // number of characters across in FASTA output
 static bool refFromEbwt = false; // true -> when printing reference, decode it from Ebwt instead of reading it from BitPairReference
+static string out_filename = ""; // name of output file
 static string wrapper;
-static const char *short_options = "vhnsea:";
+static const char *short_options = "vhnsea:o:";
 
 enum {
 	ARG_VERSION = 256,
@@ -56,6 +58,7 @@ static struct option long_options[] = {
 	{(char*)"help",     no_argument,        0, 'h'},
 	{(char*)"across",   required_argument,  0, 'a'},
 	{(char*)"ebwt-ref", no_argument,        0, 'e'},
+	{(char*)"output",   required_argument,  0, 'o'},
 	{(char*)"wrapper",  required_argument,  0, ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
 };
@@ -76,23 +79,23 @@ static void printUsage(ostream& out) {
 	<< "Options:" << endl;
 	if(wrapper == "basic-0") {
 		out << "  --large-index      force inspection of the 'large' index, even if a" << endl
-			<< "                     'small' one is present." << endl
-			<< "  --debug            use the debug binary; slower, assertions enabled" << endl
-			<< "  --sanitized        use sanitized binary; slower, uses ASan and/or UBSan" << endl
-			<< "  --verbose          log the issued command" << endl;
+		    << "                     'small' one is present." << endl
+		    << "  --debug            use the debug binary; slower, assertions enabled" << endl
+		    << "  --sanitized        use sanitized binary; slower, uses ASan and/or UBSan" << endl
+		    << "  --verbose          log the issued command" << endl;
 	}
 	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
-	<< "  -n/--names         Print reference sequence names only" << endl
-	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
-	<< "  -v/--verbose       Verbose output (for debugging)" << endl
-	<< "  -h/--help          print detailed description of tool and its options" << endl
-	;
+	    << "  -n/--names         Print reference sequence names only" << endl
+	    << "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
+	    << "  -o/--output        Save output to filename (default stdout)" << endl
+	    << "  -v/--verbose       Verbose output (for debugging)" << endl
+	    << "  -h/--help          print this and message quit" << endl;
 	if(wrapper.empty()) {
 		cerr << endl
 		     << "*** Warning ***" << endl
-			 << "'boowtie2-inspect' was run directly.  It is recommended "
-			 << "to use the wrapper script instead."
-			 << endl << endl;
+		     << "'boowtie2-inspect' was run directly.  It is recommended "
+		     << "to use the wrapper script instead."
+		     << endl << endl;
 	}
 }
 
@@ -141,6 +144,7 @@ static void parseOptions(int argc, char **argv) {
 			case 'e': refFromEbwt = true; break;
 			case 'n': names_only = true; break;
 			case 's': summarize_only = true; break;
+			case 'o': out_filename = optarg; break;
 			case 'a': across = parseInt(-1, "-a/--across arg must be at least 1"); break;
 			case -1: break; /* Done with options. */
 			case 0:
@@ -369,18 +373,21 @@ static void driver(
 	const string& ebwtFileBase,
 	const string& query)
 {
-	// Adjust
+	ostream *fout = out_filename == "" ? &cout : new ofstream(out_filename);
+	if (!fout->good()) {
+		cerr << "Unable to open " << out_filename << " for writing." << endl;
+		exit(1);
+	}
 	string adjustedEbwtFileBase = adjustEbwtBase(argv0, ebwtFileBase, verbose);
-
 	if (names_only) {
-		print_index_sequence_names(adjustedEbwtFileBase, cout);
+		print_index_sequence_names(adjustedEbwtFileBase, *fout);
 	} else if(summarize_only) {
-		print_index_summary(adjustedEbwtFileBase, cout);
+		print_index_summary(adjustedEbwtFileBase, *fout);
 	} else {
 		// Initialize Ebwt object
 		bool color = readEbwtColor(adjustedEbwtFileBase);
 		Ebwt ebwt(
-			adjustedEbwtFileBase, 
+			adjustedEbwtFileBase,
 			color,                // index is colorspace
 			-1,                   // don't care about entire-reverse
 			true,                 // index is for the forward direction
@@ -412,7 +419,7 @@ static void driver(
 			EList<string> refnames;
 			readEbwtRefnames(adjustedEbwtFileBase, refnames);
 			print_ref_sequences(
-				cout,
+				*fout,
 				readEbwtColor(ebwtFileBase),
 				refnames,
 				ebwt.plen(),
@@ -421,6 +428,10 @@ static void driver(
 		// Evict any loaded indexes from memory
 		if(ebwt.isInMemory()) {
 			ebwt.evictFromMemory();
+		}
+		if (fout != &cout) {
+			((ofstream *)fout)->close();
+			delete fout;
 		}
 	}
 }

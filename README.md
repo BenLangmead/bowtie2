@@ -1,7 +1,9 @@
 
 <!-- badges: start -->
-[![Generic badge](https://img.shields.io/badge/version-2.4.1-green.svg)](https://shields.io/)
-[![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2)
+![Random Tests](https://github.com/BenLangmead/bowtie2/actions/workflows/random-tests.yml/badge.svg)
+![Simple Tests](https://github.com/BenLangmead/bowtie2/actions/workflows/simple-tests.yml/badge.svg)
+[![Version](https://img.shields.io/badge/version-2.5.1-green.svg)](https://shields.io/)
+<!-- [![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2) -->
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 <!--badges: end -->
 
@@ -24,12 +26,12 @@ Containerized versions of Bowtie 2 are also available via the
 [Biocontainers](https://biocontainers.pro/) project (e.g. via
 [Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
 
-You can also download Bowtie 2 sources and binaries from the "releases" tab on this
-page. Binaries are available for the x86_64 architecture running Linux, Mac OS X,
-and Windows. We are planning on adding experimental support for ARM-64 in an
-upcoming release. If you plan to compile Bowtie 2 yourself, make sure you have the
-[TBB](https://www.threadingbuildingblocks.org/) and [zlib](https://www.zlib.net)
-libraries installed. See the
+You can also download Bowtie 2 sources and binaries from the
+"releases" tab on this page. Binaries are available for the Linux,
+Mac OS X, and Windows. By utilizing the [SIMDE project](https://github.com/simd-everywhere/simde)
+Bowtie 2 now supports the following architectures: ARM64, PPC64, and
+s390x.  If you plan to compile Bowtie 2 yourself, make sure you at least have
+the [zlib](https://www.zlib.net) library and header files installed. See the
 [Building from source](http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml#building-from-source)
 section of the manual for details.
 
@@ -41,9 +43,9 @@ Looking to try out Bowtie 2? Check out the [Bowtie 2 UI](http://bit.ly/bt2ui-bet
 set of alignments in SAM format.
 
 "Alignment" is the process by which we discover how and where the read sequences are
-similar to the reference sequence. An “alignment” is a result from this process,
-specifically: an alignment is a way of “lining up” some or all of the characters in
-the read with some characters from the reference in a way that reveals how they’re
+similar to the reference sequence. An "alignment" is a result from this process,
+specifically: an alignment is a way of "lining up" some or all of the characters in
+the read with some characters from the reference in a way that reveals how they're
 similar. For example:
 
 ```
@@ -54,7 +56,7 @@ similar. For example:
 Where dash symbols represent gaps and vertical bars show where aligned characters match.
 
 We use alignment to make an educated guess as to where a read originated with
-respect to the reference genome. It’s not always possible to determine this with
+respect to the reference genome. It's not always possible to determine this with
 certainty. For instance, if the reference genome contains several long stretches of
 As (`AAAAAAAAA` etc.) and the read sequence is a short stretch of As (`AAAAAAA`), we
 cannot know for certain exactly where in the sea of As the read originated.
@@ -77,7 +79,7 @@ have a `bt2l` termination. These files together constitute the index: they are a
 that is needed to align reads to that reference. The original sequence FASTA files
 are no longer used by Bowtie 2 once the index is built.
 
-Bowtie 2’s `.bt2` index format is different from Bowtie 1’s `.ebwt` format, and they
+Bowtie 2's `.bt2` index format is different from Bowtie 1's `.ebwt` format, and they
 are not compatible with each other.
 
 **Examples**
@@ -115,7 +117,7 @@ bowtie2-inspect --large-index example/index/lambda_virus
 
 - Langmead B, Salzberg S. __[Fast gapped-read alignment with Bowtie 2](http://www.nature.com/nmeth/journal/v9/n4/full/nmeth.1923.html)__. [Nature Methods](http://www.nature.com/nmeth). 2012, 9:357-359.
 
-- Langmead B, Trapnell C, Pop M, Salzberg SL. __[Ultrafast and memory-efficient alignment of short DNA sequences to the human genome](http://genomebiology.com/2009/10/3/R25)__. [Genome Biology](http://genomebiology.com/) 10:R25.
+- Langmead B, Trapnell C, Pop M, Salzberg SL. __[Ultrafast and memory-efficient alignment of short DNA sequences to the human genome](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2009-10-3-r25)__. [Genome Biology](https://genomebiology.biomedcentral.com/) 10:R25.
 
 ### Related Publications
 

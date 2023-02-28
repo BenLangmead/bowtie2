@@ -34,6 +34,7 @@
 #ifndef UNIQUE_H_
 #define UNIQUE_H_
 
+#include <algorithm>
 #include <string>
 #include "aligner_result.h"
 #include "simple_func.h"
@@ -213,8 +214,8 @@ public:
 			scMin += scoreMin_.f<TAlScore>((float)ordlen);
 		}
 		TAlScore secbest = scMin-1;
-		TAlScore diff = (scPer - scMin);  // scores can vary by up to this much
-		TMapq ret = 0;
+                TAlScore diff = std::max<TAlScore>(1, scPer - scMin); // scores can vary by up to this much
+                TMapq ret = 0;
 		TAlScore best = s.paired() ?
 			s.bestCScore().score() : s.bestScore(mate1).score();
 		// best score but normalized so that 0 = worst valid score

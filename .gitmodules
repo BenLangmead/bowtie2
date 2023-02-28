@@ -1,3 +1,7 @@
 [submodule "third_party/simde"]
 	path = third_party/simde
-	url = https://github.com/nemequ/simde.git
+	url = https://github.com/simd-everywhere/simde-no-tests.git
+	branch = master
+[submodule "third_party/libsais"]
+	path = third_party/libsais
+	url = https://github.com/ch4rr0/libsais

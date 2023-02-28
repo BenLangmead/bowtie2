@@ -21,7 +21,9 @@
 
 CPUS=$1
 shift
-make -j$CPUS \
+
+MAKE=`which gmake || which make`
+$MAKE -j$CPUS \
 	bowtie2-align-s \
 	bowtie2-align-l \
 	bowtie2-align-s-debug \

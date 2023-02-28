@@ -20,79 +20,25 @@
 #ifndef THREADING_H_
 #define THREADING_H_
 
-#include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <mutex>
 
-#ifdef WITH_TBB
-# include <mutex>
-# include <tbb/spin_mutex.h>
-# include <tbb/queuing_mutex.h>
-#  include <atomic>
-# ifdef WITH_AFFINITY
-#  include <sched.h>
-#  include <tbb/task_group.h>
-#  include <tbb/task_scheduler_observer.h>
-#  include <tbb/task_scheduler_init.h>
-# endif
+#include "bt2_locks.h"
+
+#ifdef WITH_QUEUELOCK
+#define MUTEX_T mcs_lock
+#elif defined(NO_SPINLOCK)
+#define MUTEX_T std::mutex
 #else
-# include "tinythread.h"
-# include "fast_mutex.h"
+#define MUTEX_T spin_lock
 #endif
 
-#ifdef NO_SPINLOCK
-# ifdef WITH_TBB
-#   ifdef WITH_QUEUELOCK
-#  	define MUTEX_T tbb::queuing_mutex
-#   else
-#       define MUTEX_T std::mutex
-#   endif
-# else
-#   define MUTEX_T tthread::mutex
-# endif
-#else
-# ifdef WITH_TBB
-#   define MUTEX_T tbb::spin_mutex
-# else
-#   define MUTEX_T tthread::fast_mutex
-# endif
-#endif /* NO_SPINLOCK */
-
-#ifdef WITH_TBB
 struct thread_tracking_pair {
 	int tid;
 	std::atomic<int>* done;
-};
-#endif
-
-
-/**
- * Wrap a lock; obtain lock upon construction, release upon destruction.
- */
-class ThreadSafe {
-public:
-
-	ThreadSafe(MUTEX_T& ptr_mutex) : mutex_(ptr_mutex) {
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-#else
-		mutex_.lock();
-#endif
-	}
-
-	~ThreadSafe() {
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-#else
-		mutex_.unlock();
-#endif
-	}
-
-private:
-#if WITH_TBB && NO_SPINLOCK && WITH_QUEUELOCK
-	MUTEX_T::scoped_lock mutex_;
-#else
-	MUTEX_T& mutex_;
-#endif
 };
 
 #if defined(_TTHREAD_WIN32_)
@@ -103,6 +49,51 @@ private:
 	nanosleep(&ts_tmp_, NULL); \
 } while(false)
 #endif
+
+#ifdef NO_SPINLOCK
+#   ifdef WITH_QUEUELOCK
+#       define MUTEX_T mcs_lock
+#   else
+#       define MUTEX_T std::mutex
+#   endif
+#else
+# ifdef WITH_TBB
+#   define MUTEX_T spin_lock
+# endif
+#endif /* NO_SPINLOCK */
+/**
+ * Wrap a lock; obtain lock upon construction, release upon destruction.
+ */
+class ThreadSafe {
+public:
+
+	ThreadSafe(MUTEX_T& mutex) :
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		node_{},
+#endif
+		mutex_(mutex) {
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		mutex_.lock(node_);
+#else
+		mutex_.lock();
+#endif
+
+	}
+
+	~ThreadSafe() {
+#if NO_SPINLOCK && WITH_QUEUELOCK
+		mutex_.unlock(node_);
+#else
+		mutex_.unlock();
+#endif
+	}
+
+private:
+#if NO_SPINLOCK && WITH_QUEUELOCK
+	MUTEX_T::mcs_node node_;
+#endif
+	MUTEX_T& mutex_;
+};
 
 #ifdef WITH_TBB
 #ifdef WITH_AFFINITY

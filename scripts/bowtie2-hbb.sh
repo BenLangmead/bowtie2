@@ -16,16 +16,16 @@ if [ "$branch" == "" ] ; then
 fi
 
 set -x
-yum install -y git java-1.8.0-openjdk-devel.x86_64 zip unzip pandoc
+yum install -y git zip unzip pandoc
 
-git clone https://github.com/BenLangmead/bowtie2.git
+git clone --recursive https://github.com/BenLangmead/bowtie2.git
 if [ $? -ne 0 ] ; then
     echo "Unable to clone bowtie2 repo"
     exit 1
 fi
 
 cd bowtie2
-pwd && ls
+
 git branch -a | grep "$branch" 2>&1 > /dev/null
 if [ $? -ne 0 ] ; then
     echo "branch '$branch' does not exist"
@@ -37,20 +37,15 @@ fi
 if [ $use_sra -eq 1 ] ; then
     # this variant is needed to compile ncbi-vdb
     source /hbb/activate
+    yum install -y java-1.8.0-openjdk-devel.$(uname -m)
     make sra-deps
-fi
-
-libstdcpp=`find /opt/rh -name libstdc++.a -print | head -1`
-if [ ! -z $libstdcpp ] ; then
-    cp $libstdcpp /hbb_exe_gc_hardened/lib
 fi
 
 # this variant creates static binaries with PIC
 source /hbb_exe_gc_hardened/activate
 
-mkdir /mybin
-echo  'res=`echo $@ | sed "s/-L.*$//"`; /opt/rh/devtoolset-7/root/usr/bin/ar $res;' > /mybin/ar
-chmod +x /mybin/ar && export PATH=/mybin:$PATH
+# this version of pandoc does not support 'smart' filters
+sed -i 's/-smart//' Makefile
 
 make static-libs
 if [ $? -ne 0 ] ; then
@@ -58,7 +53,7 @@ if [ $? -ne 0 ] ; then
     exit 1
 fi
 
-make -j4 bowtie2-bin-pkg STATIC_BUILD=1 USE_SRA=$use_sra
+make bowtie2-bin-pkg STATIC_BUILD=1 WITH_ZSTD=1 USE_SRA=$use_sra
 if [ $? -ne 0 ] ; then
     echo "Unable to create bowtie2 package"
     exit 1

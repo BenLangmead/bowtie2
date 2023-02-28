@@ -19,7 +19,7 @@ processors can be used simultaneously to achieve greater alignment speed.
 Bowtie 2 outputs alignments in [SAM] format, enabling interoperation with a
 large number of other tools (e.g. [SAMtools], [GATK]) that use SAM.  Bowtie 2 is
 distributed under the [GPLv3 license], and it runs on the command line under
-Windows, Mac OS X and Linux.
+Windows, Mac OS X and Linux and BSD.
 
 [Bowtie 2] is often the first step in pipelines for comparative genomics,
 including for variation calling, ChIP-seq, RNA-seq, BS-seq.  [Bowtie 2] and
@@ -104,24 +104,25 @@ Bowtie 2 is available from various package managers, notably [Bioconda](https://
 With Bioconda installed, you should be able to install Bowtie 2 with `conda
 install bowtie2`.
 
-Containerized versions of Bowtie 2 are also available via the [Biocontainers](https://BioContainers.pro)
-project (e.g. [via Docker Hub](https://hub.docker.com/r/biocontainers/bowtie2/)).
-
-You can also download Bowtie 2 sources and binaries from the [Download] section
-of the Sourceforge site.  Binaries are available for the `x86_64` architecture
-running Linux, Mac OS X, and Windows.  If you plan to compile Bowtie 2 yourself,
-make sure to get the source package, i.e., the filename that ends in
-"-source.zip".
+You can also download Bowtie 2 sources and binaries from the
+[Download] section of the Sourceforge site.  Binaries are available
+for the `x86_64` architecture running Linux, Mac OS X, and Windows.
+FreeBSD users can obtain the latest version of Bowtie 2 from ports
+using `pkg install bowtie2`. If you plan to compile Bowtie 2 yourself,
+make sure to get the source package, i.e., the filename that ends
+in "-source.zip".
 
 Building from source
 --------------------
+Building from source
 
-Building Bowtie 2 from source requires a GNU-like environment with GCC, GNU Make
-and other basics.  It should be possible to build Bowtie 2 on most vanilla Linux
-installations or on a Mac installation with [Xcode] installed.  (But see note
-about the TBB library below).  Bowtie 2 can also be built on Windows using a
-64-bit MinGW distribution and MSYS. In order to simplify the MinGW setup it might
-be worth investigating popular MinGW personal builds since these are coming
+Building Bowtie 2 from source requires a GNU-like environment with
+Clang/GCC, GNU Make and other basics. It should be possible to build
+Bowtie 2 on most vanilla *NIX installations or on a Mac installation
+with Xcode installed.
+Bowtie 2 can also be built on Windows using a 64-bit MinGW distribution
+and MSYS. In order to simplify the MinGW setup it might be worth
+investigating popular MinGW personal builds since these are coming
 already prepared with most of the toolchains needed.
 
 First, download the source package from the [sourceforge site].  Make sure
@@ -131,30 +132,10 @@ Bowtie 2 tools by running GNU `make` (usually with the command `make`, but
 sometimes with `gmake`) with no arguments.  If building with MinGW, run `make`
 from the MSYS environment.
 
-Bowtie 2 can be run on many threads. By default, Bowtie 2 uses the Threading
-Building Blocks library (TBB) for this. If TBB is not available on your system
-(e.g. `make` prints an error like `tbb/mutex.h: No such file or directory`),
-you can install it yourself from source (see [Threading Building Blocks library])
-or install it using your operating system's preferred package manager.
-The table below list some of the commands for a few of the more popular
-operating systems.
-
-| Operating System     | Sync Package List | Search               | Install                      |
-|:---------------------|:------------------|:---------------------|:-----------------------------|
-| Ubuntu, Mint, Debian | apt-get update    | apt-cache search tbb | apt-get install libtbb-dev   |
-| Fedora, CentOS       | yum check-update  | yum search tbb       | yum install tbb-devel.x86_64 |
-| Arch                 | packman -Sy       | pacman -Ss tbb       | pacman -S extra/intel-tbb    |
-| Gentoo               | emerge --sync     | emerge --search tbb  | emerge dev-cpp/tbb           |
-| macOS                | brew update       | brew search tbb      | brew install tbb             |
-| FreeBSD              | pkg update        | pkg search tbb       | pkg install tbb-2019.1       |
-
-If all fails Bowtie 2 can be built with `make NO_TBB=1` to use pthreads
-or Windows native multithreading instead.
-
 The Bowtie 2 Makefile also includes recipes for basic automatic dependency
 management. Running `make static-libs && make STATIC_BUILD=1` will issue
 a series of commands that will:
-  1. download TBB and zlib
+  1. download zstd and zlib
   2. compile them as static libraries
   3. link the resulting libraries to the compiled Bowtie 2 binaries
 
@@ -1882,6 +1863,16 @@ at the expense of generating non-standard SAM
 Use `'='/'X'`, instead of `'M'`, to specify matches/mismatches in SAM record
 
 </td></tr>
+<tr><td id="bowtie2-options-sam-append-comment">
+
+    --sam-append-comment
+
+</td><td>
+
+Append FASTA/FASTQ comment to SAM record, where a comment is everything
+after the first space in the read name.
+
+</td></tr>
 </table>
 
 #### Performance options
@@ -2590,6 +2581,14 @@ names and lengths of the input sequences.  The summary has this format:
 
 Fields are separated by tabs.  Colorspace is always set to 0 for Bowtie 2.
 
+</td></tr><tr><td id="bowtie2-inspect-options-o">
+
+    -o/--output <filename>
+
+</td><td>
+
+Save output to user-specified filename (default: stdout)
+
 </td></tr><tr><td>
 
     -v/--verbose
@@ -2745,7 +2744,7 @@ format because the alignments are (a) compressed, which is convenient for
 long-term storage, and (b) sorted, which is conveneint for variant discovery.
 To generate variant calls in VCF format, run:
 
-    samtools mpileup -uf $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - > eg2.raw.bcf
+    bcftools mpileup -f $BT2_HOME/example/reference/lambda_virus.fa eg2.sorted.bam | bcftools view -Ov - > eg2.raw.bcf
 
 Then to view the variants, run:
 
@@ -2802,7 +2801,6 @@ for more details and variations on this process.
 [SAM]:                                                http://samtools.sourceforge.net/SAM1.pdf
 [SAMtools]:                                           http://samtools.sourceforge.net
 [Smith-Waterman]:                                     http://en.wikipedia.org/wiki/Smith_waterman
-[Threading Building Blocks library]:                  https://www.threadingbuildingblocks.org
 [TopHat]:                                             http://tophat.cbcb.umd.edu/
 [UCSC]:                                               http://genome.ucsc.edu/cgi-bin/hgGateway
 [Xcode]:                                              http://developer.apple.com/xcode/
@@ -2920,6 +2918,7 @@ warnings due to the case insensitive nature of markdown URLs -->
 [`-m`]:                                               #bowtie2-options-m
 [`-n`/`--names`]:                                     #bowtie2-inspect-options-n
 [`-o`/`--offrate`]:                                   #bowtie2-options-o
+[`-o`/`--output`]:                                    #bowtie2-inspect-options-o
 [`-o`]:                                               #bowtie2-options-o
 [`-p`/`--packed`]:                                    #bowtie2-build-options-p
 [`-p`/`--threads`]:                                   #bowtie2-options-p

@@ -29,7 +29,7 @@
 #include "outq.h"
 #include <utility>
 
-// Forward decl	
+// Forward decl
 class SeedResults;
 
 enum {
@@ -81,18 +81,18 @@ struct ReportingMetrics {
 		uint64_t sum_best_)
 	{
 		nread         = nread_;
-		
+
 		npaired       = npaired_;
 		nunpaired     = nunpaired_;
-		
+
 		nconcord_uni  = nconcord_uni_;
 		nconcord_uni1 = nconcord_uni1_;
 		nconcord_uni2 = nconcord_uni2_;
 		nconcord_rep  = nconcord_rep_;
 		nconcord_0    = nconcord_0_;
-		
+
 		ndiscord      = ndiscord_;
-		
+
 		nunp_0_uni    = nunp_0_uni_;
 		nunp_0_uni1   = nunp_0_uni1_;
 		nunp_0_uni2   = nunp_0_uni2_;
@@ -115,7 +115,7 @@ struct ReportingMetrics {
 		sum_best2     = sum_best2_;
 		sum_best      = sum_best_;
 	}
-	
+
 	/**
 	 * Merge (add) the counters in the given ReportingMetrics object
 	 * into this object.  This is the only safe way to update a
@@ -162,9 +162,9 @@ struct ReportingMetrics {
 	uint64_t  nread;         // # reads
 	uint64_t  npaired;       // # pairs
 	uint64_t  nunpaired;     // # unpaired reads
-	
+
 	// Paired
-	
+
 	//  Concordant
 	uint64_t  nconcord_uni;  // # pairs with unique concordant alns
 	uint64_t  nconcord_uni1; // # pairs with exactly 1 concordant alns
@@ -173,12 +173,12 @@ struct ReportingMetrics {
 	uint64_t  nconcord_0;    // # pairs with 0 concordant alns
 	//  Discordant
 	uint64_t  ndiscord;      // # pairs with 1 discordant aln
-	
+
 	//  Unpaired from failed pairs
 	uint64_t  nunp_0_uni;    // # unique from nconcord_0_ - ndiscord_
 	uint64_t  nunp_0_uni1;   // # pairs with exactly 1 concordant alns
 	uint64_t  nunp_0_uni2;   // # pairs with >1 concordant aln, still unique
-	uint64_t  nunp_0_rep;    // # repetitive from 
+	uint64_t  nunp_0_rep;    // # repetitive from
 	uint64_t  nunp_0_0;      // # with 0 alignments
 
 	//  Unpaired from repetitive pairs
@@ -187,16 +187,16 @@ struct ReportingMetrics {
 	uint64_t  nunp_rep_uni2; // # pairs with >1 concordant aln, still unique
 	uint64_t  nunp_rep_rep;  // # pairs with repetitive concordant alns
 	uint64_t  nunp_rep_0;    // # pairs with 0 concordant alns
-	
+
 	// Unpaired
-	
+
 	uint64_t  nunp_uni;      // # unique from nconcord_0_ - ndiscord_
 	uint64_t  nunp_uni1;     // # pairs with exactly 1 concordant alns
 	uint64_t  nunp_uni2;     // # pairs with >1 concordant aln, still unique
-	uint64_t  nunp_rep;      // # repetitive from 
+	uint64_t  nunp_rep;      // # repetitive from
 	uint64_t  nunp_0;        // # with 0 alignments
 
-	
+
 	uint64_t  sum_best1;     // Sum of all the best alignment scores
 	uint64_t  sum_best2;     // Sum of all the second-best alignment scores
 	uint64_t  sum_best;      // Sum of all the best and second-best
@@ -239,7 +239,7 @@ struct ReportingParams {
 		discord = discord_;
 		mixed   = mixed_;
 	}
-	
+
 #ifndef NDEBUG
 	/**
 	 * Check that reporting parameters are internally consistent.
@@ -250,14 +250,14 @@ struct ReportingParams {
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return true iff a -m or -M limit was set by the user.
 	 */
 	inline bool mhitsSet() const {
 		return mhits < std::numeric_limits<THitInt>::max();
 	}
-	
+
 	/**
 	 * Return a multiplier that indicates how many alignments we might look for
 	 * (max).  We can use this to boost parameters like ROWM and POSF
@@ -282,7 +282,7 @@ struct ReportingParams {
 			func.mult(mul);
 		}
 	}
-	
+
 	/**
 	 * Return true iff we are reporting all hits.
 	 */
@@ -292,16 +292,16 @@ struct ReportingParams {
 
 	// Number of alignments to report
 	THitInt khits;
-	
+
 	// Read is non-unique if mhits-1 next-best alignments are within
 	// pengap of the best alignment
 	THitInt mhits, pengap;
-	
+
 	// true if -M is specified, meaning that if the -M ceiling is
 	// exceeded, we should report 'khits' alignments chosen at random
 	// from those found
 	bool msample;
-	
+
 	// true iff we should seek and report discordant paired-end alignments for
 	// paired-end reads.
 	bool discord;
@@ -339,10 +339,10 @@ public:
 
 	// Flags for different ways we can finish out a category of potential
 	// alignments.
-	
+
 	enum {
 		EXIT_DID_NOT_EXIT = 1,        // haven't finished
-		EXIT_DID_NOT_ENTER,           // never tried search	
+		EXIT_DID_NOT_ENTER,           // never tried search
 		EXIT_SHORT_CIRCUIT_k,         // -k exceeded
 		EXIT_SHORT_CIRCUIT_M,         // -M exceeded
 		EXIT_SHORT_CIRCUIT_TRUMPED,   // made irrelevant
@@ -350,9 +350,9 @@ public:
 		EXIT_NO_ALIGNMENTS,           // none found
 		EXIT_WITH_ALIGNMENTS          // some found
 	};
-	
+
 	ReportingState(const ReportingParams& p) : p_(p) { reset(); }
-	
+
 	/**
 	 * Set all state to uninitialized defaults.
 	 */
@@ -374,7 +374,7 @@ public:
 		exitUnpair2_ = ReportingState::EXIT_DID_NOT_ENTER;
 		done_ = false;
 	}
-	
+
 	/**
 	 * Return true iff this ReportingState has been initialized with a call to
 	 * nextRead() since the last time reset() was called.
@@ -398,7 +398,7 @@ public:
 	 * discordant alignment has been found.
 	 */
 	bool foundUnpaired(bool mate1);
-	
+
 	/**
 	 * Called to indicate that the aligner has finished searching for
 	 * alignments.  This gives us a chance to finalize our state.
@@ -406,7 +406,7 @@ public:
 	 * TODO: Keep track of short-circuiting information.
 	 */
 	void finish();
-	
+
 	/**
 	 * Populate given counters with the number of various kinds of alignments
 	 * to report for this read.  Concordant alignments are preferable to (and
@@ -439,18 +439,18 @@ public:
 	 * Return an integer representing the alignment state we're in.
 	 */
 	inline int state() const { return state_; }
-	
+
 	/**
 	 * If false, there's no need to solve any more dynamic programming problems
 	 * for finding opposite mates.
 	 */
 	inline bool doneConcordant() const { return doneConcord_; }
-	
+
 	/**
 	 * If false, there's no need to seek any more discordant alignment.
 	 */
 	inline bool doneDiscordant() const { return doneDiscord_; }
-	
+
 	/**
 	 * If false, there's no need to seek any more unpaired alignments for the
 	 * specified mate.  Note: this doesn't necessarily mean we can stop looking
@@ -460,7 +460,7 @@ public:
 	inline bool doneUnpaired(bool mate1) const {
 		return mate1 ? doneUnpair1_ : doneUnpair2_;
 	}
-	
+
 	/**
 	 * If false, no further consideration of the given mate is necessary.  It's
 	 * not needed for *any* class of alignment: concordant, discordant or
@@ -482,7 +482,7 @@ public:
 	 * Return true iff there's no need to seek any more unpaired alignments.
 	 */
 	inline bool doneUnpaired() const { return doneUnpair_; }
-	
+
 	/**
 	 * Return true iff all alignment stages have been exited.
 	 */
@@ -550,7 +550,7 @@ protected:
 		uint64_t cnt,     // # alignments in category
 		bool& done,       // out: whether we short-circuited out of category
 		int& exit) const; // out: if done, how we short-circuited (-k? -m? etc)
-	
+
 	/**
 	 * Update done_ field to reflect whether we're totally done now.
 	 */
@@ -793,7 +793,7 @@ public:
 	 */
 	bool repOk() const { return true; }
 #endif
-	
+
 	//
 	// Related to reporting seed hits
 	//
@@ -952,7 +952,7 @@ protected:
  * the two mates implied by that paired alignment is correct than any
  * placement implied by an unpaired alignment.
  *
- * 
+ *
  */
 class AlnSinkWrap {
 public:
@@ -966,7 +966,7 @@ public:
 		rp_(rp),
 		threadid_(threadId),
 		mapq_(mapq),
-		init_(false),   
+		init_(false),
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
 		maxed2_(false),       // read is pair and we maxed out mate 2 unp alns
 		maxedOverall_(false), // alignments found so far exceed -m/-M ceiling
@@ -1032,7 +1032,7 @@ public:
 		bool suppressAlignments = false,
 		bool scUnMapped = false,
 		bool xeq = false);
-	
+
 	/**
 	 * Called by the aligner when a new unpaired or paired alignment is
 	 * discovered in the given stage.  This function checks whether the
@@ -1071,7 +1071,7 @@ public:
 		return true;
 	}
 #endif
-	
+
 	/**
 	 * Return true iff no alignments have been reported to this wrapper
 	 * since the last call to nextRead().
@@ -1079,7 +1079,7 @@ public:
 	bool empty() const {
 		return rs1_.empty() && rs1u_.empty() && rs2u_.empty();
 	}
-	
+
 	/**
 	 * Return true iff we have already encountered a number of alignments that
 	 * exceeds the -m/-M ceiling.  TODO: how does this distinguish between
@@ -1088,14 +1088,14 @@ public:
 	bool maxed() const {
 		return maxedOverall_;
 	}
-	
+
 	/**
 	 * Return true if the current read is paired.
 	 */
 	bool readIsPair() const {
 		return rd1_ != NULL && rd2_ != NULL;
 	}
-	
+
 	/**
 	 * Return true iff nextRead() has been called since the last time
 	 * finishRead() was called.
@@ -1107,21 +1107,21 @@ public:
 	 * AlnSinkWrap.
 	 */
 	const ReportingState& state() const { return st_; }
-	
+
 	/**
 	 * Return true iff we're in -M mode.
 	 */
 	bool Mmode() const {
 		return rp_.mhitsSet();
 	}
-	
+
 	/**
 	 * Return true iff the policy is to report all hits.
 	 */
 	bool allHits() const {
 		return rp_.allHits();
 	}
-	
+
 	/**
 	 * Return true iff at least two alignments have been reported so far for an
 	 * unpaired read or mate 1.
@@ -1145,7 +1145,7 @@ public:
 	bool hasSecondBestPair() const {
 		return best2Pair_ != std::numeric_limits<TAlScore>::min();
 	}
-	
+
 	/**
 	 * Get best score observed so far for an unpaired read or mate 1.
 	 */
@@ -1277,7 +1277,7 @@ protected:
 	EList<size_t>   select1_; // parallel to rs1_/rs2_ - which to report
 	EList<size_t>   select2_; // parallel to rs1_/rs2_ - which to report
 	ReportingState  st_;      // reporting state - what's left to do?
-	
+
 	EList<std::pair<AlnScore, size_t> > selectBuf_;
 	BTString obuf_;
 	StackedAln staln_;
@@ -1306,7 +1306,7 @@ public:
 			quiet),
 		samc_(samc)
 	{ }
-	
+
 	virtual ~AlnSinkSam() { }
 
 	/**
