@@ -250,8 +250,9 @@ add_executable(bowtie2-build-l ${BUILD_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-s ${INSPECT_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 
-set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX")
-set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
+set_target_properties(bowtie2-align-l bowtie2-build-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX")
+set_target_properties(bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN")
+set_target_properties(bowtie2-inspect-s PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
 
 install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
 install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
