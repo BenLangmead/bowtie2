@@ -240,7 +240,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true) = 0;
+		bool lock = false) = 0;
 
 	/**
 	 * Finishes parsing a given read.  Happens outside the critical section.
@@ -1083,7 +1083,7 @@ public:
 		assert(srcb_ != NULL);
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
-		lock_ = p.nthreads > 1;
+		// lock_ = p.nthreads > 1;
 		for(size_t i = 0; i < srca_->size(); i++) {
 			// Can't have NULL first-mate sources.	Second-mate sources
 			// can be NULL, in the case when the corresponding first-
@@ -1329,10 +1329,8 @@ private:
 		}
 
 		void push(T& ps) {
-			{
-				std::unique_lock<std::mutex> lk(m_);
-				q_.push(ps);
-			}
+			std::unique_lock<std::mutex> lk(m_);
+			q_.push(ps);
 			cv_.notify_all();
 		}
 
@@ -1341,7 +1339,7 @@ private:
 			T ret;
 			{
 				std::unique_lock<std::mutex> lk(m_);
-				while (q_.empty()) cv_.wait(lk);
+				cv_.wait(lk, [this] { return !q_.empty();});
 				ret = q_.front();
 				q_.pop();
 			}
