@@ -1083,8 +1083,8 @@ public:
 		assert(srcb_ != NULL);
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
-		// lock_ = p.nthreads > 1;
-		lock_ = false;
+		lock_ = p.nthreads > 1;
+		// lock_ = false;
 		for(size_t i = 0; i < srca_->size(); i++) {
 			// Can't have NULL first-mate sources.	Second-mate sources
 			// can be NULL, in the case when the corresponding first-

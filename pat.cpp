@@ -786,7 +786,7 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 
 	}
 	// Immediate EOF case
-	if(done && (*readbuf)[readi-1].readOrigBuf.length() == 1) {
+	if(done && readi > 0 && (*readbuf)[readi-1].readOrigBuf.length() == 1) {
 		readi--;
 	}
 	return make_pair(done, readi);
@@ -1076,7 +1076,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			}
 		}
 	}
-	if(aborted) {
+	if(aborted && readi > 0) {
 		readi--;
 	}
 	return make_pair(done, readi);
