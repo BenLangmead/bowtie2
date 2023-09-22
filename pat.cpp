@@ -481,6 +481,8 @@ void CFilePatternSource::open() {
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
 			int fd = dup(fileno(stdin));
+			SET_BINARY_MODE(fd)
+
 			if (pp_.format == BAM) {
 				compressionType_ = CompressionType::NONE;
 				fp_ = fdopen(fd, "rb");
@@ -511,16 +513,20 @@ void CFilePatternSource::open() {
 
 			bool err = false;
                         if (pp_.format == BAM) {
+				SET_BINARY_MODE(fd)
 				err = CHECK_ERROR(fp_ = fdopen(fd, "rb"));
 				compressionType_ = CompressionType::NONE;
                         } else if (is_fifo) {
+				SET_BINARY_MODE(fd)
 				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
 				compressionType_ = CompressionType::GZIP;
                         } else if (is_gzipped_file(fd)) {
+				SET_BINARY_MODE(fd)
 				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
 				compressionType_ = CompressionType::GZIP;
 #ifdef WITH_ZSTD
                         } else if (is_zstd_file(fd)) {
+				SET_BINARY_MODE(fd)
 				err = CHECK_ERROR(zstdfp_ = zstdFdOpen(fd));
 				compressionType_ = CompressionType::ZSTD;
 #endif

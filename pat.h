@@ -55,7 +55,13 @@
 #endif
 
 #ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+
+#define SET_BINARY_MODE(fd) setmode(fd, O_BINARY)
 #define getc_unlocked _fgetc_nolock
+#else
+#define SET_BINARY_MODE(fd)
 #endif
 
 /**
