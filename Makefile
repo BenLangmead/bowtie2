@@ -41,9 +41,15 @@ MINGW :=
 ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
   WINDOWS := 1
   MINGW := 1
-  # POSIX memory-mapped files not currently supported on Windows
+
+  CXX ?= x86_64-w64-mingw32-g++-posix
+  CC  ?= x86_64-w64-mingw32-gcc-posix
+  AR  ?= x86_64-w64-mingw32-ar
+  RC  ?= x86_64-w64-mingw32-windres
+  STRIP ?= x86_64-w64-mingw32-strip
 endif
 
+# POSIX memory-mapped files not currently supported on Windows
 ifeq (1, $(WINDOWS))
   BOWTIE_MM :=
   BOWTIE_SHARED_MEM :=
@@ -544,6 +550,7 @@ perl-deps:
 	eval `perl -I $(CURDIR)/.tmp/lib/perl5 -Mlocal::lib=$(CURDIR)/.tmp` ; \
 	$(CURDIR)/.tmp/bin/cpanm --force File::Which Math::Random Clone Test::Deep Sys::Info ; \
 
+#make -f win32/Makefile.gcc CC=x86_64-w64-mingw32-gcc-posix AR=x86_64-w64-mingw32-ar RC=x86_64-w64-mingw32-windres STRIP=x86_64-w64-mingw32-strip
 .PHONY: static-libs
 static-libs:
 	if [ ! -d "$(CURDIR)/.tmp" ] ; then \
@@ -555,17 +562,18 @@ static-libs:
 	fi ; \
 	cd $(CURDIR)/.tmp ; \
 	DL=$$( ( which wget >/dev/null 2>&1 && echo "wget --no-check-certificate" ) || echo "curl -LOk") ; \
-	if [ ! -f "$(CURDIR)/.tmp/include/zlib.h" ] ; then \
-		$$DL https://zlib.net/zlib-1.2.13.tar.gz && tar xzf zlib-1.2.13.tar.gz && cd zlib-1.2.13 ; \
-		$(if $(MINGW), mingw32-make -f win32/Makefile.gcc, ./configure --static && make) ; \
+	if [ ! -f "$(CURDIR)/.tmp/lib/libz.a" ] ; then \
+		$$DL http://zlib.net/zlib-1.3.tar.gz && tar xzf zlib-1.3.tar.gz && cd zlib-1.3 ; \
+		$(if $(MINGW), $(MAKE) -f win32/Makefile.gcc, ./configure --static && make) && \
 		cp zlib.h zconf.h $(CURDIR)/.tmp/include && cp libz.a $(CURDIR)/.tmp/lib ; \
-		rm -f zlib-1.2.13 ; \
+		rm -rf zlib-1.3* ; \
 	fi ; \
-        if [ ! -f "$(CURDIR)/.tmp/include/zstd.h" ]; then \
+        if [ ! -f "$(CURDIR)/.tmp/lib/libzstd.a" ]; then \
                 cd $(CURDIR)/.tmp ; \
-                $$DL https://github.com/facebook/zstd/releases/download/v1.5.1/zstd-1.5.1.tar.gz && tar xzf zstd-1.5.1.tar.gz ; \
-                cd zstd-1.5.1 && $(MAKE) lib ; \
-                cd $(CURDIR)/.tmp/zstd-1.5.1/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
+                $$DL https://github.com/facebook/zstd/releases/download/v1.5.5/zstd-1.5.5.tar.gz && tar xzf zstd-1.5.5.tar.gz ; \
+                cd zstd-1.5.5 && $(MAKE) lib ; \
+                cd $(CURDIR)/.tmp/zstd-1.5.5/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
+		rm -rf zstd-1.5.5* ; \
         fi
 
 .PHONY: sra-deps
