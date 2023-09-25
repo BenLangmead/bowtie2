@@ -1364,7 +1364,7 @@ private:
 			PatternSourcePerThread *item;
 
 			while (q_.size_approx() > 0) {
-				q_.try_dequeue(item);
+				while (!q_.try_dequeue(item)) ;
 				delete item;
 			}
 		}
