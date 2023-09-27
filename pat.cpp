@@ -1044,19 +1044,23 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		(*readbuf)[readi].readOrigBuf.append('@');
 	}
 
-	bool done = false, aborted = false;
+	bool done = false, aborted = false, previous_was_newline = false;
 	// Read until we run out of input or until we've filled the buffer
 	while (readi < pt.max_buf_ && !done) {
 		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
 		int newlines = 4;
 		while(newlines) {
 			c = getc_wrapper();
+			if (previous_was_newline && c == '\n')
+				continue;
+			previous_was_newline = false;
 			done = c < 0;
 			if(c == '\n' || (done && newlines == 1)) {
 				// Saw newline, or EOF that we're
 				// interpreting as final newline
 				newlines--;
 				c = '\n';
+				previous_was_newline = true;
 			} else if(done) {
 				// account for newline at the end of the file
 				if (newlines == 4) {
