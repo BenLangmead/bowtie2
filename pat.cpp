@@ -1044,15 +1044,21 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		(*readbuf)[readi].readOrigBuf.append('@');
 	}
 
-	bool done = false, aborted = false, previous_was_newline = false;
+	bool done = false, previous_was_newline = false;
 	// Read until we run out of input or until we've filled the buffer
 	while (readi < pt.max_buf_ && !done) {
 		Read::TBuf& buf = (*readbuf)[readi].readOrigBuf;
 		int newlines = 4;
 		while(newlines) {
 			c = getc_wrapper();
-			if (previous_was_newline && c == '\n')
+			if (previous_was_newline && (c == '\n' || c == '\r'))
 				continue;
+			// We've encountered a new record implying that the
+			// previous record was incomplete. Reset the line count
+			// and let the parser take care of that.
+			if (previous_was_newline && c == '@' && newlines > 1) {
+				newlines = 4;
+			}
 			previous_was_newline = false;
 			done = c < 0;
 			if(c == '\n' || (done && newlines == 1)) {
@@ -1061,19 +1067,15 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 				newlines--;
 				c = '\n';
 				previous_was_newline = true;
-			} else if(done) {
-				// account for newline at the end of the file
-				if (newlines == 4) {
-					newlines = 0;
-				}
-				else {
-					aborted = true; // Unexpected EOF
-				}
+			}
+			if(done) {
 				break;
 			}
 			buf.append(c);
 		}
-		if (c > 0) {
+		// Accept potentially incomplete or empty reads. Let the parser
+		// take care of validating those reads.
+		if (newlines < 4) {
 			if (interleaved_) {
 				// alternate between read buffers
 				batch_a = !batch_a;
@@ -1086,9 +1088,7 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			}
 		}
 	}
-	if(aborted && readi > 0) {
-		readi--;
-	}
+
 	return make_pair(done, readi);
 }
 
@@ -1137,7 +1137,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
-	
+
 	assert_eq('+', c);
 	do {
 		assert(cur < r.readOrigBuf.length());
@@ -1204,6 +1204,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	if(!rb.parsed && !rb.readOrigBuf.empty()) {
 		return parse(rb, r, rdid);
 	}
+
 	return true;
 }
 
