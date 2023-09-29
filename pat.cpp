@@ -662,7 +662,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	int c = '\t';
 	size_t cur = 0;
 	const size_t buflen = ra.readOrigBuf.length();
-	
+
 	// Loop over the two ends
 	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
 		Read& r = ((endi == 0) ? ra : rb);
@@ -708,7 +708,7 @@ bool VectorPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
 		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
-		
+
 		// Parse qualities
 		assert(r.qual.empty());
 		c = ra.readOrigBuf[cur++];
@@ -975,7 +975,7 @@ bool FastaContinuousPatternSource::parse(
 	int c = '\t';
 	size_t cur = 0;
 	const size_t buflen = ra.readOrigBuf.length();
-	
+
 	// Parse read name
 	c = ra.readOrigBuf[cur++];
 	while(c != '\t' && cur < buflen) {
@@ -1004,7 +1004,7 @@ bool FastaContinuousPatternSource::parse(
 	ra.trimmed5 = (int)(nchar - ra.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
 	ra.trimmed3 = (int)(ra.patFw.trimEnd(pp_.trim3));
-	
+
 	// Make fake qualities
 	assert(ra.qual.empty());
 	const size_t len = ra.patFw.length();
@@ -1118,7 +1118,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 		}
 		r.name.append(c);
 	}
-	
+
 	// Parse sequence
 	int nchar = 0;
 	assert(r.patFw.empty());
@@ -1146,7 +1146,7 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	while(cur < buflen && (c == '\n' || c == '\r')) {
 		c = r.readOrigBuf[cur++];
 	}
-	
+
 	assert(r.qual.empty());
 	if(nchar > 0) {
 		int nqual = 0;
@@ -1289,7 +1289,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 	uint16_t cdata_len;
 	unsigned nread = 0;
 
-	ThreadSafe ts(mutex);
+	// ThreadSafe ts(mutex);
 	do {
 		if (alignment_offset >= alignment_batch.size()) {
 			BGZF block;
@@ -1506,7 +1506,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	int c = '\t';
 	size_t cur = 0;
 	const size_t buflen = ra.readOrigBuf.length();
-	
+
 	// Loop over the two ends
 	for(int endi = 0; endi < 2 && c == '\t'; endi++) {
 		Read& r = ((endi == 0) ? ra : rb);
@@ -1552,7 +1552,7 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		r.trimmed5 = (int)(nchar - r.patFw.length());
 		// record amt trimmed from 3' end due to --trim3
 		r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
-		
+
 		// Parse qualities
 		assert(r.qual.empty());
 		c = ra.readOrigBuf[cur++];
@@ -1660,12 +1660,12 @@ bool RawPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 	r.trimmed5 = (int)(nchar - r.patFw.length());
 	// record amt trimmed from 3' end due to --trim3
 	r.trimmed3 = (int)(r.patFw.trimEnd(pp_.trim3));
-	
+
 	// Give the name field a dummy value
 	char cbuf[20];
 	itoa10<TReadId>(rdid, cbuf);
 	r.name.install(cbuf);
-	
+
 	// Give the base qualities dummy values
 	assert(r.qual.empty());
 	const size_t len = r.patFw.length();
