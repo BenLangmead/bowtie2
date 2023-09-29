@@ -313,7 +313,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true);
+		bool lock = false);
 
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
@@ -416,7 +416,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true);
+		bool lock = false);
 
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
@@ -884,7 +884,7 @@ public:
 
 protected:
 
-	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = true);
+	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = false);
 
 	uint16_t nextBGZFBlockFromFile(BGZF& block);
 
@@ -1028,7 +1028,7 @@ public:
 		src_(src)
 	{
 		assert(src_ != NULL);
-		lock_ = p.nthreads > 1;
+		lock_ = false;
 		for(size_t i = 0; i < src_->size(); i++) {
 			assert((*src_)[i] != NULL);
 		}
@@ -1090,7 +1090,7 @@ public:
 		assert(srcb_ != NULL);
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
-		lock_ = p.nthreads > 1;
+		lock_ = false;
 		// lock_ = false;
 		for(size_t i = 0; i < srca_->size(); i++) {
 			// Can't have NULL first-mate sources.	Second-mate sources
