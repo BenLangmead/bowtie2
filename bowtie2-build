@@ -22,11 +22,11 @@
 import os
 import sys
 import gzip
-import struct
 import inspect
 import logging
 import argparse
 import subprocess
+
 
 def get_gunzip_size(fn):
     size = 0
@@ -66,48 +66,61 @@ def main():
         logging.getLogger().setLevel(logging.INFO)
 
     if script_options.debug:
-        build_bin_spec += '-debug'
-        build_bin_l += '-debug'
+        build_bin_spec += "-debug"
+        build_bin_l += "-debug"
 
     if script_options.sanitized:
-        build_bin_spec += '-sanitized'
-        build_bin_l += '-sanitized'
+        build_bin_spec += "-sanitized"
+        build_bin_l += "-sanitized"
 
     fastas = []
-    if '-c' not in argv and len(argv) >= 2:
+    if "-c" not in argv and len(argv) >= 2:
         for index in reversed(range(len(argv) - 1)):
             arg = argv[index]
-            if arg.startswith('-') or arg.isdigit():
+            if arg.startswith("-") or arg.isdigit():
                 break
             fastas.insert(0, arg)
             argv.remove(arg)
         if fastas:
-            fastas = ','.join(fastas)
+            fastas = ",".join(fastas)
             argv.insert(len(argv) - 1, fastas)
 
     if script_options.large_index:
-        build_bin_spec = os.path.join(ex_path,build_bin_l)
+        build_bin_spec = os.path.join(ex_path, build_bin_l)
     elif fastas:
         tot_size = 0
-        for fn in fastas.split(','):
+        for fn in fastas.split(","):
             if os.path.exists(fn):
-                if fn.endswith('.gz') or fn.endswith(".Z"):
+                if fn.endswith(".gz"):
                     tot_size += get_gunzip_size(fn)
+                elif fn.endswith(".zst"):
+                    sys.stderr.write(
+                        "{} cannot determine the uncompressed size of ZSTD compressed files.\
+                        Please make sure that the uncompressed file size is suitable for\
+                        building the current index".format(
+                            curr_script
+                        )
+                    )
                 else:
                     statinfo = os.stat(fn)
                     tot_size += statinfo.st_size
         if tot_size > small_index_max_size:
-            build_bin_spec = os.path.join(ex_path,build_bin_l)
+            build_bin_spec = os.path.join(ex_path, build_bin_l)
 
     if not os.path.exists(build_bin_spec):
-        sys.stderr.write('{0} does not exist, try running `[g]make {0}\'\n'.format(os.path.basename(build_bin_spec)))
+        sys.stderr.write(
+            "{0} does not exist, try running `[g]make {0}'\n".format(
+                os.path.basename(build_bin_spec)
+            )
+        )
         sys.exit(1)
 
-    argv.insert(0, 'basic-0')
-    argv.insert(0, '--wrapper')
+    argv.insert(0, "basic-0")
+    argv.insert(0, "--wrapper")
     argv.insert(0, build_bin_spec)
-    logging.info('Command: %s' % ' '.join(argv))
+    logging.info("Command: %s" % " ".join(argv))
     sys.exit(subprocess.call(argv))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
