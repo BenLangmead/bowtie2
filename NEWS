@@ -19,6 +19,14 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+## Version 2.5.2 - Oct 12, 2023 ##
+
+### bowtie2 ###
+  * Fixed an issue preventing `bowtie2` from utilizing the specified number of CPU cores
+  * Fixed an issue causing `bowtie2` to segfault when reading compressed inputs on Windows
+  * Fixed an issue causing `bowtie2` to segfault while parsing interleaved reads
+  * Overhauled the FASTQ parser with better tolerance for empty lines
+
 ## Version 2.5.1 - Feb 17, 2023 ##
 
 ### bowtie2 ###
