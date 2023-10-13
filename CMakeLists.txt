@@ -21,7 +21,9 @@ option(BOWTIE_SHARED_MEM "enable shared memory mapping" OFF)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
+if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+endif()
 set(USE_SRA ${USE_SRA})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
@@ -151,8 +153,8 @@ elseif (${ARCH} MATCHES amd64|x64_64)
 endif()
 
 if (USE_SRA)
-  set(NGS_VER 2.9.2)
-  set(NCBI_VDB_VER 2.9.2-1)
+  set(NGS_VER 2.10.2)
+  set(NCBI_VDB_VER 2.10.2)
 
   find_package(Java COMPONENTS Development REQUIRED)
   find_package(PythonInterp REQUIRED)
@@ -237,7 +239,9 @@ endif()
 
 include_directories(${PROJECT_SOURCE_DIR})
 get_directory_property(COMPILER_DEFS COMPILE_DEFINITIONS)
-add_definitions(-DCOMPILER_OPTIONS="${CMAKE_CXX_FLAGS}")
+string(REPLACE ";" " -D" COMPILER_DEFS "${COMPILER_DEFS}")
+string(REPLACE "\"" "" COMPILER_DEFS "${COMPILER_DEFS}")
+add_definitions(-DCOMPILER_OPTIONS="${CMAKE_CXX_FLAGS} -D${COMPILER_DEFS}")
 
 add_executable(bowtie2-align-s ${SEARCH_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-align-l ${SEARCH_CPPS} ${SHARED_CPPS})
@@ -246,8 +250,9 @@ add_executable(bowtie2-build-l ${BUILD_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-s ${INSPECT_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 
-set_target_properties(bowtie2-align-l bowtie2-build-l bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE2_64BIT_INDEX")
-set_target_properties(bowtie2-inspect-s bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
+set_target_properties(bowtie2-align-l bowtie2-build-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX")
+set_target_properties(bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN")
+set_target_properties(bowtie2-inspect-s PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
 
 install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
 install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
@@ -257,9 +262,17 @@ install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
 add_test(NAME simple-align
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   COMMAND bowtie2 -x example/index/lambda_virus example/reads/longreads.fq -u 10)
-add_test(NAME simple-build
+# Small index
+add_test(NAME simple-build-small
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   COMMAND bowtie2-build-s -c GGGCGGCGACCTCGCGGGTTTTCGCTA out)
-add_test(NAME simple-inspect
+add_test(NAME simple-inspect-small
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   COMMAND bowtie2-inspect-s out && rm out*)
+# Large index
+add_test(NAME simple-build-large
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND bowtie2-build-l -c GGGCGGCGACCTCGCGGGTTTTCGCTA out)
+add_test(NAME simple-inspect-large
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND bowtie2-inspect-l out && rm out*)

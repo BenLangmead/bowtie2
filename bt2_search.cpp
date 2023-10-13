@@ -4695,6 +4695,10 @@ static void multiseedSearch(
 	EList<int> tids;
 	EList<std::thread*> threads(nthreads);
 	EList<thread_tracking_pair> tps;
+	// Important: Need at least nthreads+1 elements, more is OK
+	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,4*nthreads+1);
+	multiseed_readahead_factory = &readahead_factory;
+
 	tps.resize(std::max(nthreads, thread_ceiling));
 	threads.reserveExact(std::max(nthreads, thread_ceiling));
 	tids.reserveExact(std::max(nthreads, thread_ceiling));
@@ -4727,9 +4731,6 @@ static void multiseedSearch(
 			startVerbose);
 	}
 
-	// Important: Need at least nthreads+1 elements, more is OK
-	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,2*nthreads+1);
-	multiseed_readahead_factory = &readahead_factory;
 
 	// Start the metrics thread
 

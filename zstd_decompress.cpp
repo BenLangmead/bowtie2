@@ -165,7 +165,9 @@ int zstdClose(zstdStrm *s)
                 free(s->o_buf);
         if (s->strm != NULL)
 		ZSTD_freeDStream(s->strm);
+#ifndef _WIN32
 	bzero(s, sizeof(zstdStrm));
+#endif
 	free(s);
 
         return 0;

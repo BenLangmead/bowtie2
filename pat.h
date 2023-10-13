@@ -41,6 +41,7 @@
 #include "ds.h"
 #include "read.h"
 #include "util.h"
+#include "concurrentqueue.h"
 #ifdef WITH_ZSTD
 #include "zstd_decompress.h"
 #endif
@@ -54,7 +55,13 @@
 #endif
 
 #ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+
+#define SET_BINARY_MODE(fd) setmode(fd, O_BINARY)
 #define getc_unlocked _fgetc_nolock
+#else
+#define SET_BINARY_MODE(fd)
 #endif
 
 /**
@@ -240,7 +247,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true) = 0;
+		bool lock = false) = 0;
 
 	/**
 	 * Finishes parsing a given read.  Happens outside the critical section.
@@ -306,7 +313,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true);
+		bool lock = false);
 
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
@@ -409,7 +416,7 @@ public:
 	virtual std::pair<bool, int> nextBatch(
 		PerThreadReadBuf& pt,
 		bool batch_a,
-		bool lock = true);
+		bool lock = false);
 
 	/**
 	 * Reset so that next call to nextBatch* gets the first batch.
@@ -877,7 +884,7 @@ public:
 
 protected:
 
-	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = true);
+	virtual std::pair<bool, int> nextBatch(PerThreadReadBuf& pt, bool batch_a, bool lock = false);
 
 	uint16_t nextBGZFBlockFromFile(BGZF& block);
 
@@ -1021,7 +1028,7 @@ public:
 		src_(src)
 	{
 		assert(src_ != NULL);
-		lock_ = p.nthreads > 1;
+		lock_ = false;
 		for(size_t i = 0; i < src_->size(); i++) {
 			assert((*src_)[i] != NULL);
 		}
@@ -1083,7 +1090,8 @@ public:
 		assert(srcb_ != NULL);
 		// srca_ and srcb_ must be parallel
 		assert_eq(srca_->size(), srcb_->size());
-		lock_ = p.nthreads > 1;
+		lock_ = false;
+		// lock_ = false;
 		for(size_t i = 0; i < srca_->size(); i++) {
 			// Can't have NULL first-mate sources.	Second-mate sources
 			// can be NULL, in the case when the corresponding first-
@@ -1278,6 +1286,8 @@ private:
 	const PatternParams& pp_;
 };
 
+using namespace moodycamel;
+
 class PatternSourceReadAheadFactory {
 public:
 	class ReadElement {
@@ -1320,65 +1330,58 @@ private:
 		virtual ~LockedQueue() {}
 
 		bool empty() {
-			bool ret = false;
-			{
-				std::unique_lock<std::mutex> lk(m_);
-				ret = q_.empty();
-			}
-			return ret;
+			return q_.size_approx() == 0;
 		}
 
 		void push(T& ps) {
-			{
-				std::unique_lock<std::mutex> lk(m_);
-				q_.push(ps);
-			}
-			cv_.notify_all();
+			q_.enqueue(ps);
 		}
 
 		// wait for data, if none in the queue
 		T pop() {
 			T ret;
-			{
-				std::unique_lock<std::mutex> lk(m_);
-				while (q_.empty()) cv_.wait(lk);
-				ret = q_.front();
-				q_.pop();
-			}
+
+			while (!q_.try_dequeue(ret)) ;
 			return ret;
 		}
 
 	protected:
-		std::mutex m_;
-		std::condition_variable cv_;
-		std::queue<T> q_;
+		// std::mutex m_;
+		// std::condition_variable cv_;
+		ConcurrentQueue<T> q_;
 	};
 
-	class LockedPSQueue : public LockedQueue<PatternSourcePerThread*> {
+	class LockedPSQueue: public LockedQueue<PatternSourcePerThread*> {
 	public:
 		LockedPSQueue(PatternSourcePerThreadFactory& psfact, size_t n) : 
 			LockedQueue<PatternSourcePerThread*>() {
 			for (size_t i=0; i<n; i++) {
-				q_.push(psfact.create());
+				q_.enqueue(psfact.create());
 			}
 		}
 
 		virtual ~LockedPSQueue() {
-			while (!q_.empty()) {
-				delete q_.front();
-				q_.pop();
+			PatternSourcePerThread *item;
+
+			while (q_.size_approx() != 0) {
+				while (!q_.try_dequeue(item)) ;
+				delete item;
 			}
 		}
+
 	};
 
 	class LockedREQueue : public LockedQueue<ReadElement> {
 	public:
 		virtual ~LockedREQueue() {
 			// we actually own ps while in the queue
-			while (!q_.empty()) {
-				delete q_.front().ps;
-				q_.pop();
+			ReadElement item;
+
+			while (q_.size_approx() != 0) {
+				while (!q_.try_dequeue(item)) ;
+				delete item.ps;
 			}
+
 		}
 	};
 

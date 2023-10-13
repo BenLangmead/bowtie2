@@ -1,4 +1,13 @@
-<h2>Version 2.5.1 - Jan 17, 2023</h2>
+<h2>Version 2.5.2 - Oct 13, 2023</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+  <li>Fixed an issue preventing <code>bowtie2</code> from utilizing the specified number of CPU cores</li>
+  <li>Fixed an issue causing <code>bowtie2</code> to segfault when reading compressed inputs on Windows</li>
+  <li>Fixed an issue causing <code>bowtie2</code> to segfault while parsing interleaved reads</li>
+  <li>Overhauled the FASTQ parser with better tolerance for empty lines</li>
+</ul>
+
+<h2>Version 2.5.1 - Feb 17, 2023</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
     <li>Fixed an issue affecting <code>bowtie2</code> alignment accuracy.</li>

@@ -4470,7 +4470,7 @@ sub convertFastqToBAM($$$) {
 
         if ($pe) {
                 if (ref $fq1 eq "ARRAY") {
-                        $bam_cmd = "./bowtie2 -x .dummy_index -1" . join(",", @$fq1) . " -2 " . join(",", @$fq2) . "| samtools view -b -o .test.bam";
+                        $bam_cmd = "./bowtie2 -x .dummy_index -1 " . join(",", @$fq1) . " -2 " . join(",", @$fq2) . "| samtools view -b -o .test.bam";
                 } else {
                         $bam_cmd = "./bowtie2 -x .dummy_index -1 $fq1 -2 $fq2 | samtools view -b -o .test.bam";
                 }
