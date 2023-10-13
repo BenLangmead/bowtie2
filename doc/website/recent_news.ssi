@@ -1,4 +1,4 @@
-<h2>Version 2.5.2 - Oct 12, 2023</h2>
+<h2>Version 2.5.2 - Oct 13, 2023</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
   <li>Fixed an issue preventing <code>bowtie2</code> from utilizing the specified number of CPU cores</li>
