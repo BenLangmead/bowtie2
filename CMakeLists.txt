@@ -153,8 +153,8 @@ elseif (${ARCH} MATCHES amd64|x64_64)
 endif()
 
 if (USE_SRA)
-  set(NGS_VER 2.9.2)
-  set(NCBI_VDB_VER 2.9.2-1)
+  set(NGS_VER 2.10.2)
+  set(NCBI_VDB_VER 2.10.2)
 
   find_package(Java COMPONENTS Development REQUIRED)
   find_package(PythonInterp REQUIRED)
