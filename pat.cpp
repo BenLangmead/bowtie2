@@ -481,7 +481,7 @@ void CFilePatternSource::open() {
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
 			int fd = dup(fileno(stdin));
-			SET_BINARY_MODE(fd)
+			SET_BINARY_MODE(fd);
 
 			if (pp_.format == BAM) {
 				compressionType_ = CompressionType::NONE;
