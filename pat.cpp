@@ -1054,10 +1054,11 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 			if (previous_was_newline && (c == '\n' || c == '\r'))
 				continue;
 			// We've encountered a new record implying that the
-			// previous record was incomplete. Reset the line count
-			// and let the parser take care of that.
-			if (previous_was_newline && c == '@' && newlines > 1) {
-				newlines = 4;
+			// previous record was incomplete. Move on to the next
+			// record, the parser will take care of the partial record.
+			if (previous_was_newline && c == '@' && newlines != 4) {
+				ungetc_wrapper(c);
+				break;
 			}
 			previous_was_newline = false;
 			done = c < 0;
