@@ -1051,12 +1051,19 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		int newlines = 4;
 		while(newlines) {
 			c = getc_wrapper();
-			if (previous_was_newline && (c == '\n' || c == '\r'))
+			// We check that buf.length == 0 so that empty lines
+			// at the beginning of a batch can get discarded.
+			if ((previous_was_newline || buf.length() == 0)
+			    && (c == '\n' || c == '\r')) {
 				continue;
+			}
 			// We've encountered a new record implying that the
 			// previous record was incomplete. Move on to the next
 			// record, the parser will take care of the partial record.
-			if (previous_was_newline && c == '@' && newlines != 4) {
+			// We cannot simply assume that if we see an '@' and the
+			// number of newlines != 4 then it is a partial record since
+			// the quality string can also contain the '@' character.
+			if (previous_was_newline && c == '@' && newlines > 1 && newlines < 4) {
 				ungetc_wrapper(c);
 				break;
 			}
