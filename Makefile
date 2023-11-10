@@ -86,11 +86,14 @@ else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc
   POPCNT_CAPABILITY ?= 0
 endif
 
-ifdef USE_SAIS
+ifeq (1, $(if $(or $(USE_SAIS),$(USE_SAIS_OPENMP)),1))
   CPPFLAGS += -Ithird_party/libsais/include
-  CXXFLAGS += -fopenmp -DUSE_SAIS
-  LDFLAGS += -Lthird_party/libsais/lib
-  LDLIBS += -lsais
+ifdef USE_SAIS_OPENMP
+  BUILD_CXXFLAGS += -fopenmp
+endif
+  BUILD_CXXFLAGS += -DUSE_SAIS
+  BUILD_LDFLAGS += -Lthird_party/libsais/lib
+  BUILD_LDLIBS += -lsais
 endif
 
 # msys will always be 32 bit so look at the cpu arch instead.
@@ -322,6 +325,9 @@ else
 $(BOWTIE2_BIN_LIST_SAN): $(error "Compiler does not support...")
 endif
 
+bowtie2-build-%: CXXFLAGS += $(BUILD_CXXFLAGS)
+bowtie2-build-%: LDFLAGS += $(BUILD_LDFLAGS)
+bowtie2-build-%: LDLIBS += $(BUILD_LDLIBS)
 #
 # bowtie2-build targets
 #
@@ -575,6 +581,16 @@ static-libs:
                 cd $(CURDIR)/.tmp/zstd-1.5.5/lib && cp zstd.h $(CURDIR)/.tmp/include && cp libzstd.a $(CURDIR)/.tmp/lib ; \
 		rm -rf zstd-1.5.5* ; \
         fi
+
+.PHONY: libsais
+libsais:
+	if [ ! -d $(CURDIR)/third_party/libsais ]; then \
+		git submodule init && git submodule update --recursive ; \
+	fi ; \
+	if [ -n "$(USE_SAIS_OPENMP)" ]; then \
+		export CFLAGS="$(CFLAGS) -fopenmp -O2" ; \
+	fi ; \
+	cd $(CURDIR)/third_party/libsais && $(MAKE) -B CC=$(CC) && $(MAKE) install PREFIX=$$PWD ;
 
 .PHONY: sra-deps
 sra-deps:

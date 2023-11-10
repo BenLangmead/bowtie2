@@ -1067,13 +1067,17 @@ public:
 				bmax = (TIndexOffU)sqrt(s.length());
 				VMSG_NL("bmax defaulted to: " << bmax);
 			}
+#ifndef USE_SAIS
 			int iter = 0;
 			bool first = true;
 			streampos out1pos = out1.tellp();
 			streampos out2pos = out2.tellp();
+#endif
+
 			// Look for bmax/dcv parameters that work.
 			thread_pool pool(nthreads - 1);
 			while(true) {
+#ifndef USE_SAIS
 				if(!first && bmax < 40 && _passMemExc) {
 					cerr << "Could not find approrpiate bmax/dcv settings for building this index." << endl;
 					if(!isPacked()) {
@@ -1107,7 +1111,9 @@ public:
 					VMSG_NL(" --dcv " << dcv);
 				}
 				iter++;
+#endif
 				try {
+#ifndef USE_SAIS
 					{
 						VMSG_NL("  Doing ahead-of-time memory usage test");
 						// Make a quick-and-dirty attempt to force a bad_alloc iff
@@ -1135,10 +1141,12 @@ public:
 						}
 						VMSG_NL("");
 					}
-					VMSG_NL("Constructing suffix-array element generator");
+#endif
 #ifdef USE_SAIS
+					VMSG_NL("Using SAIS algorithm for constructing suffix array");
 					SAISBlockwiseSA<TStr> bsa(s, bmax, nthreads);
 #else
+					VMSG_NL("Constructing suffix-array element generator");
 					KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, pool, dcv, seed, _sanity, _passMemExc, _verbose, outfile);
 #endif
 					assert(bsa.suffixItrIsReset());
@@ -1161,6 +1169,10 @@ public:
 					}
 					break;
 				} catch(bad_alloc& e) {
+#ifdef USE_SAIS
+					cerr << "Out of memory while constructing suffix array.  Please try using a smaller" << endl;
+					throw 1;
+#else
 					if(_passMemExc) {
 						VMSG_NL("  Ran out of memory; automatically trying more memory-economical parameters.");
 					} else {
@@ -1168,8 +1180,12 @@ public:
 						     << "number of blocks by specifying a smaller --bmax or a larger --bmaxdivn" << endl;
 						throw 1;
 					}
+#endif
 				}
+#ifndef USE_SAIS
 				first = false;
+#endif
+
 			}
 			assert(repOk());
 			// Now write reference sequence names on the end

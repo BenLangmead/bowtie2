@@ -204,11 +204,18 @@ public:
 			__text.wbuf()[__text.length()] = (char)127; // $ is larger than any character in the suffix array
 			_suffixes.resize(__text.length() + 1);
 #ifdef BOWTIE_64BIT_INDEX
+#ifdef _OPENMP
 			libsais64_omp((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL, _nthreads);
+#else
+			libsais64((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL);
+#endif
 
 #else
+#ifdef _OPENMP
 			libsais_omp((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL, _nthreads);
-
+#else
+			libsais((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL);
+#endif
 #endif
 			_suffixes[__text.length()] = __text.length();
 		}
@@ -231,7 +238,7 @@ public:
 	}
 
 	bool hasMoreBlocks() const {
-		return _i == _suffixes.size();
+		return _i < _suffixes.size();
 	}
 
 private:
