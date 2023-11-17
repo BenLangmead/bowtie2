@@ -967,7 +967,7 @@ private:
 	}
 
 	static constexpr size_t BUF_SZ = 16ul * 1024ul;
-	static constexpr size_t MAX_BUF_SZ = 16ul * 1024ul * 1024ul * 1024ul;
+	static constexpr size_t MAX_BUF_SZ = 16ul * 1024ul * 1024ul;
 
 	const char *name_;
 	FILE       *out_;
