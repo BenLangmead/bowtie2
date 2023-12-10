@@ -882,8 +882,8 @@ When -r is set, the result is as if --ignore-quals is also set.
 
     -F k:<int>,i:<int>
 
-Reads are substrings (k-mers) extracted from a FASTA file <s>.
-Specifically, for every reference sequence in FASTA file <s>, Bowtie 2
+Reads are substrings (k-mers) extracted from a FASTA file.
+Specifically, for every reference sequence in the FASTA file, Bowtie 2
 aligns the k-mers at offsets 1, 1+i, 1+2i, ... until reaching the end of
 the reference. Each k-mer is aligned as a separate read. Quality values
 are set to all Is (40 on Phred scale). Each k-mer (read) is given a name
@@ -891,6 +891,7 @@ like <sequence>_<offset>, where <sequence> is the name of the FASTA
 sequence it was drawn from and <offset> is its 0-based offset of origin
 with respect to the sequence. Only single k-mers, i.e. unpaired reads,
 can be aligned in this way.
+
     -c
 
 The read sequences are given on command line. I.e. <m1>, <m2> and

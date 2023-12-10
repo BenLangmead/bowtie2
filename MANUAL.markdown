@@ -957,8 +957,8 @@ per line, without any other information (no read names, no qualities).  When
 
 </td><td>
 
-Reads are substrings (k-mers) extracted from a FASTA file `<s>`.
-Specifically, for every reference sequence in FASTA file `<s>`, Bowtie
+Reads are substrings (k-mers) extracted from a FASTA file.
+Specifically, for every reference sequence in the FASTA file, Bowtie
 2 aligns the k-mers at offsets 1, 1+i, 1+2i, ... until reaching the
 end of the reference. Each k-mer is aligned as a separate read.
 Quality values are set to all Is (40 on Phred scale). Each k-mer

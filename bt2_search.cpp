@@ -765,7 +765,7 @@ static void printUsage(ostream& out) {
 	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
 	    << "  -r                 query input files are raw one-sequence-per-line" << endl
 	    << "  -F k:<int>,i:<int> query input files are continuous FASTA where reads" << endl
-	    << "                     are substrings (k-mers) extracted from a FASTA file <s>" << endl
+	    << "                     are substrings (k-mers) extracted from the FASTA file" << endl
 	    << "                     and aligned at offsets 1, 1+i, 1+2i ... end of reference" << endl
 	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
 	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
@@ -1047,8 +1047,15 @@ static void parseOption(int next_option, const char *arg) {
 		saw_bam = true;
 		break;
 	}
-	case 'f': set_format(format, FASTA); break;
+	case 'f': {
+		if (format != FASTA_CONT)
+			set_format(format, FASTA);
+		break;
+	}
 	case 'F': {
+		if (format == FASTA) {
+			format = UNKNOWN;
+		}
 		set_format(format, FASTA_CONT);
 		pair<uint32_t, uint32_t> p = parsePair<uint32_t>(arg, ',');
 		fastaContLen = p.first;
