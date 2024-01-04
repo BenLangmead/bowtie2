@@ -32,8 +32,8 @@ BOWTIE_SHARED_MEM :=
 
 CXXFLAGS += -std=c++11
 
-NGS_VER ?= 2.10.2
-VDB_VER ?= 2.10.2
+SRA_TOOLS_VER ?= 3.0.9
+VDB_VER ?= 3.0.9
 
 # Detect Cygwin or MinGW
 ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
@@ -107,6 +107,7 @@ ifeq (32,$(BITS))
 endif
 
 ifdef STATIC_BUILD
+  WITH_ZSTD = 1
   LDFLAGS += -L$(CURDIR)/.tmp/lib
   CPPFLAGS += -I$(CURDIR)/.tmp/include
 endif
@@ -150,8 +151,7 @@ ifeq (1, $(USE_SRA))
     ifndef ($(STATIC_BUILD))
       CPPFLAGS += -I$(CURDIR)/.tmp/include
     endif
-    LDLIBS += -lncbi-ngs-c++-static
-    LDLIBS += -lngs-c++-static
+    LDLIBS += -lncbi-ngs-static
     LDLIBS += -lncbi-vdb-static
     LDLIBS += -ldl
     CXXFLAGS += -DUSE_SRA
@@ -602,25 +602,29 @@ sra-deps:
 		export CFLAGS=-mmacosx-version-min=10.9 ; \
 		export CXXFLAGS=-mmacosx-version-min=10.9 ; \
 	fi ; \
-	if [ ! -f "$(CURDIR)/.tmp/include/ngs/Alignment.hpp" ] ; then \
-		if [ ! -d "$(CURDIR)/.tmp/ngs-$(NGS_VER)/ngs-sdk" ] ; then \
-			cd $(CURDIR)/.tmp ; \
-			$$DL https://github.com/ncbi/ngs/archive/$(NGS_VER).tar.gz ; \
-			tar xzvf $(NGS_VER).tar.gz ; \
-			rm -f $(NGS_VER).tar.gz ; \
-		fi ; \
-		cd $(CURDIR)/.tmp/ngs-$(NGS_VER) && ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build ; \
-		make && make install ; \
-	fi ; \
 	if [ ! -f "$(CURDIR)/.tmp/include/ncbi-vdb/NGS.hpp" ] ; then \
 		if [ ! -d "$(CURDIR)/.tmp/ncbi-vdb-$(VDB_VER)/vdb3" ] ; then \
+	 		cd $(CURDIR)/.tmp ; \
+	 		$$DL https://github.com/ncbi/ncbi-vdb/archive/refs/tags/$(VDB_VER).tar.gz ; \
+	  		tar zxvf $(VDB_VER).tar.gz ; \
+	  		rm -f $(VDB_VER).tar.gz ; \
+	  	fi ; \
+	  	cd $(CURDIR)/.tmp/ncbi-vdb-$(VDB_VER) \
+	 		&& ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build --without-debug \
+	 		&& make && make install ; \
+	fi ; \
+	if [ ! -f "$(CURDIR)/.tmp/include/ngs/Alignment.hpp" ] ; then \
+		if [ ! -d "$(CURDIR)/.tmp/sra-tools-$(SRA_TOOLS_VER)" ] ; then \
 			cd $(CURDIR)/.tmp ; \
-	 		$$DL https://github.com/ncbi/ncbi-vdb/archive/$(VDB_VER).tar.gz ; \
-	 		tar zxvf $(VDB_VER).tar.gz ; \
-	 		rm -f $(VDB_VER).tar.gz ; \
-	 	fi ; \
-	 	cd $(CURDIR)/.tmp/ncbi-vdb-$(VDB_VER) && ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build --with-ngs-sdk=$(CURDIR)/.tmp && make && make install ; \
-	 fi ;
+			$$DL https://github.com/ncbi/sra-tools/archive/$(SRA_TOOLS_VER).tar.gz ; \
+			tar xzvf $(SRA_TOOLS_VER).tar.gz ; \
+			rm -f $(SRA_TOOLS_VER).tar.gz ; \
+		fi ; \
+		cd $(CURDIR)/.tmp/sra-tools-$(SRA_TOOLS_VER) \
+			&& ./configure --prefix=$(CURDIR)/.tmp --build-prefix=`pwd`/build \
+				--with-ncbi-vdb-prefix="$(CURDIR)/.tmp" --enable-static --without-debug \
+			&& make && make install ; \
+	fi ;
 
 .PHONY: test
 test: simple-test random-test
