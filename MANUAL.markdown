@@ -139,10 +139,39 @@ a series of commands that will:
   2. compile them as static libraries
   3. link the resulting libraries to the compiled Bowtie 2 binaries
 
+### Building with SRA support ###
+
 As of version 2.3.5 bowtie2 now supports aligning SRA reads. Prepackaged
 builds will include a package that supports SRA. If you're building bowtie2
 from source please make sure that the Java runtime is available on your system.
 You can then proceed with the build by running `make sra-deps && make USE_SRA=1`.
+
+### Building with libsais support ###
+
+As of version 2.5.3 `bowtie2` supports building indexes using the SAIS algorithm
+provided by [libsais]. SAIS is a state-of-the-art suffix array construction algorithm
+that will bring-forth a significant speed-up to the overall index building process.
+There is, however, the downside of a significant increase in memory usage compared
+to the persistent blockwise algorithm that `bowtie2-build` uses by default. When using
+SAIS small indexes can be built for inputs up to 2GB. The `bowtie2-build` wrapper
+will help determine the appropriate index type for uncompressed and gzipped inputs.
+
+To build `bowtie2-build` with [libsais] first make sure that the libsais submodule
+is available. This can be done in one of the following ways:
+* first time cloning bowtie2 -- `git clone --recursive https://github.com/BenLangmead/bowtie2.git`
+* existing checkout of bowtie2 -- `git submodule init && git submodule update`
+
+Issue the following command line to build libsais:
+* with OpenMP support -- `[g]make libsais USE_SAIS_OPENMP=1`
+* without OpenMP support -- `[g]make libsais USE_SAIS=1`
+
+The choice of using OpenMP will determine whether or not the algorithm
+runs multithreaded. The [`-p/--threads`] argument to `bowtie2-build` will
+be ignored when libsais is compiled without OpenMP support.
+
+Finally, building the build executable:
+* with OpenMP support -- `[g]make bowtie2-build-s USE_SAIS_OPENMP=1`
+* without OpenMP support -- `[g]make bowtie2-build-s USE_SAIS=1`
 
 Adding to PATH
 --------------
@@ -2965,3 +2994,4 @@ warnings due to the case insensitive nature of markdown URLs -->
 [using a pre-built index]:                            #using-a-pre-built-index
 [valid alignment]:                                    #valid-alignments-meet-or-exceed-the-minimum-score-threshold
 [yields a larger memory footprint]:                   #fm-index-memory-footprint
+[libsais]:                                            https://github.com/IlyaGrebnov/libsais
