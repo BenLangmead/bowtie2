@@ -38,6 +38,11 @@ def get_gunzip_size(fn):
                 break
     return size
 
+def sais_enabled(build_bin_spec):
+    output = subprocess.check_output([build_bin_spec, "--version"], universal_newlines=True)
+
+    return output.find("USE_SAIS") != -1
+
 def main():
     parser = argparse.ArgumentParser(add_help = False)
 
@@ -59,6 +64,9 @@ def main():
     curr_script         = os.path.realpath(inspect.getsourcefile(main))
     ex_path             = os.path.dirname(curr_script)
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
+
+    if sais_enabled(build_bin_spec):
+        small_index_max_size = 2 * 1024 ** 3 - delta
 
     script_options, argv = parser.parse_known_args()
 
