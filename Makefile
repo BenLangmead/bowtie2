@@ -35,6 +35,10 @@ CXXFLAGS += -std=c++11
 SRA_TOOLS_VER ?= 3.0.9
 VDB_VER ?= 3.0.9
 
+ifneq (,$(findstring $(shell uname),Linux))
+  LDLIBS += -lrt
+endif
+
 # Detect Cygwin or MinGW
 ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
   WINDOWS := 1
@@ -151,9 +155,8 @@ ifeq (1, $(USE_SRA))
     ifndef ($(STATIC_BUILD))
       CPPFLAGS += -I$(CURDIR)/.tmp/include
     endif
-    LDLIBS += -lncbi-ngs-static
-    LDLIBS += -lncbi-vdb-static
-    LDLIBS += -ldl
+    ALIGN_LDLIBS += -lncbi-ngs-static
+    ALIGN_LDLIBS += -lncbi-vdb-static
     CXXFLAGS += -DUSE_SRA
   endif
 endif
@@ -328,6 +331,8 @@ endif
 bowtie2-build-%: CXXFLAGS += $(BUILD_CXXFLAGS)
 bowtie2-build-%: LDFLAGS += $(BUILD_LDFLAGS)
 bowtie2-build-%: LDLIBS += $(BUILD_LDLIBS)
+
+bowtie2-align-%: LDLIBS += $(ALIGN_LDLIBS)
 #
 # bowtie2-build targets
 #
