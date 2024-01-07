@@ -153,63 +153,58 @@ elseif (${ARCH} MATCHES amd64|x64_64)
 endif()
 
 if (USE_SRA)
-  set(NGS_VER 2.10.2)
-  set(NCBI_VDB_VER 2.10.2)
+  set(SRA_TOOLS_VER 3.0.9)
+  set(NCBI_VDB_VER 3.0.9)
 
   find_package(Java COMPONENTS Development REQUIRED)
   find_package(PythonInterp REQUIRED)
   find_package(Perl REQUIRED)
-
   find_program(MAKE_EXE NAMES gmake nmake make)
-  ExternalProject_add(ngs_project
-    URL https://github.com/ncbi/ngs/archive/${NGS_VER}.tar.gz
-    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ngs-${NGS_VER}
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix=install
-    BUILD_COMMAND ${MAKE_EXE}
-    INSTALL_COMMAND ${MAKE_EXE} install
-    )
 
-  ExternalProject_Get_Property(ngs_project SOURCE_DIR)
-  set(NGS_INSTALL_DIR ${SOURCE_DIR}/ngs-sdk/install)
-
-  link_directories(${NGS_INSTALL_DIR}/lib64)
-  include_directories(${NGS_INSTALL_DIR}/include)
-
-  add_library(ngs-c++-static STATIC IMPORTED)
-  add_dependencies(ngs-c++-static ngs_project)
-  find_library(LIBNGS_CPP ngs-c++-static PATHS ${NGS_INSTALL_DIR}/lib64 NO_DEFAULT_PATH)
-  set_property(TARGET ngs-c++-static PROPERTY IMPORTED_LOCATION ${LIBNGS_CPP})
-
-  link_libraries(ngs-c++-static)
+  set(THIRD_PARTY_LIBS "${PROJECT_SOURCE_DIR}/third_party")
 
   ExternalProject_add(ncbi_vdb_project
     URL https://github.com/ncbi/ncbi-vdb/archive/${NCBI_VDB_VER}.tar.gz
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
     BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix=install --with-ngs-sdk=${NGS_INSTALL_DIR}
+    CONFIGURE_COMMAND ./configure --prefix="${THIRD_PARTY_LIBS}" --without-debug
     BUILD_COMMAND ${MAKE_EXE}
     INSTALL_COMMAND ${MAKE_EXE} install
-    DEPENDS ngs_project
     )
 
-  ExternalProject_Get_Property(ncbi_vdb_project SOURCE_DIR)
-  set(NCBI_VDB_INSTALL_DIR ${SOURCE_DIR}/install)
+  # ExternalProject_Get_Property(ncbi_vdb_project SOURCE_DIR)
+  # set(NCBI_VDB_INSTALL_DIR ${SOURCE_DIR}/install)
 
-  link_directories(${NCBI_VDB_INSTALL_DIR}/lib64)
-  include_directories(${NCBI_VDB_INSTALL_DIR}/include)
+  # link_directories(${NCBI_VDB_INSTALL_DIR}/lib64)
+  # include_directories(${NCBI_VDB_INSTALL_DIR}/include)
 
-  add_library(ncbi-ngs-c++-static STATIC IMPORTED)
-  add_dependencies(ncbi-ngs-c++-static ncbi_vdb_project)
-  find_library(LIBNCBI_NGS_CPP ncbi-ngs-c++-static PATHS ${NCBI_VDB_INSTALL_DIR}/lib64 NO_DEFAULT_ATH)
-  set_property(TARGET ncbi-ngs-c++-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS_CPP})
+  ExternalProject_add(ngs_project
+    URL https://github.com/ncbi/sra-tools/archive/${SRA_TOOLS_VER}.tar.gz
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/sra-tools-${SRA_TOOLS_VER}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --with-ncbi-vdb-prefix=${THIRD_PARTY_LIBS} --enable-static --without-debug
+    BUILD_COMMAND ${MAKE_EXE}
+    INSTALL_COMMAND ${MAKE_EXE} install
+    DEPENDS ncbi_vdb_project
+    )
+
+  # ExternalProject_Get_Property(ngs_project SOURCE_DIR)
+  # set(NGS_INSTALL_DIR ${SOURCE_DIR}/install)
+
+  link_directories(${THIRD_PARTY_LIBS}/lib64)
+  include_directories(${THIRD_PARTY_LIBS}/include)
 
   add_library(ncbi-vdb-static STATIC IMPORTED)
   add_dependencies(ncbi-vdb-static ncbi_vdb_project)
-  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${NCBI_VDB_INSTALL_DIR}/lib64 NO_DEFAULT_PATH)
+  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
   set_property(TARGET ncbi-vdb-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_VDB})
 
-  link_libraries(ncbi-ngs-c++-static ncbi-vdb-static)
+  add_library(ncbi-ngs-static STATIC IMPORTED)
+  add_dependencies(ncbi-ngs-static ngs_project)
+  find_library(LIBNCBI_NGS ncbi-ngs-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
+  set_property(TARGET ncbi-ngs-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS})
+
+  link_libraries(ncbi-ngs-static ncbi-vdb-static)
   add_definitions(-DUSE_SRA)
 endif()
 
