@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
@@ -25,6 +25,7 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif()
 set(USE_SRA ${USE_SRA})
+set(USE_SAIS ${USE_SAIS})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
@@ -152,62 +153,6 @@ elseif (${ARCH} MATCHES amd64|x64_64)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2")
 endif()
 
-if (USE_SRA)
-  set(SRA_TOOLS_VER 3.0.9)
-  set(NCBI_VDB_VER 3.0.9)
-
-  find_package(Java COMPONENTS Development REQUIRED)
-  find_package(PythonInterp REQUIRED)
-  find_package(Perl REQUIRED)
-  find_program(MAKE_EXE NAMES gmake nmake make)
-
-  set(THIRD_PARTY_LIBS "${PROJECT_SOURCE_DIR}/third_party")
-
-  ExternalProject_add(ncbi_vdb_project
-    URL https://github.com/ncbi/ncbi-vdb/archive/${NCBI_VDB_VER}.tar.gz
-    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix="${THIRD_PARTY_LIBS}" --without-debug
-    BUILD_COMMAND ${MAKE_EXE}
-    INSTALL_COMMAND ${MAKE_EXE} install
-    )
-
-  # ExternalProject_Get_Property(ncbi_vdb_project SOURCE_DIR)
-  # set(NCBI_VDB_INSTALL_DIR ${SOURCE_DIR}/install)
-
-  # link_directories(${NCBI_VDB_INSTALL_DIR}/lib64)
-  # include_directories(${NCBI_VDB_INSTALL_DIR}/include)
-
-  ExternalProject_add(ngs_project
-    URL https://github.com/ncbi/sra-tools/archive/${SRA_TOOLS_VER}.tar.gz
-    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/sra-tools-${SRA_TOOLS_VER}
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --with-ncbi-vdb-prefix=${THIRD_PARTY_LIBS} --enable-static --without-debug
-    BUILD_COMMAND ${MAKE_EXE}
-    INSTALL_COMMAND ${MAKE_EXE} install
-    DEPENDS ncbi_vdb_project
-    )
-
-  # ExternalProject_Get_Property(ngs_project SOURCE_DIR)
-  # set(NGS_INSTALL_DIR ${SOURCE_DIR}/install)
-
-  link_directories(${THIRD_PARTY_LIBS}/lib64)
-  include_directories(${THIRD_PARTY_LIBS}/include)
-
-  add_library(ncbi-vdb-static STATIC IMPORTED)
-  add_dependencies(ncbi-vdb-static ncbi_vdb_project)
-  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
-  set_property(TARGET ncbi-vdb-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_VDB})
-
-  add_library(ncbi-ngs-static STATIC IMPORTED)
-  add_dependencies(ncbi-ngs-static ngs_project)
-  find_library(LIBNCBI_NGS ncbi-ngs-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
-  set_property(TARGET ncbi-ngs-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS})
-
-  link_libraries(ncbi-ngs-static ncbi-vdb-static)
-  add_definitions(-DUSE_SRA)
-endif()
-
 if (WITH_THREAD_PROFILING)
   add_definitions(-DPER_THREAD_TIMING=1)
 endif()
@@ -237,6 +182,95 @@ get_directory_property(COMPILER_DEFS COMPILE_DEFINITIONS)
 string(REPLACE ";" " -D" COMPILER_DEFS "${COMPILER_DEFS}")
 string(REPLACE "\"" "" COMPILER_DEFS "${COMPILER_DEFS}")
 add_definitions(-DCOMPILER_OPTIONS="${CMAKE_CXX_FLAGS} -D${COMPILER_DEFS}")
+
+if (USE_SRA)
+  set(SRA_TOOLS_VER 3.0.9)
+  set(NCBI_VDB_VER 3.0.9)
+
+  set(THIRD_PARTY_LIBS "${PROJECT_SOURCE_DIR}/third_party")
+
+  find_package(Java COMPONENTS Development REQUIRED)
+  find_package(PythonInterp REQUIRED)
+  find_package(Perl REQUIRED)
+  find_program(MAKE_EXE NAMES gmake nmake make)
+
+  ExternalProject_add(ncbi_vdb_project
+    URL https://github.com/ncbi/ncbi-vdb/archive/${NCBI_VDB_VER}.tar.gz
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./configure --prefix="${THIRD_PARTY_LIBS}" --without-debug
+    BUILD_COMMAND ${MAKE_EXE}
+    INSTALL_COMMAND ${MAKE_EXE} install
+    )
+
+  ExternalProject_add(ngs_project
+    URL https://github.com/ncbi/sra-tools/archive/${SRA_TOOLS_VER}.tar.gz
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/sra-tools-${SRA_TOOLS_VER}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --with-ncbi-vdb-prefix=${THIRD_PARTY_LIBS} --enable-static --without-debug
+    BUILD_COMMAND ${MAKE_EXE}
+    INSTALL_COMMAND ${MAKE_EXE} install
+    DEPENDS ncbi_vdb_project
+    )
+
+  link_directories(${THIRD_PARTY_LIBS}/lib64)
+  include_directories(${THIRD_PARTY_LIBS}/include)
+
+  add_library(ncbi-vdb-static STATIC IMPORTED)
+  add_dependencies(ncbi-vdb-static ncbi_vdb_project)
+  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
+  set_property(TARGET ncbi-vdb-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_VDB})
+
+  add_library(ncbi-ngs-static STATIC IMPORTED)
+  add_dependencies(ncbi-ngs-static ngs_project)
+  find_library(LIBNCBI_NGS ncbi-ngs-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
+  set_property(TARGET ncbi-ngs-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS})
+
+  link_libraries(ncbi-ngs-static ncbi-vdb-static dl)
+  add_definitions(-DUSE_SRA)
+endif()
+
+if (USE_SAIS)
+  set(LIBSAIS_VER 2.7.3)
+
+  find_package(OpenMP)
+  if (OpenMP_CXX_FOUND)
+    link_libraries(OpenMP::OpenMP_CXX)
+    ExternalProject_add(libsais_project
+      URL https://github.com/IlyaGrebnov/libsais/archive/refs/tags/v${LIBSAIS_VER}.tar.gz
+      PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libsais-${LIBSAIS_VER}
+      BUILD_IN_SOURCE 1
+      DOWNLOAD_EXTRACT_TIMESTAMP false
+      CONFIGURE_COMMAND cmake . -D LIBSAIS_USE_OPENMP=1
+      BUILD_COMMAND cmake --build .
+      INSTALL_COMMAND ""
+    )
+  else()
+    ExternalProject_add(libsais_project
+      URL https://github.com/IlyaGrebnov/libsais/archive/refs/tags/v${LIBSAIS_VER}.tar.gz
+      PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libsais-${LIBSAIS_VER}
+      BUILD_IN_SOURCE 1
+      DOWNLOAD_EXTRACT_TIMESTAMP false
+      CONFIGURE_COMMAND cmake .
+      BUILD_COMMAND cmake --build .
+      INSTALL_COMMAND ""
+    )
+  endif()
+
+
+  add_library(libsais STATIC IMPORTED)
+  add_dependencies(libsais libsais_project)
+
+  ExternalProject_Get_Property(libsais_project SOURCE_DIR)
+  link_directories(${SOURCE_DIR})
+  include_directories(${SOURCE_DIR}/include)
+
+  # find_library(LIBLIBSAIS libsais PATHS ${SOURCE_DIR} NO_DEFAULT_PATH)
+  set_property(TARGET libsais PROPERTY IMPORTED_LOCATION ${SOURCE_DIR}/liblibsais.a)
+
+  link_libraries(libsais)
+  add_definitions(-DUSE_SAIS -DLIBSAIS_OPENMP)
+endif()
 
 add_executable(bowtie2-align-s ${SEARCH_CPPS} ${SHARED_CPPS})
 add_executable(bowtie2-align-l ${SEARCH_CPPS} ${SHARED_CPPS})
