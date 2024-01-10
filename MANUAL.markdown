@@ -173,6 +173,13 @@ Finally, building the build executable:
 * with OpenMP support -- `[g]make bowtie2-build-s USE_SAIS_OPENMP=1`
 * without OpenMP support -- `[g]make bowtie2-build-s USE_SAIS=1`
 
+### Building with CMake ###
+
+To build Bowtie2 with SRA and libsais support issue the following command:
+* `cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .`
+
+CMake will take care of building and linking against the specified dependencies.
+
 Adding to PATH
 --------------
 

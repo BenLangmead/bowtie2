@@ -12,7 +12,16 @@ Bowtie 2?</a></li>
 Bowtie 2</a>
 <ul>
 <li><a href="#building-from-source"
-id="toc-building-from-source">Building from source</a></li>
+id="toc-building-from-source">Building from source</a>
+<ul>
+<li><a href="#building-with-sra-support"
+id="toc-building-with-sra-support">Building with SRA support</a></li>
+<li><a href="#building-with-libsais-support"
+id="toc-building-with-libsais-support">Building with libsais
+support</a></li>
+<li><a href="#building-with-cmake" id="toc-building-with-cmake">Building
+with CMake</a></li>
+</ul></li>
 <li><a href="#adding-to-path" id="toc-adding-to-path">Adding to
 PATH</a></li>
 </ul></li>
@@ -307,11 +316,48 @@ dependency management. Running
 a series of commands that will: 1. download zstd and zlib 2. compile
 them as static libraries 3. link the resulting libraries to the compiled
 Bowtie 2 binaries</p>
+<h3 id="building-with-sra-support">Building with SRA support</h3>
 <p>As of version 2.3.5 bowtie2 now supports aligning SRA reads.
 Prepackaged builds will include a package that supports SRA. If you're
 building bowtie2 from source please make sure that the Java runtime is
 available on your system. You can then proceed with the build by running
 <code>make sra-deps &amp;&amp; make USE_SRA=1</code>.</p>
+<h3 id="building-with-libsais-support">Building with libsais
+support</h3>
+<p>As of version 2.5.3 <code>bowtie2</code> supports building indexes
+using the SAIS algorithm provided by <a
+href="https://github.com/IlyaGrebnov/libsais">libsais</a>. SAIS is a
+state-of-the-art suffix array construction algorithm that will
+bring-forth a significant speed-up to the overall index building
+process. There is, however, the downside of a significant increase in
+memory usage compared to the persistent blockwise algorithm that
+<code>bowtie2-build</code> uses by default. When using SAIS small
+indexes can be built for inputs up to 2GB. The
+<code>bowtie2-build</code> wrapper will help determine the appropriate
+index type for uncompressed and gzipped inputs.</p>
+<p>To build <code>bowtie2-build</code> with <a
+href="https://github.com/IlyaGrebnov/libsais">libsais</a> first make
+sure that the libsais submodule is available. This can be done in one of
+the following ways: * first time cloning bowtie2 --
+<code>git clone --recursive https://github.com/BenLangmead/bowtie2.git</code>
+* existing checkout of bowtie2 --
+<code>git submodule init &amp;&amp; git submodule update</code></p>
+<p>Issue the following command line to build libsais: * with OpenMP
+support -- <code>[g]make libsais USE_SAIS_OPENMP=1</code> * without
+OpenMP support -- <code>[g]make libsais USE_SAIS=1</code></p>
+<p>The choice of using OpenMP will determine whether or not the
+algorithm runs multithreaded. The [<code>-p/--threads</code>] argument
+to <code>bowtie2-build</code> will be ignored when libsais is compiled
+without OpenMP support.</p>
+<p>Finally, building the build executable: * with OpenMP support --
+<code>[g]make bowtie2-build-s USE_SAIS_OPENMP=1</code> * without OpenMP
+support -- <code>[g]make bowtie2-build-s USE_SAIS=1</code></p>
+<h3 id="building-with-cmake">Building with CMake</h3>
+<p>To build Bowtie2 with SRA and libsais support issue the following
+command: *
+<code>cmake . -D USE_SRA=1 -D USE_SAIS=1 &amp;&amp; cmake --build .</code></p>
+<p>CMake will take care of building and linking against the specified
+dependencies.</p>
 <h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Bowtie 2 directory to your <a
 href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment
@@ -1136,13 +1182,12 @@ also set.</p>
 <pre><code>-F k:&lt;int&gt;,i:&lt;int&gt;</code></pre>
 </td>
 <td>
-Reads are substrings (k-mers) extracted from a FASTA file
-<code>&lt;s&gt;</code>. Specifically, for every reference sequence in
-FASTA file <code>&lt;s&gt;</code>, Bowtie 2 aligns the k-mers at offsets
-1, 1+i, 1+2i, ... until reaching the end of the reference. Each k-mer is
-aligned as a separate read. Quality values are set to all Is (40 on
-Phred scale). Each k-mer (read) is given a name like
-<code>&lt;sequence&gt;_&lt;offset&gt;</code>, where
+Reads are substrings (k-mers) extracted from a FASTA file. Specifically,
+for every reference sequence in the FASTA file, Bowtie 2 aligns the
+k-mers at offsets 1, 1+i, 1+2i, ... until reaching the end of the
+reference. Each k-mer is aligned as a separate read. Quality values are
+set to all Is (40 on Phred scale). Each k-mer (read) is given a name
+like <code>&lt;sequence&gt;_&lt;offset&gt;</code>, where
 <code>&lt;sequence&gt;</code> is the name of the FASTA sequence it was
 drawn from and <code>&lt;offset&gt;</code> is its 0-based offset of
 origin with respect to the sequence. Only single k-mers, i.e. unpaired

@@ -53,6 +53,8 @@ id="toc-building-with-sra-support">Building with SRA support</a></li>
 <li><a href="#building-with-libsais-support"
 id="toc-building-with-libsais-support">Building with libsais
 support</a></li>
+<li><a href="#building-with-cmake" id="toc-building-with-cmake">Building
+with CMake</a></li>
 </ul></li>
 <li><a href="#adding-to-path" id="toc-adding-to-path">Adding to
 PATH</a></li>
@@ -384,6 +386,12 @@ without OpenMP support.</p>
 <p>Finally, building the build executable: * with OpenMP support --
 <code>[g]make bowtie2-build-s USE_SAIS_OPENMP=1</code> * without OpenMP
 support -- <code>[g]make bowtie2-build-s USE_SAIS=1</code></p>
+<h3 id="building-with-cmake">Building with CMake</h3>
+<p>To build Bowtie2 with SRA and libsais support issue the following
+command: *
+<code>cmake . -D USE_SRA=1 -D USE_SAIS=1 &amp;&amp; cmake --build .</code></p>
+<p>CMake will take care of building and linking against the specified
+dependencies.</p>
 <h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Bowtie 2 directory to your <a
 href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment

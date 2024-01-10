@@ -1,3 +1,19 @@
+<h2>Version 2.5.3 - Jan 11, 2024</h2>
+<h3 id="bowtie2">bowtie2</h3>
+<ul>
+  <li>Fixed an issue causing <code>bowtie2</code>'s memory usage to increase over time.</li>
+  <li>Fixed an issue causing <code>bowtie2</code> to crash when processing eempty FASTQ records.</li>
+  <li>Fixed an issue causing <code>bowtie2</code> to erroneously treat <code><a href="manual.shtml#bowtie2-options-f">-f</a></code>
+      and <code><a href="manual.shtml#bowtie2-options-F">-F</a></code> as mutually exclusive.</li>
+</ul>
+<h3 id="bowtie2-build">bowtie2-build</h3>
+<ul>
+  <li>Add optional support for <code><a href="https://github.com/IlyaGrebnov/libsais">libsais</a></code>
+      to <code>bowtie2-build</code> for faster index building.</li>
+  N.B. -- small indexes are capped at <em>2GB</em> when using <code>libsais</code> as opposed to <em>4GB</em> when using
+  the default blockwise algorithm. See <a href="manual.shtml#building-from-source">MANUAL</a> for details.
+</ul>
+
 <h2>Version 2.5.2 - Oct 13, 2023</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
