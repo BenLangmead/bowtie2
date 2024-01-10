@@ -1827,12 +1827,14 @@ Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
 
     --sam-omit-prim-seq
 
+</td><td>
+
 When printing primary alignments, Bowtie 2 by default will write out
 the `SEQ` and `QUAL` strings. Specifying this option causes Bowtie 2 to
 print an asterisk in those fields instead.
 
+</td></tr>
 <tr><td id="bowtie2-options-omit-sec-seq">
-
 
     --omit-sec-seq
 
