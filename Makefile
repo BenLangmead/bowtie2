@@ -157,6 +157,7 @@ ifeq (1, $(USE_SRA))
     endif
     ALIGN_LDLIBS += -lncbi-ngs-static
     ALIGN_LDLIBS += -lncbi-vdb-static
+    ALIGN_LDLIBS += -ldl
     CXXFLAGS += -DUSE_SRA
   endif
 endif
