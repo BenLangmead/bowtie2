@@ -63,6 +63,7 @@ public:
 		const LenList& reflens,   // reference sequence lengths
 		bool truncQname,          // truncate read name to 255?
 		bool appendComment,	  // append FASTA/Q comment to sam record
+		bool omitprim,            // omit primary SEQ/QUAL
 		bool omitsec,             // omit secondary SEQ/QUAL
 		bool noUnal,              // omit unaligned reads
 		const std::string& pg_id, // id
@@ -108,6 +109,7 @@ public:
 		bool print_zt) :
 		truncQname_(truncQname),
 		appendComment_(appendComment),
+		omitprim_(omitprim),
 		omitsec_(omitsec),
 		noUnal_(noUnal),
 		pg_id_(pg_id),
@@ -387,6 +389,17 @@ public:
 
 
         /**
+	 * Return true iff we should ignore the SAM spec's recommendations
+	 * and instead:
+	 *
+	 * SEQ and QUAL of primary alignments will be set to ‘*’ to reduce the
+	 * file size.
+	 */
+	bool omitPrimarySeqQual() const {
+		return omitprim_;
+	}
+
+        /**
 	 * Return true iff we should try to obey the SAM spec's recommendations
 	 * that:
 	 *
@@ -409,6 +422,7 @@ protected:
 
 	bool truncQname_;   // truncate QNAME to 255 chars?
 	bool appendComment_;// Append FASTA/Q comment to SAM record
+	bool omitprim_;     // omit primary
 	bool omitsec_;      // omit secondary
 	bool noUnal_;       // omit unaligned reads
 

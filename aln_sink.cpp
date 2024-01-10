@@ -2054,7 +2054,8 @@ void AlnSinkSam::appendMate(
 		o.append("0\t");
 	}
 	// SEQ
-	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
+	if(( flags.isPrimary() && samc_.omitPrimarySeqQual()  ) ||
+	   (!flags.isPrimary() && samc_.omitSecondarySeqQual())) {
 		o.append('*');
 	} else {
 		// Print the read
@@ -2070,7 +2071,8 @@ void AlnSinkSam::appendMate(
 	}
 	o.append('\t');
 	// QUAL
-	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
+	if(( flags.isPrimary() && samc_.omitPrimarySeqQual()  ) ||
+	   (!flags.isPrimary() && samc_.omitSecondarySeqQual())) {
 		o.append('*');
 	} else {
 		// Print the quals

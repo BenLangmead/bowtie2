@@ -131,6 +131,7 @@ static bool hadoopOut; // print Hadoop status and summary messages
 static bool fullRef;
 static bool samTruncQname; // whether to truncate QNAME to 255 chars
 static bool samAppendComment; // append FASTA/FASTQ comment to SAM record
+static bool samOmitPrimSeqQual; // omit SEQ/QUAL for primary alignments?
 static bool samOmitSecSeqQual; // omit SEQ/QUAL for 2ndary alignments?
 static bool samNoUnal; // don't print records for unaligned reads
 static bool samNoHead; // don't print any header lines in SAM output
@@ -344,6 +345,7 @@ static void resetOptions() {
 	fullRef		    = false;	// print entire reference name instead of just up to 1st space
 	samTruncQname       = true;	// whether to truncate QNAME to 255 chars
 	samAppendComment    = false;	// append FASTA/Q comment to SAM record
+	samOmitPrimSeqQual   = false;	// omit SEQ/QUAL for primary alignments?
 	samOmitSecSeqQual   = false;	// omit SEQ/QUAL for 2ndary alignments?
 	samNoUnal           = false;	// omit SAM records for unaligned reads
 	samNoHead	    = false;	// don't print any header lines in SAM output
@@ -541,6 +543,10 @@ static struct option long_options[] = {
 	{(char*)"sam-no-qname-trunc",          no_argument,        0,                   ARG_SAM_NO_QNAME_TRUNC},
 	{(char*)"sam-omit-sec-seq",            no_argument,        0,                   ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"omit-sec-seq",                no_argument,        0,                   ARG_SAM_OMIT_SEC_SEQ},
+	{(char*)"sam-omit-prim-seq",           no_argument,        0,                   ARG_SAM_OMIT_PRIM_SEQ},
+	{(char*)"omit-prim-seq",               no_argument,        0,                   ARG_SAM_OMIT_PRIM_SEQ},
+	{(char*)"sam-have-prim-seq",           no_argument,        0,                   ARG_SAM_HAVE_PRIM_SEQ},
+	{(char*)"have-prim-seq",               no_argument,        0,                   ARG_SAM_HAVE_PRIM_SEQ},
 	{(char*)"sam-no-head",                 no_argument,        0,                   ARG_SAM_NOHEAD},
 	{(char*)"sam-nohead",                  no_argument,        0,                   ARG_SAM_NOHEAD},
 	{(char*)"sam-noHD",                    no_argument,        0,                   ARG_SAM_NOHEAD},
@@ -871,6 +877,8 @@ static void printUsage(ostream& out) {
 	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
 	    << "                     Note: @RG line only printed when --rg-id is set." << endl
 	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
+	    << "  --sam-omit-prim-seq" << endl
+            << "                     put '*' in SEQ and QUAL fields for primary alignments." << endl
 	    << "  --sam-no-qname-trunc" << endl
 	    << "                     Suppress standard behavior of truncating readname at first whitespace " << endl
 	    << "                     at the expense of generating non-standard SAM." << endl
@@ -1292,6 +1300,8 @@ static void parseOption(int next_option, const char *arg) {
 	case ARG_SAM_NO_QNAME_TRUNC: samTruncQname = false; break;
 	case ARG_SAM_APPEND_COMMENT: samAppendComment = true; break;
 	case ARG_SAM_OMIT_SEC_SEQ: samOmitSecSeqQual = true; break;
+	case ARG_SAM_OMIT_PRIM_SEQ: samOmitPrimSeqQual = true; break;
+	case ARG_SAM_HAVE_PRIM_SEQ: samOmitPrimSeqQual = false; break;
 	case ARG_SAM_NO_UNAL: samNoUnal = true; break;
 	case ARG_SAM_NOHEAD: samNoHead = true; break;
 	case ARG_SAM_NOSQ: samNoSQ = true; break;
@@ -4940,6 +4950,7 @@ static void driver(
 			reflens,                // reference sequence lengths
 			samTruncQname,          // whether to truncate QNAME to 255 chars
 			samAppendComment,	// append FASTA/FASTQ comment to SAM record
+			samOmitPrimSeqQual,     // omit SEQ/QUAL for primary alignments?
 			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
 			samNoUnal,              // omit unaligned-read records?
 			string("bowtie2"),      // program id

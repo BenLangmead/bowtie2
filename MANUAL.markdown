@@ -1823,7 +1823,16 @@ Spec][SAM].  Specify `--rg` multiple times to set multiple fields.  See the
 [SAM Spec][SAM] for details about what fields are legal.
 
 </td></tr>
+<tr><td id="bowtie2-options-sam-omit-prim-seq">
+
+    --sam-omit-prim-seq
+
+When printing primary alignments, Bowtie 2 by default will write out
+the `SEQ` and `QUAL` strings. Specifying this option causes Bowtie 2 to
+print an asterisk in those fields instead.
+
 <tr><td id="bowtie2-options-omit-sec-seq">
+
 
     --omit-sec-seq
 
@@ -2860,6 +2869,7 @@ for more details and variations on this process.
 [`--np`]:                                             #bowtie2-options-np
 [`--offrate`]:                                        #bowtie2-options-o
 [`--omit-sec-seq`]:                                   #bowtie2-options-omit-sec-seq
+[`--sam-omit-prim-seq`]:                              #bowtie2-options-sam-omit-prim-seq
 [`--packed`]:                                         #bowtie2-build-options-p
 [`--phred33`]:                                        #bowtie2-options-phred33-quals
 [`--phred64`]:                                        #bowtie2-options-phred64-quals

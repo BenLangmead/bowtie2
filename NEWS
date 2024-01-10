@@ -19,6 +19,12 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
+## dev
+
+### bowtie2 ###
+  * Added option --sam-omit-prim-seq, which causes Bowtie 2 to set SEQ and QUAL
+    fields to "*" for primary alignments.
+
 ## Version 2.5.2 - Oct 13, 2023 ##
 
 ### bowtie2 ###

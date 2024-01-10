@@ -1423,6 +1423,12 @@ must also be specified. This is because the ID tag is required by the
 SAM Spec. Specify --rg multiple times to set multiple fields. See the
 SAM Spec for details about what fields are legal.
 
+    --sam-omit-prim-seq
+
+When printing primary alignments, Bowtie 2 by default will write out
+the SEQ and QUAL strings. Specifying this option causes Bowtie 2 to
+print an asterisk in those fields instead.
+
     --omit-sec-seq
 
 When printing secondary alignments, Bowtie 2 by default will write out

@@ -162,6 +162,8 @@ enum {
 	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
 	ARG_SRA_ACC,                // --sra-acc
         ARG_SAM_APPEND_COMMENT,     // --sam-append-comment
+	ARG_SAM_OMIT_PRIM_SEQ,       // --sam-omit-prim-seq
+	ARG_SAM_HAVE_PRIM_SEQ,       // --sam-have-prim-seq
 };
 
 #endif

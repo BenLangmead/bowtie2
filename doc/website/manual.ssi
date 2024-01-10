@@ -2058,6 +2058,16 @@ about what fields are legal.</p>
 </td>
 </tr>
 <tr>
+<td id="bowtie2-options-sam-omit-prim-seq ">
+<pre><code>--sam-omit-prim-seq </code></pre>
+</td>
+<td>
+<p>When printing primary alignments, Bowtie 2 by default will write
+out the <code>SEQ</code> and <code>QUAL</code> strings. Specifying this
+option causes Bowtie 2 to print an asterisk in those fields instead.</p>
+</td>
+</tr>
+<tr>
 <td id="bowtie2-options-omit-sec-seq">
 <pre><code>--omit-sec-seq</code></pre>
 </td>
