@@ -46,6 +46,7 @@ ifneq (,$(findstring mingw,$(shell $(CXX) --version)))
 endif
 
 ifeq (1, $(MINGW))
+  LDLIBS := $(subst -lrt ,,$(LDLIBS))
   CXX = x86_64-w64-mingw32-g++-posix
   CC  = x86_64-w64-mingw32-gcc-posix
   AR  = x86_64-w64-mingw32-ar
