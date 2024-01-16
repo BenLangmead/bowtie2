@@ -1,4 +1,4 @@
-<h2>Version 2.5.3 - Jan 11, 2024</h2>
+<h2>Version 2.5.3 - Jan 16, 2024</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
   <li>Fixed an issue causing <code>bowtie2</code>'s memory usage to increase over time.</li>

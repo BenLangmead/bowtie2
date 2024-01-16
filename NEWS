@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-## Version 2.5.3 - Jan 11, 2024 ##
+## Version 2.5.3 - Jan 16, 2024 ##
 
    * Fixed an issue causing `bowtie2`'s memory usage to increase over time.
    * Fixed an issue causing `bowtie2` to crash when processing empty FASTQ records.
