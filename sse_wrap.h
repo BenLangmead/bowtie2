@@ -24,6 +24,7 @@
  * for an Intel x86 CPU and SIMD Everywhere (simde) for other CPUs.
  */
 
+
 #ifndef SSE_WRAP_H_
 #define SSE_WRAP_H_
 
