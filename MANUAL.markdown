@@ -104,6 +104,9 @@ Bowtie 2 is available from various package managers, notably [Bioconda](https://
 With Bioconda installed, you should be able to install Bowtie 2 with `conda
 install bowtie2`.
 
+Binaries
+--------
+
 You can also download Bowtie 2 sources and binaries from the
 [Download] section of the Sourceforge site.  Binaries are available
 for the `x86_64` architecture running Linux, Mac OS X, and Windows.
@@ -112,9 +115,22 @@ using `pkg install bowtie2`. If you plan to compile Bowtie 2 yourself,
 make sure to get the source package, i.e., the filename that ends
 in "-source.zip".
 
+Docker
+------
+
+Docker images with Bowtie 2 built in
+are created by [BioContainers](https://github.com/BioContainers/containers).
+These images can be found on
+[Quay.io's `biocontainers/bowtie2`](https://quay.io/repository/biocontainers/bowtie2?tab=tags).
+For reference, [Quay.io](quay.io) is an alternate registry to Docker Hub.
+
+Alternately, for Apple Silicon or Intel/AMD users,
+there are community-made `Dockerfile`s
+created in late 2023 in the GitHub repository
+[docker-bowtie2](https://github.com/pmambrose/docker-bowtie2).
+
 Building from source
 --------------------
-Building from source
 
 Building Bowtie 2 from source requires a GNU-like environment with
 Clang/GCC, GNU Make and other basics. It should be possible to build
