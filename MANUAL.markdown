@@ -122,7 +122,12 @@ Docker images with Bowtie 2 built in
 are created by [BioContainers](https://github.com/BioContainers/containers).
 These images can be found on
 [Quay.io's `biocontainers/bowtie2`](https://quay.io/repository/biocontainers/bowtie2?tab=tags).
-For reference, [Quay.io](quay.io) is an alternate registry to Docker Hub.
+For reference, [Quay.io](quay.io) is an alternate registry to Docker Hub,
+andone can `docker pull` directly from it:
+
+```bash
+docker pull quay.io/biocontainers/bowtie2:2.5.3--py310ha0a81b8_0
+```
 
 Alternately, for Apple Silicon or Intel/AMD users,
 there are community-made `Dockerfile`s
