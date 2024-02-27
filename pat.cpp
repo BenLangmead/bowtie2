@@ -1426,7 +1426,7 @@ int BAMPatternSource::decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_
 		return ret;
 	}
 
-	return inflateReset(&stream);
+	return inflateEnd(&stream);
 }
 
 bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
