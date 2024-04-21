@@ -951,16 +951,27 @@ private:
 	static void writeAsync(AsyncData *asyncDataPtr) {
 		AsyncData &asyncData = *asyncDataPtr;
 		bool abort = false;
+                size_t written = 0;
 		while(!abort) {
 			abort = asyncData.waitForBuf();
 			if(abort) break;
-			if(asyncData.cur != fwrite((const void *)asyncData.buf, 1, asyncData.cur, asyncData.out)) {
+			while (asyncData.cur != 0) {
+                                written += fwrite((const void *)(asyncData.buf + written), 1, asyncData.cur, asyncData.out);
 				if (errno == EPIPE) {
 					exit(EXIT_SUCCESS);
 				}
-				std::cerr << "Error while flushing and closing output" << std::endl;
-				throw 1;
+                                if (feof(asyncData.out) || written == 0)
+                                        break;
+                                // asyncData.buf += written;
+                                asyncData.cur -= written;
+                                written = 0;
 			}
+
+                        if (written != asyncData.cur) {
+                                // std::cerr << "Error while flushing and closing output" << std::endl;
+                                perror("fwrite");
+				throw 1;
+                        }
 			abort = asyncData.writeComplete();
 		}
 
