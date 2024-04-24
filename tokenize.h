@@ -20,6 +20,7 @@
 #ifndef TOKENIZE_H_
 #define TOKENIZE_H_
 
+#include <ctype.h>
 #include <string>
 #include <sstream>
 #include <limits>
@@ -41,7 +42,10 @@ static inline void tokenize(
 	string::size_type lastPos = 0;
 	string::size_type pos = s.find_first_of(delims, lastPos);
 	while (string::npos != pos || string::npos != lastPos) {
-		ss.push_back(s.substr(lastPos, pos - lastPos));
+                string::size_type rtrim = pos;
+                while (isspace(s[lastPos])) lastPos++;
+                while (isspace(s[rtrim - 1])) rtrim--;
+		ss.push_back(s.substr(lastPos, rtrim - lastPos));
 		lastPos = s.find_first_not_of(delims, pos);
 		pos = s.find_first_of(delims, lastPos);
 		if(ss.size() == (max - 1)) {
