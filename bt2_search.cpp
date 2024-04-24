@@ -171,6 +171,7 @@ static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
+static EList<string> sam_opt_flags;
 static bool preserve_tags;     // Only applies when aligning BAM files
 static bool align_paired_reads; // Process only the paired reads in BAM file
 static bool bwaSwLike;
@@ -670,6 +671,7 @@ static struct option long_options[] = {
 	{(char*)"sra-acc",                     required_argument,  0,                   ARG_SRA_ACC},
 #endif
 	{(char*)"sam-append-comment",          no_argument,        0,                   ARG_SAM_APPEND_COMMENT},
+        {(char*)"sam-opt-config",              required_argument,  0,                   ARG_SAM_OPT_CONFIG},
 	{(char*)0,                             0,                  0,                   0} //  terminator
 };
 
@@ -1555,6 +1557,16 @@ static void parseOption(int next_option, const char *arg) {
 		}
 		break;
 	}
+        case ARG_SAM_OPT_CONFIG: {
+                // string no_defaults("-as,-xs,-xn,-x0,-x1,-xm,-xo,-xg,-nm,-md,-yf,-yt,-ys");
+                // string defaults("as,xs,xn,x0,x1,xm,xo,xg,nm,md,yf,yt,ys");
+
+                // if (strncmp(arg, "-default", 8) == 0) {
+                //         no_defaults += arg;
+                // }
+                tokenize(arg, ",", sam_opt_flags);
+                break;
+        }
 	case ARG_DESC: printArgDesc(cout); throw 0;
 	case 'S': outfile = arg; break;
 	case 'U': {
@@ -4990,6 +5002,12 @@ static void driver(
 			sam_print_zp,
 			sam_print_zu,
 			sam_print_zt);
+
+                if (sam_opt_flags.size() > 0) {
+                        for (size_t i = 0; i < sam_opt_flags.size(); i++) {
+                                samc.toggleOptFlagByName(sam_opt_flags[i]);
+                        }
+                }
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on

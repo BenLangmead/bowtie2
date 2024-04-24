@@ -22,6 +22,8 @@
 
 #include <string>
 #include <vector>
+#include <string.h>
+
 #include "ds.h"
 #include "read.h"
 #include "util.h"
@@ -157,6 +159,97 @@ public:
 		assert_eq(refnames_.size(), reflens_.size());
 	}
 
+        void toggleOptFlagByName(string& str) {
+                bool value = false;
+                const char *name = str.c_str();
+
+                if (str.size() < 2) {
+                        cerr << "Error: " << name << " is not a valid SAM Optional flag." << endl;
+                        return;
+                }
+
+                if (name[0] == '-') {
+                        name += 1;
+                } else {
+                        value = true;
+                }
+
+                if (strcasecmp(name, "as") == 0) {
+                        print_yn_ = value;
+                } else if(strcasecmp(name, "xs") == 0) {
+                        print_xs_ = value;
+                } else if(strcasecmp(name, "xss") == 0) {
+                        print_xss_ = value;
+                } else if(strcasecmp(name, "yn") == 0) {
+                        print_yn_ = value;
+                } else if(strcasecmp(name, "xn") == 0) {
+                        print_xn_ = value;
+                } else if(strcasecmp(name, "x0") == 0) {
+                        print_x0_ = value;
+                } else if(strcasecmp(name, "x1") == 0) {
+                        print_x1_ = value;
+                } else if(strcasecmp(name, "xm") == 0) {
+                        print_xm_ = value;
+                } else if(strcasecmp(name, "xo") == 0) {
+                        print_xo_ = value;
+                } else if(strcasecmp(name, "xg") == 0) {
+                        print_xg_ = value;
+                } else if(strcasecmp(name, "nm") == 0) {
+                        print_nm_ = value;
+                } else if(strcasecmp(name, "md") == 0) {
+                        print_md_ = value;
+                } else if(strcasecmp(name, "yf") == 0) {
+                        print_yf_ = value;
+                } else if(strcasecmp(name, "yi") == 0) {
+                        print_yi_ = value;
+                } else if(strcasecmp(name, "ym") == 0) {
+                        print_ym_ = value;
+                } else if(strcasecmp(name, "yp") == 0) {
+                        print_yp_ = value;
+                } else if(strcasecmp(name, "yt") == 0) {
+                        print_yt_ = value;
+                } else if(strcasecmp(name, "ys") == 0) {
+                        print_ys_ = value;
+                } else if(strcasecmp(name, "zs") == 0) {
+                        print_zs_ = value;
+                } else if(strcasecmp(name, "xr") == 0) {
+                        print_xr_ = value;
+                } else if(strcasecmp(name, "xt") == 0) {
+                        print_xt_ = value;
+                } else if(strcasecmp(name, "xd") == 0) {
+                        print_xd_ = value;
+                } else if(strcasecmp(name, "xu") == 0) {
+                        print_xu_ = value;
+                } else if(strcasecmp(name, "ye") == 0) {
+                        print_ye_ = value;
+                } else if(strcasecmp(name, "yl") == 0) {
+                        print_yl_ = value;
+                } else if(strcasecmp(name, "yu") == 0) {
+                        print_yu_ = value;
+                } else if(strcasecmp(name, "xp") == 0) {
+                        print_xp_ = value;
+                } else if(strcasecmp(name, "yr") == 0) {
+                        print_yr_ = value;
+                } else if(strcasecmp(name, "zb") == 0) {
+                        print_zb_ = value;
+                } else if(strcasecmp(name, "zr") == 0) {
+                        print_zr_ = value;
+                } else if(strcasecmp(name, "zf") == 0) {
+                        print_zf_ = value;
+                } else if(strcasecmp(name, "zm") == 0) {
+                        print_zm_ = value;
+                } else if(strcasecmp(name, "zi") == 0) {
+                        print_zi_ = value;
+                } else if(strcasecmp(name, "zp") == 0) {
+                        print_zp_ = value;
+                } else if(strcasecmp(name, "zu") == 0) {
+                        print_zu_ = value;
+                } else if(strcasecmp(name, "zt") == 0) {
+                        print_zt_ = value;
+                } else {
+                        cerr << "Error: " << name << " is not a valid SAM Optional flag." << endl;
+                }
+        }
 	/**
 	 * Print a reference name in a way that doesn't violate SAM's character
 	 * constraints. \*|[!-()+-<>-~][!-~]*

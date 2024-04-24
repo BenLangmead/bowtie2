@@ -162,6 +162,7 @@ enum {
 	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
 	ARG_SRA_ACC,                // --sra-acc
         ARG_SAM_APPEND_COMMENT,     // --sam-append-comment
+        ARG_SAM_OPT_CONFIG,         // --sam-opt-config
 };
 
 #endif
