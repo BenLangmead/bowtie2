@@ -44,7 +44,7 @@ static inline void tokenize(
 	while (string::npos != pos || string::npos != lastPos) {
                 string::size_type rtrim = pos;
                 while (isspace(s[lastPos])) lastPos++;
-                while (isspace(s[rtrim - 1])) rtrim--;
+                while (rtrim > 0 && isspace(s[rtrim - 1])) rtrim--;
 		ss.push_back(s.substr(lastPos, rtrim - lastPos));
 		lastPos = s.find_first_not_of(delims, pos);
 		pos = s.find_first_of(delims, lastPos);
