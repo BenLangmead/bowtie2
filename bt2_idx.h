@@ -672,14 +672,17 @@ public:
 		_in2Str = file + ".2." + gEbwt_ext + ".tmp";
 		packed_ = packed;
 		// Open output files
-		ofstream fout1(_in1Str.c_str(), ios::binary);
+                ofstream fout1(_in1Str.c_str(), ios::binary);
+          	fout1.exceptions(ofstream::failbit | ofstream::badbit | ofstream::eofbit);
 		if(!fout1.good()) {
 			cerr << "Could not open index file for writing: \"" << _in1Str.c_str() << "\"" << endl
 			     << "Please make sure the directory exists and that permissions allow writing by" << endl
 			     << "Bowtie." << endl;
 			throw 1;
-		}
-		ofstream fout2(_in2Str.c_str(), ios::binary);
+                }
+
+                ofstream fout2(_in2Str.c_str(), ios::binary);
+                fout2.exceptions(ofstream::failbit | ofstream::badbit | ofstream::eofbit);
 		if(!fout2.good()) {
 			cerr << "Could not open index file for writing: \"" << _in2Str.c_str() << "\"" << endl
 			     << "Please make sure the directory exists and that permissions allow writing by" << endl
