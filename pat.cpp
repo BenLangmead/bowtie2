@@ -253,9 +253,18 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				assert_eq((*srca_)[cur]->readCount(),
 				          (*srcb_)[cur]->readCount());
 			}
-			if(resa.second < resb.second) {
-				cerr << "Error, fewer reads in file specified with -1 "
-				     << "than in file specified with -2" << endl;
+                        if (resa.second < resb.second) {
+                                cerr << "Error, fewer reads in file specified with -1 "
+                                     << "than in file specified with -2.";
+                                if (resb.second > 0) {
+                                        const char *readOrigBuf = pt.bufb_[resb.second - 1].readOrigBuf.buf();
+                                        const char *newline = strchr(readOrigBuf, '\n');
+
+                                        size_t headerLength = newline - readOrigBuf;
+                                        string header = string(readOrigBuf, headerLength);
+                                        cerr << " Last successfully parsed mate: " << header << ".";
+                                }
+                                cerr << endl;
 				throw 1;
 			} else if(resa.second == 0 && resb.second == 0) {
 				ThreadSafe ts(mutex_m);
@@ -264,9 +273,19 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
 				}
 				cur = cur_; // Move on to next PatternSource
 				continue; // on to next pair of PatternSources
-			} else if(resb.second < resa.second) {
-				cerr << "Error, fewer reads in file specified with -2 "
-				     << "than in file specified with -1" << endl;
+                        } else if (resb.second < resa.second) {
+                                cerr << "Error, fewer reads in file specified with -2 "
+                                     << "than in file specified with -1.";
+
+                                if (resa.second > 0) {
+                                        const char *readOrigBuf = pt.bufa_[resa.second - 1].readOrigBuf.buf();
+                                        const char *newline = strchr(readOrigBuf, '\n');
+
+                                        size_t headerLength = newline - readOrigBuf;
+                                        string header = string(readOrigBuf, headerLength);
+                                        cerr << " Last successfully parsed mate: " << header << ".";
+                                }
+                                cerr << endl;
 				throw 1;
 			}
 			assert_eq(resa.first, resb.first);
