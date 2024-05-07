@@ -58,6 +58,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Pull submodules
+        run: |
+          git submodule init
+          git submodule update
       - name: Run simple tests
         run: |
           make clean; make -j4 allall
