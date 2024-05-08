@@ -1,3 +1,10 @@
+<h2>New Indexes for Cow, Chimp, and Rat, added to the sidebar - May 08, 2024</h2>
+<ul>
+   <li><a href="https://genome-idx.s3.amazonaws.com/bt/ARS-UCD2.0.zip"><i>B. taurus</i>, ARS-UCD2.0</a></li>
+   <li><a href="https://genome-idx.s3.amazonaws.com/bt/NHGRI_mPanTro3-v2.0.zip"><i>P. troglodytes</i>, mPanTro3-v2</a></li>
+   <li><a href="https://genome-idx.s3.amazonaws.com/bt/GRCr8.zip"><i>R. norvegicus</i>, GRCr8</a></li>
+</ul>
+
 <h2>Version 2.5.3 - Jan 16, 2024</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
