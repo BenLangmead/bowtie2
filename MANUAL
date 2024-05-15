@@ -153,28 +153,33 @@ wrapper will help determine the appropriate index type for uncompressed
 and gzipped inputs.
 
 To build bowtie2-build with libsais first make sure that the libsais
-submodule is available. This can be done in one of the following ways: *
-first time cloning bowtie2 --
-git clone --recursive https://github.com/BenLangmead/bowtie2.git *
-existing checkout of bowtie2 --
-git submodule init && git submodule update
+submodule is available. This can be done in one of the following ways:
 
-Issue the following command line to build libsais: * with OpenMP support
--- [g]make libsais USE_SAIS_OPENMP=1 * without OpenMP support --
-[g]make libsais USE_SAIS=1
+-   first time cloning bowtie2 --
+    git clone --recursive https://github.com/BenLangmead/bowtie2.git
+-   existing checkout of bowtie2 --
+    git submodule init && git submodule update
+
+Issue the following command line to build libsais:
+
+-   with OpenMP support -- [g]make libsais USE_SAIS_OPENMP=1
+-   without OpenMP support -- [g]make libsais USE_SAIS=1
 
 The choice of using OpenMP will determine whether or not the algorithm
 runs multithreaded. The [-p/--threads] argument to bowtie2-build will be
 ignored when libsais is compiled without OpenMP support.
 
-Finally, building the build executable: * with OpenMP support --
-[g]make bowtie2-build-s USE_SAIS_OPENMP=1 * without OpenMP support --
-[g]make bowtie2-build-s USE_SAIS=1
+Finally, building the bowtie2-build executable:
+
+-   with OpenMP support -- [g]make bowtie2-build-s USE_SAIS_OPENMP=1
+-   without OpenMP support -- [g]make bowtie2-build-s USE_SAIS=1
 
 Building with CMake
 
 To build Bowtie2 with SRA and libsais support issue the following
-command: * cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .
+command:
+
+-   cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .
 
 CMake will take care of building and linking against the specified
 dependencies.
@@ -816,7 +821,7 @@ alignment to be considered valid, and x is the read length.
 
 Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | b <bam>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | -b <bam>} -S [<sam>]
 
 Main arguments
 
@@ -1488,6 +1493,17 @@ Use '='/'X', instead of 'M', to specify matches/mismatches in SAM record
 
 Append FASTA/FASTQ comment to SAM record, where a comment is everything
 after the first space in the read name.
+
+    --sam-opt-config <config>
+
+Use <config> to toggle SAM Optional Fields where <config> is a string of
+comma delimited, case-insensitive, two-letter tags. Tags prefixed with a
+"-" will be turned off and hence will not be included in the SAM output.
+The example below turns off the "MD" tag and enables the
+bowtie2-specific "YP" tag. The config is additive, so, any default OPT
+flags that need to be turned off will have to explicitly specified.
+
+    `bowtie2 ... --sam-opt-config "-md,yp"
 
 Performance options
 

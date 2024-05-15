@@ -158,10 +158,12 @@ will help determine the appropriate index type for uncompressed and gzipped inpu
 
 To build `bowtie2-build` with [libsais] first make sure that the libsais submodule
 is available. This can be done in one of the following ways:
+
 * first time cloning bowtie2 -- `git clone --recursive https://github.com/BenLangmead/bowtie2.git`
 * existing checkout of bowtie2 -- `git submodule init && git submodule update`
 
 Issue the following command line to build libsais:
+
 * with OpenMP support -- `[g]make libsais USE_SAIS_OPENMP=1`
 * without OpenMP support -- `[g]make libsais USE_SAIS=1`
 
@@ -169,13 +171,15 @@ The choice of using OpenMP will determine whether or not the algorithm
 runs multithreaded. The [`-p/--threads`] argument to `bowtie2-build` will
 be ignored when libsais is compiled without OpenMP support.
 
-Finally, building the build executable:
+Finally, building the bowtie2-build executable:
+
 * with OpenMP support -- `[g]make bowtie2-build-s USE_SAIS_OPENMP=1`
 * without OpenMP support -- `[g]make bowtie2-build-s USE_SAIS=1`
 
 ### Building with CMake ###
 
 To build Bowtie2 with SRA and libsais support issue the following command:
+
 * `cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .`
 
 CMake will take care of building and linking against the specified dependencies.
@@ -813,7 +817,7 @@ considered valid, and `x` is the read length.
 
 ### Usage
 
-    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | b <bam>} -S [<sam>]
+    bowtie2 [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --interleaved <i> | --sra-acc <acc> | -b <bam>} -S [<sam>]
 
 ### Main arguments
 
@@ -1909,6 +1913,23 @@ Append FASTA/FASTQ comment to SAM record, where a comment is everything
 after the first space in the read name.
 
 </td></tr>
+<tr><td id="bowtie2-options-sam-opt-config">
+
+    --sam-opt-config <config>
+
+</td><td>
+
+Use `<config>` to toggle SAM Optional Fields where `<config>` is a
+string of comma delimited, case-insensitive, two-letter tags.  Tags
+prefixed with a "-" will be turned off and hence will not be included
+in the SAM output. The example below turns off the "MD" tag and
+enables the `bowtie2`-specific "YP" tag. The config is additive, so,
+any default OPT flags that need to be turned off will have to
+explicitly specified.
+
+    `bowtie2 ... --sam-opt-config "-md,yp"
+
+</td></tr>
 </table>
 
 #### Performance options
@@ -2931,6 +2952,8 @@ for more details and variations on this process.
 [`--very-sensitive-local`]:                           #bowtie2-options-very-sensitive-local
 [`--very-sensitive`]:                                 #bowtie2-options-very-sensitive
 [`--xeq`]:                                            #bowtie2-options-xeq
+[`--sam-append-comment`]:                             #bowtie2-options-sam-append-comment
+[`--sam-opt-config`]:                                 #bowtie2-options-sam-opt-config
 [`-1`]:                                               #bowtie2-options-1
 [`-2`]:                                               #bowtie2-options-2
 [`-3`/`--trim3`]:                                     #bowtie2-options-3

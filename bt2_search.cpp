@@ -878,9 +878,11 @@ static void printUsage(ostream& out) {
 	    << "                     at the expense of generating non-standard SAM." << endl
 	    << "  --xeq              Use '='/'X', instead of 'M,' to specify matches/mismatches in SAM record." << endl
 	    << "  --soft-clipped-unmapped-tlen" << endl
-	    << "                     Exclude soft-clipped bases when reporting TLEN" << endl
+	    << "                     Exclude soft-clipped bases when reporting TLEN." << endl
 	    << "  --sam-append-comment" << endl
-	    << "                     Append FASTA/FASTQ comment to SAM record" << endl
+	    << "                     Append FASTA/FASTQ comment to SAM record." << endl
+            << "  --sam-opt-config <config>" << endl
+            << "                     Use <config>, example '-MD,YP,-AS', to toggle SAM Optional fields." << endl
 	    << endl
 	    << " Performance:" << endl
 		//    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl

@@ -2,7 +2,7 @@
 <!-- badges: start -->
 ![Random Tests](https://github.com/BenLangmead/bowtie2/actions/workflows/random-tests.yml/badge.svg)
 ![Simple Tests](https://github.com/BenLangmead/bowtie2/actions/workflows/simple-tests.yml/badge.svg)
-[![Version](https://img.shields.io/badge/version-2.5.3-green.svg)](https://shields.io/)
+[![Version](https://img.shields.io/badge/version-2.5.4-green.svg)](https://shields.io/)
 <!-- [![Build Status](https://travis-ci.org/BenLangmead/bowtie2.svg?branch=master)](https://travis-ci.org/BenLangmead/bowtie2) -->
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 <!--badges: end -->

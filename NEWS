@@ -4,7 +4,7 @@ Bowtie 2 NEWS
 Bowtie 2 is available for download from the project website,
 http://bowtie-bio.sf.net/bowtie2 and on Github,
 https://github.com/BenLangmead/bowtie2/releases.  2.0.0-beta1 is
-the first version released to the public and 2.5.3 is the latest
+the first version released to the public and 2.5.4 is the latest
 version.  Bowtie 2 is licensed under the GPLv3 license.  See `LICENSE'
 file for details.
 
@@ -18,6 +18,20 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+
+## Version 2.5.4 - May 15, 2024 ##
+
+### bowtie2 ###
+   * Added `--sam-opt-config` command line option for toggling SAM Opt flags.
+     See MANUAL for details.
+   * Fixed an issue causing `bowtie2`'s memory usage to increase over time
+     when aligning BAM files.
+   * Changed bowtie2 to continue flushing output in the event of a partial write.
+   * Changed the behavior of `bowtie2-build` to throw an exception if it is unable
+     to write the BWT (.1.bt2, .1.rev.bt2). In prior versions `bowtie2-build`, would silently
+     ignore the error which has led some to report the absence of the BWT files in
+     a "completed" index build.
+   * Reverted the changes made in v2.5.0 that sometimes caused unique concordant alignments to be overcounted.
 
 ## Version 2.5.3 - Jan 16, 2024 ##
 

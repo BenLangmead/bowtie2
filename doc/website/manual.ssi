@@ -338,24 +338,37 @@ index type for uncompressed and gzipped inputs.</p>
 <p>To build <code>bowtie2-build</code> with <a
 href="https://github.com/IlyaGrebnov/libsais">libsais</a> first make
 sure that the libsais submodule is available. This can be done in one of
-the following ways: * first time cloning bowtie2 --
-<code>git clone --recursive https://github.com/BenLangmead/bowtie2.git</code>
-* existing checkout of bowtie2 --
-<code>git submodule init &amp;&amp; git submodule update</code></p>
-<p>Issue the following command line to build libsais: * with OpenMP
-support -- <code>[g]make libsais USE_SAIS_OPENMP=1</code> * without
-OpenMP support -- <code>[g]make libsais USE_SAIS=1</code></p>
+the following ways:</p>
+<ul>
+<li>first time cloning bowtie2 --
+<code>git clone --recursive https://github.com/BenLangmead/bowtie2.git</code></li>
+<li>existing checkout of bowtie2 --
+<code>git submodule init &amp;&amp; git submodule update</code></li>
+</ul>
+<p>Issue the following command line to build libsais:</p>
+<ul>
+<li>with OpenMP support --
+<code>[g]make libsais USE_SAIS_OPENMP=1</code></li>
+<li>without OpenMP support --
+<code>[g]make libsais USE_SAIS=1</code></li>
+</ul>
 <p>The choice of using OpenMP will determine whether or not the
 algorithm runs multithreaded. The [<code>-p/--threads</code>] argument
 to <code>bowtie2-build</code> will be ignored when libsais is compiled
 without OpenMP support.</p>
-<p>Finally, building the build executable: * with OpenMP support --
-<code>[g]make bowtie2-build-s USE_SAIS_OPENMP=1</code> * without OpenMP
-support -- <code>[g]make bowtie2-build-s USE_SAIS=1</code></p>
+<p>Finally, building the bowtie2-build executable:</p>
+<ul>
+<li>with OpenMP support --
+<code>[g]make bowtie2-build-s USE_SAIS_OPENMP=1</code></li>
+<li>without OpenMP support --
+<code>[g]make bowtie2-build-s USE_SAIS=1</code></li>
+</ul>
 <h3 id="building-with-cmake">Building with CMake</h3>
 <p>To build Bowtie2 with SRA and libsais support issue the following
-command: *
-<code>cmake . -D USE_SRA=1 -D USE_SAIS=1 &amp;&amp; cmake --build .</code></p>
+command:</p>
+<ul>
+<li><code>cmake . -D USE_SRA=1 -D USE_SAIS=1 &amp;&amp; cmake --build .</code></li>
+</ul>
 <p>CMake will take care of building and linking against the specified
 dependencies.</p>
 <h2 id="adding-to-path">Adding to PATH</h2>
@@ -993,7 +1006,7 @@ the function <code>f(x)</code> sets the minimum alignment score
 necessary for an alignment to be considered valid, and <code>x</code> is
 the read length.</p>
 <h3 id="usage">Usage</h3>
-<pre><code>bowtie2 [options]* -x &lt;bt2-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt; | --interleaved &lt;i&gt; | --sra-acc &lt;acc&gt; | b &lt;bam&gt;} -S [&lt;sam&gt;]</code></pre>
+<pre><code>bowtie2 [options]* -x &lt;bt2-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt; | --interleaved &lt;i&gt; | --sra-acc &lt;acc&gt; | -b &lt;bam&gt;} -S [&lt;sam&gt;]</code></pre>
 <h3 id="main-arguments">Main arguments</h3>
 <table>
 <tr>
@@ -2147,6 +2160,22 @@ matches/mismatches in SAM record</p>
 <td>
 <p>Append FASTA/FASTQ comment to SAM record, where a comment is
 everything after the first space in the read name.</p>
+</td>
+</tr>
+<tr>
+<td id="bowtie2-options-sam-opt-config">
+<pre><code>--sam-opt-config &lt;config&gt;</code></pre>
+</td>
+<td>
+<p>Use <code>&lt;config&gt;</code> to toggle SAM Optional Fields where
+<code>&lt;config&gt;</code> is a string of comma delimited,
+case-insensitive, two-letter tags. Tags prefixed with a "-" will be
+turned off and hence will not be included in the SAM output. The example
+below turns off the "MD" tag and enables the
+<code>bowtie2</code>-specific "YP" tag. The config is additive, so, any
+default OPT flags that need to be turned off will have to explicitly
+specified.</p>
+<pre><code>`bowtie2 ... --sam-opt-config &quot;-md,yp&quot;</code></pre>
 </td>
 </tr>
 </table>
