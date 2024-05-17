@@ -1,4 +1,4 @@
-<h2 id="version-2.5.4---may-15-2024">Version 2.5.4 - May 15, 2024</h2>
+<h2 id="version-2.5.4---may-16-2024">Version 2.5.4 - May 16, 2024</h2>
 <h3 id="bowtie2">bowtie2</h3>
 <ul>
   <li>Added <code><a href="manual.shtml#bowtie2-sam-opt-config">--sam-opt-config</a></code> command line option for toggling

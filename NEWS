@@ -19,7 +19,7 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 Version Release History
 =======================
 
-## Version 2.5.4 - May 15, 2024 ##
+## Version 2.5.4 - May 16, 2024 ##
 
 ### bowtie2 ###
    * Added `--sam-opt-config` command line option for toggling SAM Opt flags.
