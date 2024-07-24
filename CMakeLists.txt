@@ -4,7 +4,7 @@ cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0005 NEW)
 
 file(STRINGS ${CMAKE_SOURCE_DIR}/BOWTIE2_VERSION PROJECT_VERSION)
-project(bowtie2 LANGUAGES CXX VERSION ${PROJECT_VERSION})
+project(bowtie2 LANGUAGES C CXX VERSION ${PROJECT_VERSION})
 
 enable_testing()
 
@@ -29,13 +29,14 @@ set(USE_SAIS ${USE_SAIS})
 set(WITH_THREAD_PROFILING ${WITH_THREAD_PROFILING})
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -g3 -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -funroll-loops")
 set(INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 
-include_directories(${SOURCE_DIR}/third_party)
 
+include_directories(${CMAKE_SOURCE_DIR}/third_party)
+message("${CMAKE_SOURCE_DIR}/third_party")
 if (MINGW)
   option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
   option(BOWTIE_SHARED_MEM "Shared memory not supported on Windows" OFF)
@@ -194,22 +195,34 @@ if (USE_SRA)
   find_package(Perl REQUIRED)
   find_program(MAKE_EXE NAMES gmake nmake make)
 
+  # ExternalProject_add(ncbi_vdb_project
+  #   URL https://github.com/ncbi/ncbi-vdb/archive/refs/tags/${NCBI_VDB_VER}.tar.gz
+  #   PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
+  #   BUILD_IN_SOURCE 0
+  #   # CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --without-debug
+  #   BUILD_COMMAND cmake .  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${THIRD_PARTY_LIBS}
+  #   # BUILD_COMMAND ${MAKE_EXE}
+  #   INSTALL_COMMAND ${MAKE_EXE} install
+  #   )
+
   ExternalProject_add(ncbi_vdb_project
-    URL https://github.com/ncbi/ncbi-vdb/archive/${NCBI_VDB_VER}.tar.gz
+    URL https://github.com/ncbi/ncbi-vdb/archive/refs/tags/${NCBI_VDB_VER}.tar.gz
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ncbi-vdb-${NCBI_VDB_VER}
     BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix="${THIRD_PARTY_LIBS}" --without-debug
-    BUILD_COMMAND ${MAKE_EXE}
-    INSTALL_COMMAND ${MAKE_EXE} install
+    # CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --without-debug
+    CONFIGURE_COMMAND cd build && cmake ..  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${THIRD_PARTY_LIBS}
+    BUILD_COMMAND cmake --build build
+    INSTALL_COMMAND cmake --install build
     )
 
   ExternalProject_add(ngs_project
-    URL https://github.com/ncbi/sra-tools/archive/${SRA_TOOLS_VER}.tar.gz
+    URL https://github.com/ncbi/sra-tools/archive/refs/tags/${SRA_TOOLS_VER}.tar.gz
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/sra-tools-${SRA_TOOLS_VER}
     BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ./configure --prefix=${THIRD_PARTY_LIBS} --with-ncbi-vdb-prefix=${THIRD_PARTY_LIBS} --enable-static --without-debug
-    BUILD_COMMAND ${MAKE_EXE}
-    INSTALL_COMMAND ${MAKE_EXE} install
+    CONFIGURE_COMMAND cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DVDB_INCDIR=${THIRD_PARTY_LIBS}/include -DVDB_LIBDIR=${THIRD_PARTY_LIBS}/lib64 -DCMAKE_INSTALL_PREFIX=${THIRD_PARTY_LIBS} -DBUILD_TOOLS_INTERNAL=ON -DBUILD_TOOLS_LOADERS=OFF -DBUILD_TOOLS_TEST_TOOLS=OFF
+    BUILD_COMMAND cmake --build build
+
+    INSTALL_COMMAND cmake --install build
     DEPENDS ncbi_vdb_project
     )
 
