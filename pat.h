@@ -1298,7 +1298,7 @@ public:
 
 	PatternSourceReadAheadFactory(
 		PatternComposer& composer,
-		const PatternParams& pp, size_t n, bool useCV=false) :
+		const PatternParams& pp, size_t n, bool useCV) :
 		psfact_(composer,pp),
 		psq_ready_(useCV),
 		psq_idle_(useCV,psfact_,n),
