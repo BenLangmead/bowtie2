@@ -4716,8 +4716,14 @@ static void multiseedSearch(
 	EList<int> tids;
 	EList<std::thread*> threads(nthreads);
 	EList<thread_tracking_pair> tps;
+	// The condition_variable synchronization can be problematic
+	// in certain situations.
+	// Disabling it and using the polling-based lock-free mechanism can help there
+	// The (relative) polling cost is much higher for low thread count, so use that as a treshold
+	bool readahead_useCVLocks = nthreads<=16; // Note: We may want to consider other factors, too
+
 	// Important: Need at least nthreads+1 elements, more is OK
-	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,4*nthreads+1);
+	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,4*nthreads+1,readahead_useCVLocks);
 	multiseed_readahead_factory = &readahead_factory;
 
 	tps.resize(std::max(nthreads, thread_ceiling));
