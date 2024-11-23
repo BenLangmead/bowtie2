@@ -25,6 +25,7 @@ import gzip
 import inspect
 import logging
 import argparse
+import platform
 import subprocess
 
 
@@ -114,6 +115,9 @@ def main():
                     tot_size += statinfo.st_size
         if tot_size > small_index_max_size:
             build_bin_spec = os.path.join(ex_path, build_bin_l)
+
+    if "Windows" in platform.platform():
+        build_bin_spec += '.exe'
 
     if not os.path.exists(build_bin_spec):
         sys.stderr.write(
