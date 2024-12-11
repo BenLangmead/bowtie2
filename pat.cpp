@@ -55,7 +55,7 @@ static uint32_t genRandSeed(
 	size_t qlen = qry.length();
 	// Throw all the characters of the read into the random seed
 	for(size_t i = 0; i < qlen; i++) {
-		int p = (int)qry[i];
+	        int p = (int)qry[i];
 		assert_leq(p, 4);
 		size_t off = ((i & 15) << 1);
 		rseed ^= ((uint32_t)p << off);
@@ -302,20 +302,28 @@ pair<bool, int> DualPatternComposer::nextBatch(PerThreadReadBuf& pt) {
  * the read and quality input, create a list of pattern sources to
  * dispense them.
  */
-PatternComposer* PatternComposer::setupPatternComposer(
-	const EList<string>& si,   // singles, from argv
-	const EList<string>& m1,   // mate1's, from -1 arg
-	const EList<string>& m2,   // mate2's, from -2 arg
-	const EList<string>& m12,  // both mates on each line, from --12 arg
-	const EList<string>& q,    // qualities associated with singles
-	const EList<string>& q1,   // qualities associated with m1
-	const EList<string>& q2,   // qualities associated with m2
+PatternComposer *PatternComposer::setupPatternComposer(
+    const EList<string> &si,  // singles, from argv
+    const EList<string> &m1,  // mate1's, from -1 arg
+    const EList<string> &m2,  // mate2's, from -2 arg
+    const EList<string> &m12, // both mates on each line, from --12 arg
+    const EList<string> &q,   // qualities associated with singles
+    const EList<string> &q1,  // qualities associated with m1
+    const EList<string> &q2,  // qualities associated with m2
 #ifdef USE_SRA
-	const EList<string>& sra_accs, // SRA accessions
+    const EList<string> &sra_accs, // SRA accessions
 #endif
-	PatternParams& p,    // read-in parameters
-	bool verbose)              // be talkative?
+    PatternParams &p, // read-in parameters
+    bool verbose)     // be talkative?
 {
+        // We save the value of PatternParams::align_paired_reads
+        // so that `--align-paired-reads` works as expected.
+        bool align_paired_reads = p.align_paired_reads;
+        // This serves as an indicator to the BAM pattern source
+        // that we intend on parsing paired reads from separate files
+        p.align_paired_reads = true;
+
+
 	EList<PatternSource*>* a  = new EList<PatternSource*>();
 	EList<PatternSource*>* b  = new EList<PatternSource*>();
 	// Create list of pattern sources for paired reads appearing
@@ -354,8 +362,7 @@ PatternComposer* PatternComposer::setupPatternComposer(
 		}
 	}
 #endif
-
-	// Create list of pattern sources for paired reads
+        // Create list of pattern sources for paired reads
 	for(size_t i = 0; i < m1.size(); i++) {
 		const EList<string>* qs = &m1;
 		EList<string> tmpSeq;
@@ -391,7 +398,11 @@ PatternComposer* PatternComposer::setupPatternComposer(
 	// All mates/mate files must be paired
 	assert_eq(a->size(), b->size());
 
-	// Create list of pattern sources for the unpaired reads
+        // Create list of pattern sources for the unpaired reads
+        p.align_paired_reads = align_paired_reads;
+        if (p.align_paired_reads) {
+                p.interleaved = true;
+        }
 	for(size_t i = 0; i < si.size(); i++) {
 		const EList<string>* qs = &si;
 		PatternSource* patsrc = NULL;
@@ -1370,7 +1381,8 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 			i = i + sizeof(l_name) + l_name + sizeof(uint32_t);
 		}
 		first_ = false;
-	}
+        }
+
 	while (readi < pt.max_buf_) {
 		if (i >= alignment_batch.size()) {
 			return make_pair(false, readi);
@@ -1397,19 +1409,26 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		i += sizeof(block_size);
 		memcpy(&flag, &alignment_batch[0] + i + offset[BAMField::flag], sizeof(flag));
 		if (currentlyBigEndian())
-			flag = endianSwapU16(flag);
-		EList<Read>& readbuf = (pp_.align_paired_reads && (flag & 0x80)) != 0 ? pt.bufb_ : pt.bufa_;
+                        flag = endianSwapU16(flag);
+
+                if (interleaved_) {
+                        batch_a = (flag & 0x80) != 0 ? false : true;
+                }
+
+                EList<Read> &readbuf = batch_a ? pt.bufa_ : pt.bufb_;
+
 		if ((flag & 0x4) == 0) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
 		}
-		if (!pp_.align_paired_reads && ((flag & 0x40) != 0 || (flag & 0x80) != 0)) {
+		if (!align_paired_reads_ && (flag & 0x1) != 0) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
 		}
-		if (pp_.align_paired_reads && ((flag & 0x40) == 0 && (flag & 0x80) == 0)) {
+                if (align_paired_reads_ &&
+                    ((batch_a && ((flag & 0x40) == 0)) || (!batch_a && (flag & 0x80) == 0))) {
 			readbuf[readi].readOrigBuf.clear();
 			i += block_size;
 			continue;
@@ -1418,7 +1437,7 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		readbuf[readi].readOrigBuf.resize(block_size);
 		memcpy(readbuf[readi].readOrigBuf.wbuf(), &alignment_batch[0] + i, block_size);
 		i += block_size;
-		readi += (pp_.align_paired_reads &&
+		readi += (interleaved_ &&
 			  pt.bufb_[readi].readOrigBuf.length() == 0) ? 0 : 1;
 	}
 

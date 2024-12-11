@@ -851,22 +851,16 @@ class BAMPatternSource : public CFilePatternSource {
 	};
 
 public:
-
-	BAMPatternSource(
-		const EList<std::string>& infiles,
-		const PatternParams& p) :
-		CFilePatternSource(infiles, p),
-		first_(true),
-		alignment_batch(0),
-		alignment_offset(0),
-		delta_(0),
-		pp_(p)
-		{
-			stream.zalloc = Z_NULL;
-			stream.zfree = Z_NULL;
-			stream.opaque = Z_NULL;
-			alignment_batch.reserve(1 << 16);
-		}
+  BAMPatternSource(const EList<std::string> &infiles, const PatternParams &p)
+      : CFilePatternSource(infiles, p), first_(true), alignment_batch(0),
+      alignment_offset(0), delta_(0), pp_(p), interleaved_(pp_.interleaved),
+      align_paired_reads_(pp_.align_paired_reads)
+	{
+		stream.zalloc = Z_NULL;
+		stream.zfree = Z_NULL;
+		stream.opaque = Z_NULL;
+		alignment_batch.reserve(1 << 16);
+	}
 
 	virtual void reset() {
 		first_ = true;
@@ -913,7 +907,9 @@ private:
 	size_t delta_;
 	z_stream stream;
 
-	PatternParams pp_;
+        PatternParams pp_;
+        bool interleaved_;
+        bool align_paired_reads_;
 };
 
 /**
