@@ -1714,7 +1714,7 @@ static void parseOptions(int argc, const char **argv) {
 		     << "sequences must be specified with -1 and -2." << endl;
 		throw 1;
 	}
-	if(interleaved && (format != FASTA && format != FASTQ)) {
+	if(interleaved && (format != FASTA && format != FASTQ && format != BAM)) {
 		cerr << "Error: --interleaved only works in combination with FASTA (-f) and FASTQ (-q) formats." << endl;
 		throw 1;
 	}
