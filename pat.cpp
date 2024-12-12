@@ -339,11 +339,11 @@ PatternComposer *PatternComposer::setupPatternComposer(
 		}
 		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
 		b->push_back(NULL);
-		p.interleaved = false;
 		if(!p.fileParallel) {
 			break;
 		}
-	}
+        }
+        p.interleaved = false;
 
 #ifdef USE_SRA
 	for(size_t i = 0; i < sra_accs.size(); i++) {
