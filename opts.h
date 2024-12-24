@@ -163,6 +163,7 @@ enum {
 	ARG_SRA_ACC,                // --sra-acc
         ARG_SAM_APPEND_COMMENT,     // --sam-append-comment
         ARG_SAM_OPT_CONFIG,         // --sam-opt-config
+	ARG_K_BEST,                 // --kbest
 };
 
 #endif

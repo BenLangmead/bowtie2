@@ -102,6 +102,7 @@ static bool thread_stealing;// true iff thread stealing is in use
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
+static bool kbest;        // Only report the best hits when -k is larger than 1
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
@@ -315,6 +316,7 @@ static void resetOptions() {
 	outType		    = OUTPUT_SAM;	// style of output
 	noRefNames	    = false;	// true -> print reference indexes; not names
 	khits		    = 1;	// number of hits per read; >1 is much slower
+	kbest	        = true;	// report the best hits when khits>1
 	mhits		    = 50;	// stop after finding this many alignments+1
 	partitionSz	    = 0;	// output a partitioning key in first field
 	readsPerBatch	    = 16;	// # reads to read from input file at once
@@ -509,6 +511,7 @@ static struct option long_options[] = {
 	{(char*)"help",                        no_argument,        0,                   'h'},
 	{(char*)"threads",                     required_argument,  0,                   'p'},
 	{(char*)"khits",                       required_argument,  0,                   'k'},
+	{(char*)"kbest",                       no_argument,        0,                   ARG_K_BEST},
 	{(char*)"minins",                      required_argument,  0,                   'I'},
 	{(char*)"maxins",                      required_argument,  0,                   'X'},
 	{(char*)"quals",                       required_argument,  0,                   'Q'},
@@ -1284,6 +1287,11 @@ static void parseOption(int next_option, const char *arg) {
 			     << "-k will override" << endl;
 		}
 		saw_k = true;
+		break;
+	}
+	case ARG_K_BEST: {
+		kbest = true;
+		cerr << "Set -kbest to true" << endl;
 		break;
 	}
 	case ARG_VERBOSE: gVerbose = 1; break;
@@ -3065,7 +3073,8 @@ static void multiseedSearchWorker(void *vp) {
 			0,                 // penalty gap (not used now)
 			msample,           // true -> -M was specified, otherwise assume -m
 			gReportDiscordant, // report discordang paired-end alignments?
-			gReportMixed);     // report unpaired alignments for paired reads?
+			gReportMixed,      // report unpaired alignments for paired reads?
+			kbest);            // --kbest
 
 		// Instantiate a mapping quality calculator
 		unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
@@ -4186,7 +4195,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		0,                 // penalty gap (not used now)
 		msample,           // true -> -M was specified, otherwise assume -m
 		gReportDiscordant, // report discordang paired-end alignments?
-		gReportMixed);     // report unpaired alignments for paired reads?
+		gReportMixed,      // report unpaired alignments for paired reads?
+		kbest);            // --kbest
 
 	// Instantiate a mapping quality calculator
 	unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
