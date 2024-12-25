@@ -219,9 +219,10 @@ struct ReportingParams {
 		THitInt pengap_,
 		bool msample_,
 		bool discord_,
-		bool mixed_)
+		bool mixed_,
+		bool kbest_)
 	{
-		init(khits_, mhits_, pengap_, msample_, discord_, mixed_);
+		init(khits_, mhits_, pengap_, msample_, discord_, mixed_, kbest_);
 	}
 
 	void init(
@@ -230,7 +231,8 @@ struct ReportingParams {
 		THitInt pengap_,
 		bool msample_,
 		bool discord_,
-		bool mixed_)
+		bool mixed_,
+		bool kbest_)
 	{
 		khits   = khits_;     // -k (or high if -a)
 		mhits   = ((mhits_ == 0) ? std::numeric_limits<THitInt>::max() : mhits_);
@@ -238,6 +240,7 @@ struct ReportingParams {
 		msample = msample_;
 		discord = discord_;
 		mixed   = mixed_;
+		kbest   = kbest_;
 	}
 
 #ifndef NDEBUG
@@ -310,6 +313,10 @@ struct ReportingParams {
 	// are paired-end alignments for a paired-end read, or if the number of
 	// paired-end alignments exceeds the -m ceiling.
 	bool mixed;
+
+	// true iff both -k and --kbest are specified and we only report the best
+	// scoring alignments among the top-k hits
+	bool kbest;
 };
 
 /**
@@ -1027,7 +1034,8 @@ public:
 		RandomSource&      rnd,         // pseudo-random generator
 		ReportingMetrics&  met,         // reporting metrics
 		const PerReadMetrics& prm,      // per-read metrics
-		const Scoring& sc,              // scoring scheme
+		const Scoring&     sc,          // scoring scheme
+		bool               selectBest,  // only report the top-scoring alignments
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false,
 		bool scUnMapped = false,
@@ -1234,6 +1242,7 @@ protected:
 		EList<size_t>&       select, // prioritized list to put results in
 		const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
 		const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
+		const bool           selectBest, // only select the top-scoring alignments
 		AlnScore&            bestUScore,
 		AlnScore&            bestUDist,
 		AlnScore&            bestP1Score,

@@ -1291,7 +1291,6 @@ static void parseOption(int next_option, const char *arg) {
 	}
 	case ARG_K_BEST: {
 		kbest = true;
-		cerr << "Set -kbest to true" << endl;
 		break;
 	}
 	case ARG_VERBOSE: gVerbose = 1; break;
@@ -1801,6 +1800,11 @@ static void parseOptions(int argc, const char **argv) {
 		     << "); setting mismatches to " << (multiseedMms-1)
 		     << " instead" << endl;
 		multiseedMms = multiseedLen-1;
+	}
+	if (kbest && khits == 1) {
+		cerr << "Warning: --kbest is set while -k is not set or set to 1 "
+		     << "(the default value). The kbest mode would not make a "
+			 << "difference when -k is <= 1." << endl;
 	}
 	sam_print_zm = sam_print_zm && bowtie2p5;
 #ifndef NDEBUG
@@ -4126,6 +4130,7 @@ static void multiseedSearchWorker(void *vp) {
 					rpm,                  // reporting metrics
 					prm,                  // per-read metrics
 					sc,                   // scoring scheme
+					kbest,                // only reports the top-scoring alignments
 					!seedSumm,            // suppress seed summaries?
 					seedSumm,             // suppress alignments?
 					scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
@@ -4483,6 +4488,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				rpm,                  // reporting metrics
 				prm,                  // per-read metrics
 				sc,                   // scoring scheme
+				kbest,                // only reports the top-scoring alignments
 				!seedSumm,            // suppress seed summaries?
 				seedSumm,             // suppress alignments?
 				scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN

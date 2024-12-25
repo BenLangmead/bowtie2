@@ -657,6 +657,7 @@ void AlnSinkWrap::finishRead(
 	ReportingMetrics&  met,         // reporting metrics
 	const PerReadMetrics& prm,      // per-read metrics
 	const Scoring& sc,              // scoring scheme
+	const bool selectBest,         // only report the best-scoring alignments
 	bool suppressSeedSummary,       // = true
 	bool suppressAlignments,        // = false
 	bool scUnMapped,                // = false
@@ -727,6 +728,7 @@ void AlnSinkWrap::finishRead(
 				&rs1_, &rs2_,
 				nconcord, select1_,
 				&rs1u_, &rs2u_,
+				selectBest,
 				bestUScore,
 				bestUDist,
 				bestP1Score,
@@ -903,6 +905,7 @@ void AlnSinkWrap::finishRead(
 				&rs1_, &rs2_,
 				ndiscord, select1_,
 				&rs1u_, &rs2u_,
+				selectBest,
 				bestUScore,
 				bestUDist,
 				bestP1Score,
@@ -1072,6 +1075,7 @@ void AlnSinkWrap::finishRead(
 			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			size_t off = selectByScore(
 				&rs1u_, NULL, nunpair1, select1_, NULL, NULL,
+				selectBest,
 				bestUScore,
 				bestUDist,
 				bestP1Score,
@@ -1125,6 +1129,7 @@ void AlnSinkWrap::finishRead(
 			AlnScore bestUnchosenUDist, bestUnchosenP1Dist, bestUnchosenP2Dist, bestUnchosenCDist;
 			size_t off = selectByScore(
 				&rs2u_, NULL, nunpair2, select2_, NULL, NULL,
+				selectBest,
 				bestUScore,
 				bestUDist,
 				bestP1Score,
@@ -1481,6 +1486,7 @@ size_t AlnSinkWrap::selectByScore(
 	EList<size_t>&       select, // prioritized list to put results in
 	const EList<AlnRes>* rs1u,   // alignments to select from (mate 1)
 	const EList<AlnRes>* rs2u,   // alignments to select from (mate 2, or NULL)
+	const bool           selectBest, // only select the top-scoring alignments
 	AlnScore&            bestUScore,
 	AlnScore&            bestUDist,
 	AlnScore&            bestP1Score,
@@ -1534,7 +1540,7 @@ size_t AlnSinkWrap::selectByScore(
 	if(sz == 0) {
 		return 0;
 	}
-	select.resize((size_t)num);
+
 	// Use 'selectBuf_' as a temporary list for sorting purposes
 	EList<std::pair<AlnScore, size_t> >& buf =
 		const_cast<EList<std::pair<AlnScore, size_t> >& >(selectBuf_);
@@ -1566,7 +1572,19 @@ size_t AlnSinkWrap::selectByScore(
 	if(streak > 1) {
 		buf.shufflePortion(buf.size() - streak, streak, rnd);
 	}
-	
+
+	if (selectBest) {
+		// Counts the number of top-scoring alignments
+		// The final count should be <= num (# selected alignments)
+		uint64_t num_best = 1;
+		for(size_t i = 1; i < buf.size(); i++) {
+			if (buf[i].first == buf[0].first && num_best < num){
+				num_best += 1;
+			}
+		}
+		num = num_best;
+	}
+	select.resize((size_t)num);
 	// Copy the permutation into the 'select' list
 	for(size_t i = 0; i < num; i++) { select[i] = buf[i].second; }
 	
