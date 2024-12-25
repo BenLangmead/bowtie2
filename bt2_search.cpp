@@ -172,6 +172,7 @@ static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
+static bool sam_print_nh;
 static EList<string> sam_opt_flags;
 static bool preserve_tags;     // Only applies when aligning BAM files
 static bool align_paired_reads; // Process only the paired reads in BAM file
@@ -387,6 +388,7 @@ static void resetOptions() {
 	sam_print_zp        = false;
 	sam_print_zu        = false;
 	sam_print_zt        = false;
+	sam_print_nh        = false;
 	preserve_tags       = false;
 	align_paired_reads  = false;
 	bwaSwLike           = false;
@@ -512,6 +514,7 @@ static struct option long_options[] = {
 	{(char*)"threads",                     required_argument,  0,                   'p'},
 	{(char*)"khits",                       required_argument,  0,                   'k'},
 	{(char*)"kbest",                       no_argument,        0,                   ARG_K_BEST},
+	{(char*)"show-nh-tag",                 no_argument,        0,                   ARG_SHOW_NH_TAG},
 	{(char*)"minins",                      required_argument,  0,                   'I'},
 	{(char*)"maxins",                      required_argument,  0,                   'X'},
 	{(char*)"quals",                       required_argument,  0,                   'Q'},
@@ -1317,6 +1320,10 @@ static void parseOption(int next_option, const char *arg) {
 	case ARG_REORDER: reorder = true; break;
 	case ARG_MAPQ_EX: {
 		sam_print_zt = true;
+		break;
+	}
+	case ARG_SHOW_NH_TAG: {
+		sam_print_nh = true;
 		break;
 	}
 	case ARG_SHOW_RAND_SEED: {
@@ -5025,7 +5032,8 @@ static void driver(
 			sam_print_zi,
 			sam_print_zp,
 			sam_print_zu,
-			sam_print_zt);
+			sam_print_zt,
+			sam_print_nh);
 
                 if (sam_opt_flags.size() > 0) {
                         for (size_t i = 0; i < sam_opt_flags.size(); i++) {
