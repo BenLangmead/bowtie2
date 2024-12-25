@@ -231,6 +231,13 @@ void SamConfig::printAlignedOptFlags(
 		o.append("XG:i:");
 		o.append(buf);
 	}
+	if(print_nh_) {
+		// NH:i: Number of reported alignments of a query
+		WRITE_SEP();
+		itoa10<uint64_t>(flags.numReported(), buf);
+		o.append("NH:i:");
+		o.append(buf);
+	}
 	if(print_nm_) {
 		// NM:i: Edit dist. to the ref, Ns count, clipping doesn't
 		itoa10<size_t>(res.ned().size(), buf);

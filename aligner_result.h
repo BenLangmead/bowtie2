@@ -297,7 +297,8 @@ public:
 			false,  // oppAligned
 			false,  // oppFw
 			false,  // scUnMapped
-			false); // xeq
+			false,  // xeq
+			0);     // numReported
 	}
 
 	AlnFlags(
@@ -314,11 +315,12 @@ public:
 		bool oppAligned, // opposite mate aligned?
 		bool oppFw,      // opposite mate aligned forward?
 		bool scUnMapped,
-		bool xeq)
+		bool xeq,
+		int numReported)
 	{
 		init(pairing, canMax, maxed, maxedPair, nfilt, scfilt,
 			 lenfilt, qcfilt, mixedMode, primary, oppAligned,
-			 oppFw, scUnMapped, xeq);
+			 oppFw, scUnMapped, xeq, numReported);
 	}
 
 	/**
@@ -338,7 +340,8 @@ public:
 		bool oppAligned,
 		bool oppFw,
 		bool scUnMapped,
-		bool xeq)
+		bool xeq,
+		int numReported)
 	{
 		assert_gt(pairing, 0);
 		assert_leq(pairing, ALN_FLAG_PAIR_UNPAIRED);
@@ -356,6 +359,7 @@ public:
 		oppFw_     = oppFw;
 		scUnMapped_ = scUnMapped;
 		xeq_ = xeq;
+		numReported_ = numReported;
 	}
 
 	/**
@@ -516,6 +520,12 @@ public:
 		return xeq_;
 	}
 
+	inline int numReported() const { return numReported_; }
+
+	void setNumReported(const int numReported) {
+		numReported_ = numReported;
+	}
+
 protected:
 
 	// See ALN_FLAG_PAIR_* above
@@ -555,6 +565,9 @@ protected:
 	bool scUnMapped_;
 
 	bool xeq_;
+
+	// Number of reported alignments of the query (the NH:i tag)
+	int numReported_;
 };
 
 static inline ostream& operator<<(ostream& os, const AlnScore& o) {
