@@ -316,7 +316,7 @@ static void resetOptions() {
 	outType		    = OUTPUT_SAM;	// style of output
 	noRefNames	    = false;	// true -> print reference indexes; not names
 	khits		    = 1;	// number of hits per read; >1 is much slower
-	kbest	        = true;	// report the best hits when khits>1
+	kbest	        = false;// report the best hits when khits>1
 	mhits		    = 50;	// stop after finding this many alignments+1
 	partitionSz	    = 0;	// output a partitioning key in first field
 	readsPerBatch	    = 16;	// # reads to read from input file at once
