@@ -278,6 +278,24 @@ static void set_format(int &current_format, file_format format) {
 	}
 }
 
+int set_default_thread_count() {
+	int num_threads = 1;
+	const char *omp_num_threads = NULL;
+	if ((omp_num_threads = getenv("OMP_NUM_THREADS")) != NULL) {
+		try {
+			num_threads = std::stoi(omp_num_threads);
+		} catch (std::invalid_argument const &ex) {
+			std::cerr << "Error: " << ex.what() << std::endl;
+			exit(EXIT_FAILURE);
+		} catch (std::out_of_range const &ex) {
+			std::cerr << "Error: " << ex.what() << std::endl;
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	return num_threads;
+}
+
 static void resetOptions() {
 	mates1.clear();
 	mates2.clear();
@@ -307,7 +325,7 @@ static void resetOptions() {
 	solexaQuals	    = false;	// quality strings are solexa quals, not phred, and subtract 64 (not 33)
 	phred64Quals	    = false;	// quality chars are phred, but must subtract 64 (not 33)
 	integerQuals	    = false;	// quality strings are space-separated strings of integers, not ASCII
-	nthreads	    = 1;	// number of pthreads operating concurrently
+	nthreads	    = set_default_thread_count();	// number of pthreads operating concurrently
 	thread_ceiling	    = 0;	// max # threads user asked for
 	thread_stealing_dir = "";	// keep track of pids in this directory
 	thread_stealing	    = false;	// true iff thread stealing is in use
