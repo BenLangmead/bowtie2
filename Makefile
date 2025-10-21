@@ -77,7 +77,7 @@ ARCH ?= $(shell uname -m)
 ifneq (,$(findstring $(ARCH), x86_64 amd64))
   BITS := 64
   ifeq (1, $(SSE_AVX2))
-	SSE_FLAG := -mavx2 -faligned-new -DSSE_AVX2
+	SSE_FLAG := -march=x86-64-v3 -mtune=znver3 -faligned-new -DSSE_AVX2 -DPOPCNT_CAPABILITY
   else
 	SSE_FLAG := -msse2
   endif
@@ -121,6 +121,8 @@ ifeq (1, $(POPCNT_CAPABILITY))
   CXXFLAGS += -DPOPCNT_CAPABILITY
   CPPFLAGS += -I third_party
 endif
+
+CXXFLAGS += $(SSE_FLAG)
 
 MM_DEF :=
 
@@ -229,8 +231,8 @@ else ifeq (0,$(shell $(CXX) -E -fsanitize=undefined btypes.h > /dev/null 2>&1; e
   SANITIZER_FLAGS := -fsanitize=undefined
 endif
 
-DEBUG_FLAGS    := -O0 -g3 $(SSE_FLAG)
-RELEASE_FLAGS  := -O3 $(SSE_FLAG) -funroll-loops -g3
+DEBUG_FLAGS    := -O0 -g3
+RELEASE_FLAGS  := -O3 -funroll-loops -g3
 NOASSERT_FLAGS := -DNDEBUG
 FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
