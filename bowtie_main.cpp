@@ -24,11 +24,37 @@
 #include "tokenize.h"
 #include "ds.h"
 
+#ifdef ENABLE_x86_64_v3
+#include <unistd.h>
+#endif
+
 using namespace std;
 
 extern "C" {
 	int bowtie(int argc, const char **argv);
 }
+
+#ifdef ENABLE_x86_64_v3
+void check_x86_64_v3(int argc, const char **argv) {
+	if (__builtin_cpu_supports ("x86-64-v3") && (argc<126)) {
+		const char* new_argv[128]; // should always be enough, but above check enforces it, too
+		const char * org_path = argv[0];
+		// Append -v256 to the original path 
+		const int fn_len = strlen(org_path);
+		char *new_path = (char*) malloc(fn_len+16);
+		memcpy(new_path,org_path,fn_len);
+		strncpy(new_path+fn_len,"-v256",15);
+
+		for (int i=1; i<=argc; i++) new_argv[i] = argv[i]; // all but first the same, also copy final NULL
+		new_argv[0] = new_path;
+		// now replace the executable with new variant
+		// assuming the executable exists... execvp will gracefully fail else, which is OK
+		execvp(new_argv[0], (char *const *)new_argv);
+		// we should never get out of the above call
+		fprintf(stderr,"[WARNING] Failed to launch x86-64-v3 version, staying with default\n");
+	}
+}
+#endif
 
 /**
  * Bowtie main function.  It is placed in a separate source file to
@@ -40,6 +66,9 @@ extern "C" {
  * bowtie.
  */
 int main(int argc, const char **argv) {
+#ifdef ENABLE_x86_64_v3
+	check_x86_64_v3(argc, argv);
+#endif
 	if(argc > 2 && strcmp(argv[1], "-A") == 0) {
 		const char *file = argv[2];
 		ifstream in;

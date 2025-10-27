@@ -59,6 +59,8 @@ endif
 ifeq (1, $(WINDOWS))
   BOWTIE_MM :=
   BOWTIE_SHARED_MEM :=
+  # and no support for advanced vectorization either
+  SSE_AVX2 := 0
 endif
 
 MACOS :=
@@ -72,17 +74,21 @@ ifneq (,$(findstring Darwin,$(shell uname)))
   endif
 endif
 
+# do we have a 256-bit variant of the executable?
+ENABLE_V256 := 0
+
 BITS := 32
 ARCH ?= $(shell uname -m)
 ifneq (,$(findstring $(ARCH), x86_64 amd64))
   BITS := 64
-  ifeq (1, $(SSE_AVX2))
-	SSE_FLAG := -march=x86-64-v3 -mtune=znver3 -faligned-new -DSSE_AVX2 -DPOPCNT_CAPABILITY
-  else
-	SSE_FLAG := -msse2
-  endif
-
+  SSE_FLAG := -msse2
   POPCNT_CAPABILITY ?= 1
+  ifneq (0, $(SSE_AVX2))
+    ENABLE_V256 := 1
+    V256_FLAG := -march=x86-64-v3 -mtune=znver3 -faligned-new -DSSE_AVX2 -DPOPCNT_CAPABILITY
+    # tell 128-bit version to check for v256 capability and use it, if found
+    SSE_FLAG += -DENABLE_x86_64_v3
+  endif
 else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
   BITS := 64
   SSE_FLAG :=
@@ -121,8 +127,6 @@ ifeq (1, $(POPCNT_CAPABILITY))
   CXXFLAGS += -DPOPCNT_CAPABILITY
   CPPFLAGS += -I third_party
 endif
-
-CXXFLAGS += $(SSE_FLAG)
 
 MM_DEF :=
 
@@ -238,22 +242,38 @@ FILE_FLAGS     := -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS)\""
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS)\""
 
-BOWTIE2_BIN_LIST := bowtie2-build-s \
+ifeq (1, $(ENABLE_V256))
+  V256_DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(CXXFLAGS) $(V256_FLAG)\""
+  V256_RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(CXXFLAGS) $(V256_FLAG)\""
+endif
+
+
+BOWTIE2_BIN_BOTH_LIST := bowtie2-build-s \
   bowtie2-build-l \
   bowtie2-align-s \
-  bowtie2-align-l \
-  bowtie2-inspect-s \
-  bowtie2-inspect-l
-BOWTIE2_BIN_LIST_DBG := bowtie2-build-s-debug \
+  bowtie2-align-l
+BOWTIE2_BIN_BOTH_LIST_DBG := bowtie2-build-s-debug \
   bowtie2-build-l-debug \
   bowtie2-align-s-debug \
-  bowtie2-align-l-debug \
-  bowtie2-inspect-s-debug \
-  bowtie2-inspect-l-debug
-BOWTIE2_BIN_LIST_SAN := bowtie2-build-s-sanitized \
+  bowtie2-align-l-debug
+BOWTIE2_BIN_BOTH_LIST_SAN := bowtie2-build-s-sanitized \
   bowtie2-build-l-sanitized \
   bowtie2-align-s-sanitized \
-  bowtie2-align-l-sanitized \
+  bowtie2-align-l-sanitized
+
+ifeq (1, $(ENABLE_V256))
+  BOWTIE2_BIN_BOTH_LIST += bowtie2-align-s-v256 bowtie2-align-l-v256
+  BOWTIE2_BIN_BOTH_LIST_DBG += bowtie2-align-s-debug-v256 bowtie2-align-l-debug-v256
+  BOWTIE2_BIN_BOTH_LIST_SAN += bowtie2-align-s-sanitized-v256 bowtie2-align-l-sanitized-v256
+endif
+
+BOWTIE2_BIN_LIST := $(BOWTIE2_BIN_BOTH_LIST) \
+  bowtie2-inspect-s \
+  bowtie2-inspect-l
+BOWTIE2_BIN_LIST_DBG := $(BOWTIE2_BIN_BOTH_LIST_DBG) \
+  bowtie2-inspect-s-debug \
+  bowtie2-inspect-l-debug
+BOWTIE2_BIN_LIST_SAN := $(BOWTIE2_BIN_BOTH_LIST_SAN) \
   bowtie2-inspect-s-sanitized \
   bowtie2-inspect-l-sanitized
 ifndef SANITIZER_FLAGS
@@ -311,9 +331,9 @@ endif
 
 all: $(BOWTIE2_BIN_LIST) ;
 allall: $(BOWTIE2_BIN_LIST) $(BOWTIE2_BIN_LIST_DBG) $(BOWTIE2_BIN_LIST_SAN) ;
-both: bowtie2-align-s bowtie2-build-s bowtie2-align-l bowtie2-build-l ;
-both-debug: bowtie2-align-s-debug bowtie2-build-s-debug bowtie2-align-l-debug bowtie2-build-l-debug ;
-both-sanitized: bowtie2-align-s-sanitized bowtie2-build-s-sanitized bowtie2-align-l-sanitized bowtie2-build-l-sanitized ;
+both: $(BOWTIE2_BIN_BOTH_LIST) ;
+both-debug: $(BOWTIE2_BIN_BOTH_LIST_DBG) ;
+both-sanitized: $(BOWTIE2_BIN_BOTH_LIST_SAN) ;
 
 DEFS := -fno-strict-aliasing \
   -DBOWTIE2_VERSION="\"`cat BOWTIE2_VERSION`\"" \
@@ -379,7 +399,7 @@ bowtie2-build-l-debug: bt2_build.cpp $(SHARED_CPPS) $(HEADERS)
 bowtie2-align-s-sanitized bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) \
-		$(CPPFLAGS) \
+		$(CPPFLAGS) $(SSE_FLAG) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LDFLAGS) $(LDLIBS)
@@ -387,7 +407,7 @@ bowtie2-align-s-sanitized bowtie2-align-s: bt2_search.cpp $(SEARCH_CPPS) $(SHARE
 bowtie2-align-l-sanitized bowtie2-align-l: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS)  \
-		$(CPPFLAGS) \
+		$(CPPFLAGS) $(SSE_FLAG) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LDFLAGS) $(LDLIBS)
@@ -396,7 +416,7 @@ bowtie2-align-s-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2  \
-		$(CPPFLAGS) \
+		$(CPPFLAGS) $(SSE_FLAG) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LDFLAGS) $(LDLIBS)
@@ -405,10 +425,51 @@ bowtie2-align-l-debug: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $
 	$(CXX) $(DEBUG_FLAGS) \
 		$(DEBUG_DEFS) $(CXXFLAGS) \
 		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX  \
-		$(CPPFLAGS) \
+		$(CPPFLAGS) $(SSE_FLAG) \
 		-o $@ $< \
 		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
 		$(LDFLAGS) $(LDLIBS)
+
+ifeq (1,$(ENABLE_V256))
+#
+# bowtie2-align v256 targets
+#
+
+bowtie2-align-s-sanitized-v256 bowtie2-align-s-v256: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(RELEASE_FLAGS) $(V256_RELEASE_DEFS) $(CXXFLAGS) \
+		$(DEFS) -DBOWTIE2 $(NOASSERT_FLAGS) \
+		$(CPPFLAGS) $(V256_FLAG) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
+		$(LDFLAGS) $(LDLIBS)
+
+bowtie2-align-l-sanitized-v256 bowtie2-align-l-v256: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(RELEASE_FLAGS) $(V256_RELEASE_DEFS) $(CXXFLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS)  \
+		$(CPPFLAGS) $(V256_FLAG) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
+		$(LDFLAGS) $(LDLIBS)
+
+bowtie2-align-s-debug-v256: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(DEBUG_FLAGS) \
+		$(V256_DEBUG_DEFS) $(CXXFLAGS) \
+		$(DEFS) -DBOWTIE2  \
+		$(CPPFLAGS) $(V256_FLAG) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
+		$(LDFLAGS) $(LDLIBS)
+
+bowtie2-align-l-debug-v256: bt2_search.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(DEBUG_FLAGS) \
+		$(V256_DEBUG_DEFS) $(CXXFLAGS) \
+		$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX  \
+		$(CPPFLAGS) $(V256_FLAG) \
+		-o $@ $< \
+		$(SHARED_CPPS) $(SEARCH_CPPS_MAIN) \
+		$(LDFLAGS) $(LDLIBS)
+
+endif
 
 #
 # bowtie2-inspect targets
