@@ -31,6 +31,9 @@ public:
     ProcessorSupport() { }
     bool POPCNTenabled()
     {
+#if defined(SSE_AVX2)
+       return true; // POPCNT is part of AVX2, so always present; no need to check
+#else
     // from: Intel® 64 and IA-32 Architectures Software Developer’s Manual, 325462-036US,March 2013
     //Before an application attempts to use the POPCNT instruction, it must check that the
     //processor supports SSE4.2
@@ -58,6 +61,7 @@ public:
         return false;
     }
     return true;
+#endif
     }
 
 #endif // POPCNT_CAPABILITY
