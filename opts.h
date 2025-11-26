@@ -161,8 +161,10 @@ enum {
 	ARG_PRESERVE_TAGS,          // --preserve-tags
 	ARG_ALIGN_PAIRED_READS,     // --align-paired-reads
 	ARG_SRA_ACC,                // --sra-acc
-        ARG_SAM_APPEND_COMMENT,     // --sam-append-comment
-        ARG_SAM_OPT_CONFIG,         // --sam-opt-config
+	ARG_SAM_APPEND_COMMENT,     // --sam-append-comment
+	ARG_SAM_OPT_CONFIG,         // --sam-opt-config
+	ARG_K_BEST,                 // --kbest
+	ARG_SHOW_NH_TAG,            // --show-nh-tag
 };
 
 #endif

@@ -102,6 +102,7 @@ static bool thread_stealing;// true iff thread stealing is in use
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t khits;    // number of hits per read; >1 is much slower
+static bool kbest;        // Only report the best hits when -k is larger than 1
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
 static int readsPerBatch; // # reads to read from input file at once
@@ -171,6 +172,7 @@ static bool sam_print_zi;
 static bool sam_print_zp;
 static bool sam_print_zu;
 static bool sam_print_zt;
+static bool sam_print_nh;
 static EList<string> sam_opt_flags;
 static bool preserve_tags;     // Only applies when aligning BAM files
 static bool align_paired_reads; // Process only the paired reads in BAM file
@@ -315,6 +317,7 @@ static void resetOptions() {
 	outType		    = OUTPUT_SAM;	// style of output
 	noRefNames	    = false;	// true -> print reference indexes; not names
 	khits		    = 1;	// number of hits per read; >1 is much slower
+	kbest	        = false;// report the best hits when khits>1
 	mhits		    = 50;	// stop after finding this many alignments+1
 	partitionSz	    = 0;	// output a partitioning key in first field
 	readsPerBatch	    = 16;	// # reads to read from input file at once
@@ -385,6 +388,7 @@ static void resetOptions() {
 	sam_print_zp        = false;
 	sam_print_zu        = false;
 	sam_print_zt        = false;
+	sam_print_nh        = false;
 	preserve_tags       = false;
 	align_paired_reads  = false;
 	bwaSwLike           = false;
@@ -509,6 +513,8 @@ static struct option long_options[] = {
 	{(char*)"help",                        no_argument,        0,                   'h'},
 	{(char*)"threads",                     required_argument,  0,                   'p'},
 	{(char*)"khits",                       required_argument,  0,                   'k'},
+	{(char*)"kbest",                       no_argument,        0,                   ARG_K_BEST},
+	{(char*)"show-nh-tag",                 no_argument,        0,                   ARG_SHOW_NH_TAG},
 	{(char*)"minins",                      required_argument,  0,                   'I'},
 	{(char*)"maxins",                      required_argument,  0,                   'X'},
 	{(char*)"quals",                       required_argument,  0,                   'Q'},
@@ -1286,6 +1292,10 @@ static void parseOption(int next_option, const char *arg) {
 		saw_k = true;
 		break;
 	}
+	case ARG_K_BEST: {
+		kbest = true;
+		break;
+	}
 	case ARG_VERBOSE: gVerbose = 1; break;
 	case ARG_STARTVERBOSE: startVerbose = true; break;
 	case ARG_QUIET: gQuiet = true; break;
@@ -1310,6 +1320,10 @@ static void parseOption(int next_option, const char *arg) {
 	case ARG_REORDER: reorder = true; break;
 	case ARG_MAPQ_EX: {
 		sam_print_zt = true;
+		break;
+	}
+	case ARG_SHOW_NH_TAG: {
+		sam_print_nh = true;
 		break;
 	}
 	case ARG_SHOW_RAND_SEED: {
@@ -1793,6 +1807,11 @@ static void parseOptions(int argc, const char **argv) {
 		     << "); setting mismatches to " << (multiseedMms-1)
 		     << " instead" << endl;
 		multiseedMms = multiseedLen-1;
+	}
+	if (kbest && khits == 1) {
+		cerr << "Warning: --kbest is set while -k is not set or set to 1 "
+		     << "(the default value). The kbest mode would not make a "
+			 << "difference when -k is <= 1." << endl;
 	}
 	sam_print_zm = sam_print_zm && bowtie2p5;
 #ifndef NDEBUG
@@ -3065,7 +3084,8 @@ static void multiseedSearchWorker(void *vp) {
 			0,                 // penalty gap (not used now)
 			msample,           // true -> -M was specified, otherwise assume -m
 			gReportDiscordant, // report discordang paired-end alignments?
-			gReportMixed);     // report unpaired alignments for paired reads?
+			gReportMixed,      // report unpaired alignments for paired reads?
+			kbest);            // --kbest
 
 		// Instantiate a mapping quality calculator
 		unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
@@ -4117,6 +4137,7 @@ static void multiseedSearchWorker(void *vp) {
 					rpm,                  // reporting metrics
 					prm,                  // per-read metrics
 					sc,                   // scoring scheme
+					kbest,                // only reports the top-scoring alignments
 					!seedSumm,            // suppress seed summaries?
 					seedSumm,             // suppress alignments?
 					scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
@@ -4186,7 +4207,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		0,                 // penalty gap (not used now)
 		msample,           // true -> -M was specified, otherwise assume -m
 		gReportDiscordant, // report discordang paired-end alignments?
-		gReportMixed);     // report unpaired alignments for paired reads?
+		gReportMixed,      // report unpaired alignments for paired reads?
+		kbest);            // --kbest
 
 	// Instantiate a mapping quality calculator
 	unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
@@ -4473,6 +4495,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 				rpm,                  // reporting metrics
 				prm,                  // per-read metrics
 				sc,                   // scoring scheme
+				kbest,                // only reports the top-scoring alignments
 				!seedSumm,            // suppress seed summaries?
 				seedSumm,             // suppress alignments?
 				scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
@@ -5009,7 +5032,8 @@ static void driver(
 			sam_print_zi,
 			sam_print_zp,
 			sam_print_zu,
-			sam_print_zt);
+			sam_print_zt,
+			sam_print_nh);
 
                 if (sam_opt_flags.size() > 0) {
                         for (size_t i = 0; i < sam_opt_flags.size(); i++) {
