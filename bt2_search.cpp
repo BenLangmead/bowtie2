@@ -3908,6 +3908,7 @@ static void multiseedSearchWorker(void *vp) {
 								ebwtBw,           // BWT' index
 								*rds[mate],       // read
 								sc,               // scoring scheme
+								lowseeds_ncut,    // cut no seed quality
 								ca,               // alignment cache
 								shs[mate],        // store seed hits here
 								sdm,              // metrics
@@ -4219,12 +4220,6 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	// events of interest on a per-read, per-seed, per-join, or per-SW
 	// level.  These in turn can be used to diagnose performance
 	// problems, or generally characterize performance.
-
-	const size_t lowseeds_ncut = (lowseeds>0) ?
-			(lowseedsIsPercent ? ((msink.num_refnames() * lowseeds + 99)/100) // round up, avoid 0
-					   : lowseeds
-			) :
-			std::numeric_limits<size_t>::max(); // never filter by size
 
 	ThreadCounter tc;
 
