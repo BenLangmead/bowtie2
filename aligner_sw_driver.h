@@ -492,6 +492,39 @@ protected:
 		size_t& nelt_out,            // out: # elements total
 		bool all);                   // report all hits?
 
+	void prioritizeSATupsRands(
+		const Read& rd,              // read
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		int seedmms,                 // # seed mismatches allowed
+		size_t maxelt,               // max elts we'll consider
+		bool doExtend,               // extend out seeds
+		bool lensq,                  // square extended length
+		bool szsq,                   // square SA range size
+		size_t nsm,                  // if range as <= nsm elts, it's "small"
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm,            // group walk left metrics
+		PerReadMetrics& prm,         // per-read metrics
+		size_t& nelt_out,            // out: # elements total
+		bool all);                   // report all hits?
+
+	void prioritizeSATupsIdxs(
+		const Read& rd,              // read
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		int seedmms,                 // # seed mismatches allowed
+		size_t maxelt,               // max elts we'll consider
+		bool doExtend,               // extend out seeds
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		WalkMetrics& wlm,            // group walk left metrics
+		PerReadMetrics& prm,         // per-read metrics
+		size_t& nelt_out);           // out: # elements total
+
 	Random1toN               rand_;    // random number generators
 
 	bool                     useCurrIdx; // use currIdx_ if true, rands_ else
