@@ -68,6 +68,7 @@ bool SwDriver::eeSaTups(
 	SeedResults& sh,             // seed hits to extend into full alignments
 	const Ebwt& ebwt,            // BWT
 	const BitPairReference& ref, // Reference strings
+	bool deterministicSeeds,     // Should I disable the random seed selection? 
 	RandomSource& rnd,           // pseudo-random generator
 	WalkMetrics& wlm,            // group walk left metrics
 	SwMetrics& swmSeed,          // metrics for seed extensions
@@ -496,6 +497,7 @@ void SwDriver::prioritizeSATups(
 	int seedmms,                 // # mismatches allowed in seed
 	size_t maxelt,               // max elts we'll consider
 	bool doExtend,               // do extension of seed hits?
+	bool deterministicSeeds,     // Should I disable the random seed selection? 
 	bool lensq,                  // square length in weight calculation
 	bool szsq,                   // square range size in weight calculation
 	size_t nsm,                  // if range as <= nsm elts, it's "small"
@@ -780,6 +782,7 @@ int SwDriver::extendSeeds(
 	size_t cpow2,                // interval between diagonals to checkpoint
 	bool doTri,                  // triangular mini-fills?
 	int tighten,                 // -M score tightening mode
+	bool deterministicSeeds,     // Should I disable the random seed selection? 
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -831,6 +834,7 @@ int SwDriver::extendSeeds(
 					sh,           // seed hits to extend into full alignments
 					ebwtFw,       // BWT
 					ref,          // Reference strings
+					deterministicSeeds, // Should I disable the random seed selection? 
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
@@ -861,6 +865,7 @@ int SwDriver::extendSeeds(
 					seedmms,       // # seed mismatches allowed
 					maxIters,      // max rows to consider per position
 					doExtend,      // extend out seeds
+					deterministicSeeds, // Should I disable the random seed selection? 
 					true,          // square extended length
 					true,          // square SA range size
 					nsm,           // smallness threshold
@@ -1419,6 +1424,7 @@ int SwDriver::extendSeedsPaired(
 	size_t cpow2,                // interval between diagonals to checkpoint
 	bool doTri,                  // triangular mini-fills?
 	int tighten,                 // -M score tightening mode
+	bool deterministicSeeds,     // Should I disable the random seed selection? 
 	AlignmentCacheIface& ca,     // alignment cache for seed hits
 	RandomSource& rnd,           // pseudo-random source
 	WalkMetrics& wlm,            // group walk left metrics
@@ -1511,6 +1517,7 @@ int SwDriver::extendSeedsPaired(
 					sh,           // seed hits to extend into full alignments
 					ebwtFw,       // BWT
 					ref,          // Reference strings
+					deterministicSeeds, // Should I disable the random seed selection? 
 					rnd,          // pseudo-random generator
 					wlm,          // group walk left metrics
 					swmSeed,      // seed-extend metrics
@@ -1548,6 +1555,7 @@ int SwDriver::extendSeedsPaired(
 					seedmms,       // # seed mismatches allowed
 					maxIters,      // max rows to consider per position
 					doExtend,      // extend out seeds
+					deterministicSeeds, // Should I disable the random seed selection? 
 					true,          // square extended length
 					true,          // square SA range size
 					nsm,           // smallness threshold

@@ -346,6 +346,7 @@ public:
 		size_t cpow2,                // interval between diagonals to checkpoint
 		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -403,6 +404,7 @@ public:
 		size_t cpow2,                // interval between diagonals to checkpoint
 		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -447,6 +449,7 @@ protected:
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swmSeed,          // metrics for seed extensions
@@ -478,6 +481,7 @@ protected:
 		int seedmms,                 // # seed mismatches allowed
 		size_t maxelt,               // max elts we'll consider
 		bool doExtend,               // extend out seeds
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		bool lensq,                  // square extended length
 		bool szsq,                   // square SA range size
 		size_t nsm,                  // if range as <= nsm elts, it's "small"

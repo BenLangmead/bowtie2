@@ -3554,6 +3554,7 @@ static void multiseedSearchWorker(void *vp) {
 									cpow2,          // checkpointer interval, log2
 									doTri,          // triangular mini-fills?
 									tighten,        // -M score tightening mode
+									deterministicSeeds, // Should I disable the random seed selection? 
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
 									wlm,            // group walk left metrics
@@ -3596,6 +3597,7 @@ static void multiseedSearchWorker(void *vp) {
 									cpow2,          // checkpointer interval, log2
 									doTri,          // triangular mini-fills
 									tighten,        // -M score tightening mode
+									deterministicSeeds, // Should I disable the random seed selection? 
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
 									wlm,            // group walk left metrics
@@ -3736,6 +3738,7 @@ static void multiseedSearchWorker(void *vp) {
 									cpow2,          // checkpointer interval, log2
 									doTri,          // triangular mini-fills?
 									tighten,        // -M score tightening mode
+									deterministicSeeds, // Should I disable the random seed selection? 
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
 									wlm,            // group walk left metrics
@@ -3778,6 +3781,7 @@ static void multiseedSearchWorker(void *vp) {
 									cpow2,          // checkpointer interval, log2
 									doTri,          // triangular mini-fills?
 									tighten,        // -M score tightening mode
+									deterministicSeeds, // Should I disable the random seed selection? 
 									ca,             // seed alignment cache
 									rnd,            // pseudo-random source
 									wlm,            // group walk left metrics
@@ -4013,6 +4017,7 @@ static void multiseedSearchWorker(void *vp) {
 										cpow2,          // checkpointer interval, log2
 										doTri,          // triangular mini-fills?
 										tighten,        // -M score tightening mode
+										deterministicSeeds, // Should I disable the random seed selection? 
 										ca,             // seed alignment cache
 										rnd,            // pseudo-random source
 										wlm,            // group walk left metrics
@@ -4055,6 +4060,7 @@ static void multiseedSearchWorker(void *vp) {
 										cpow2,          // checkpointer interval, log2
 										doTri,          // triangular mini-fills?
 										tighten,        // -M score tightening mode
+										deterministicSeeds, // Should I disable the random seed selection? 
 										ca,             // seed alignment cache
 										rnd,            // pseudo-random source
 										wlm,            // group walk left metrics
