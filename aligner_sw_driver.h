@@ -493,8 +493,12 @@ protected:
 		bool all);                   // report all hits?
 
 	Random1toN               rand_;    // random number generators
-	EList<Random1toN, 16>    rands_;   // random number generators
-	EList<Random1toN, 16>    rands2_;  // random number generators
+
+	bool                     useCurrIdx; // use currIdx_ if true, rands_ else
+	EList<Random1toN, 16>    rands_;   // random number generators (alternative to currIdx_)
+	EList<size_t,16>         currIdx_; // current index (alternative to rands_)
+
+	EList<Random1toN, 16>    rands2_;  // random number generators, internal temp
 	EList<EEHit, 16>         eehits_;  // holds end-to-end hits
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs
