@@ -755,7 +755,7 @@ void SwDriver::prioritizeSATupsIdxs(
 	const size_t nonz = sh.nonzeroOffsets(); // non-zero positions
 	const int matei = (read.mate <= 1 ? 0 : 1);
 	satups_.clear();
-	gws_.clear();
+	gws_.resize(1);    // will use a single element in deterministic mode
 	useCurrIdx = true;
 	currIdx_.clear();
 	satpos_.clear();
@@ -856,17 +856,6 @@ void SwDriver::prioritizeSATupsIdxs(
 	size_t sp_el = 0;
 	for(sp_el = 0; (sp_el < nrange) && (nelt_added < maxelt); sp_el++) {
 		const SATupleAndPos& satpos = satpos_[sp_el];
-		SARangeWithOffs<TSlice> sa;
-		sa.topf = satpos.sat.topf;
-		sa.len = satpos.sat.key.len;
-		sa.offs = satpos.sat.offs;
-		gws_.expand();
-		gws_.back().init(
-			ebwtFw, // forward Bowtie index
-			ref,    // reference sequences
-			sa,     // SA tuples: ref hit, salist range
-			wlm);   // metrics
-		assert(gws_.back().initialized());
 		currIdx_.expand();
 		currIdx_.back() = 0;
 		nelt_added += satpos.sat.size();
@@ -1020,7 +1009,7 @@ int SwDriver::extendSeeds(
 					nelt,         // out: # elements total
                     maxIters,     // max # to report
 					all);         // report all hits?
-				assert_eq(gws_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 			} else {
 				eeMode = false;
@@ -1054,8 +1043,8 @@ int SwDriver::extendSeeds(
 					prm,           // per-read metrics
 					nelt,          // out: # elements total
 					all);          // report all hits?
-				assert_eq(gws_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
-				assert_eq(gws_.size(), satpos_.size());
+				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(gws_.size(), useCurrIdx? 1 : satpos_.size());
 				neltLeft = nelt;
 				firstExtend = false;
 			}
@@ -1064,10 +1053,14 @@ int SwDriver::extendSeeds(
 				break;
 			}
 		}
-		for(size_t i = 0; i < gws_.size(); i++) {
+		const size_t maxi = satpos_.size();
+		for(size_t i = 0; i < maxi; i++) {
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
+			// In deterministic mode, we can reuse the same gws_ element
+			GroupWalk2S<TSlice, 16> &gws = gws_[useCurrIdx? 0 : i];
+
 			const SATupleAndPos& satpos = satpos_[i];
 			const size_t sat_size     = satpos.sat.size();
 			// when we are not subsampling(useCurrIdx), treat them all as if they were small
@@ -1081,6 +1074,20 @@ int SwDriver::extendSeeds(
 				// the upstream (3') end of ther read.
 				rdoff = (uint32_t)(rdlen - rdoff - seedhitlen);
 			}
+			if (useCurrIdx) {
+				// since we are reusing the same element, just-in-time initialization
+				SARangeWithOffs<TSlice> sa;
+				sa.topf = satpos.sat.topf;
+				sa.len = satpos.sat.key.len;
+				sa.offs = satpos.sat.offs;
+				gws.reset();
+				gws.init(
+					ebwtFw, // forward Bowtie index
+					ref,    // reference sequences
+					sa,     // SA tuples: ref hit, salist range
+					wlm);   // metrics
+				assert(gws.initialized());
+			}
 			bool first = true;
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
@@ -1088,13 +1095,14 @@ int SwDriver::extendSeeds(
 			size_t riter = 0;
 			while( (useCurrIdx? (currIdx_[i]<sat_size) : (!rands_[i].done()) ) && 
 			        (first || is_small || eeMode) ) {
-				assert(!gws_[i].done());
+				assert(!gws.done());
 				riter++;
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
 						return EXTEND_PERFECT_SCORE;
 					}
 				} else if(eeMode && eehits_[i].score < minsc) {
+					assert(!useCurrIdx);
 					break;
 				}
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
@@ -1117,7 +1125,7 @@ int SwDriver::extendSeeds(
 				sa.topf = satpos.sat.topf;
 				sa.len = satpos.sat.key.len;
 				sa.offs = satpos.sat.offs;
-				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws.advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
@@ -1478,8 +1486,8 @@ int SwDriver::extendSeeds(
 				// At this point we know that we aren't bailing, and will
 				// continue to resolve seed hits.  
 
-			} // while(!gws_[i].done())
-		}
+			} // while(!gws.done())
+		} // for maxi
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
 	return EXTEND_EXHAUSTED_CANDIDATES;
@@ -1708,12 +1716,12 @@ int SwDriver::extendSeedsPaired(
 					nelt,         // out: # elements total
                     maxIters,     // max elts to report
 					all);         // report all hits
-				assert_eq(gws_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 				// Initialize list that contains the mate-finding failure
 				// streak for each range
-				mateStreaks_.resize(gws_.size());
+				mateStreaks_.resize(satpos_.size());
 				mateStreaks_.fill(0);
 			} else {
 				eeMode = false;
@@ -1749,11 +1757,11 @@ int SwDriver::extendSeedsPaired(
 					prm,           // per-read metrics
 					nelt,          // out: # elements total
 					all);          // report all hits?
-				assert_eq(gws_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
-				assert_eq(gws_.size(), satpos_.size());
+				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(gws_.size(), useCurrIdx? 1 : satpos_.size());
 				neltLeft = nelt;
 				firstExtend = false;
-				mateStreaks_.resize(gws_.size());
+				mateStreaks_.resize(satpos_.size());
 				mateStreaks_.fill(0);
 			}
 			if(neltLeft == 0) {
@@ -1761,10 +1769,14 @@ int SwDriver::extendSeedsPaired(
 				break;
 			}
 		}
-		for(size_t i = 0; i < gws_.size(); i++) {
+		const size_t maxi = satpos_.size();
+		for(size_t i = 0; i < maxi; i++) {
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
+			// In deterministic mode, we can reuse the same gws_ element
+			GroupWalk2S<TSlice, 16> &gws = gws_[useCurrIdx? 0 : i];
+
 			const SATupleAndPos& satpos = satpos_[i];
 			const size_t sat_size     = satpos.sat.size();
 			// when we are not subsampling(useCurrIdx), treat them all as if they were small
@@ -1778,6 +1790,20 @@ int SwDriver::extendSeedsPaired(
 				// the upstream (3') end of ther read.
 				rdoff = (uint32_t)(rdlen - rdoff - seedhitlen);
 			}
+			if (useCurrIdx) {
+				// since we are reusing the same element, just-in-time initialization
+				SARangeWithOffs<TSlice> sa;
+				sa.topf = satpos.sat.topf;
+				sa.len = satpos.sat.key.len;
+				sa.offs = satpos.sat.offs;
+				gws.reset();
+				gws.init(
+					ebwtFw, // forward Bowtie index
+					ref,    // reference sequences
+					sa,     // SA tuples: ref hit, salist range
+					wlm);   // metrics
+				assert(gws.initialized());
+			}
 			bool first = true;
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
@@ -1790,6 +1816,7 @@ int SwDriver::extendSeedsPaired(
 						return EXTEND_PERFECT_SCORE;
 					}
 				} else if(eeMode && eehits_[i].score < minsc) {
+					assert(!useCurrIdx);
 					break;
 				}
 				if(prm.nExDps >= maxDp || prm.nMateDps >= maxDp) {
@@ -1822,7 +1849,7 @@ int SwDriver::extendSeedsPaired(
 				}
 				prm.nExIters++;
 				first = false;
-				assert(!gws_[i].done());
+				assert(!gws.done());
 				// Resolve next element offset
 				WalkResult wr;
 				// auto-increment after use
@@ -1831,7 +1858,7 @@ int SwDriver::extendSeedsPaired(
 				sa.topf = satpos.sat.topf;
 				sa.len = satpos.sat.key.len;
 				sa.offs = satpos.sat.offs;
-				gws_[i].advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				gws.advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;
@@ -2598,7 +2625,7 @@ int SwDriver::extendSeedsPaired(
 				// At this point we know that we aren't bailing, and will continue to resolve seed hits.  
 
 			} // while(!gw.done())
-		} // for(size_t i = 0; i < gws_.size(); i++)
+		} // for(size_t i = 0; i < maxi; i++)
 	}
 	return EXTEND_EXHAUSTED_CANDIDATES;
 }
