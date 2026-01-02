@@ -854,7 +854,7 @@ void SwDriver::prioritizeSATupsIdxs(
 	// We may not want to keep all of the ranges
 	// so check if we hit max before we run of them
 	size_t sp_el = 0;
-	for(size_t sp_el = 0; (sp_el < nrange) && (nelt_added < maxelt); sp_el++) {
+	for(sp_el = 0; (sp_el < nrange) && (nelt_added < maxelt); sp_el++) {
 		const SATupleAndPos& satpos = satpos_[sp_el];
 		SARangeWithOffs<TSlice> sa;
 		sa.topf = satpos.sat.topf;
