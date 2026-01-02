@@ -527,9 +527,8 @@ protected:
 
 	Random1toN               rand_;    // random number generators
 
-	bool                     useCurrIdx; // use currIdx_ if true, rands_ else
-	EList<Random1toN, 16>    rands_;   // random number generators (alternative to currIdx_)
-	EList<size_t,16>         currIdx_; // current index (alternative to rands_)
+	bool                     useCurrIdx; // use currIdx if true, rands_ else
+	EList<Random1toN, 16>    rands_;   // random number generators (needed when non-deterministic)
 
 	EList<Random1toN, 16>    rands2_;  // random number generators, internal temp
 	EList<EEHit, 16>         eehits_;  // holds end-to-end hits

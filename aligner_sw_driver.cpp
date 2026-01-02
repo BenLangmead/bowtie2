@@ -737,7 +737,7 @@ void SwDriver::prioritizeSATupsRands(
 	return;
 }
 
-// deterministic, fill in currIdx_
+// deterministic, use only a single gws element, will use just-in-time init later
 void SwDriver::prioritizeSATupsIdxs(
 	const Read& read,            // read
 	SeedResults& sh,             // seed hits to extend into full alignments
@@ -757,7 +757,6 @@ void SwDriver::prioritizeSATupsIdxs(
 	satups_.clear();
 	gws_.resize(1);    // will use a single element in deterministic mode
 	useCurrIdx = true;
-	currIdx_.clear();
 	satpos_.clear();
 
 	size_t nrange = 0, nelt = 0;
@@ -848,7 +847,6 @@ void SwDriver::prioritizeSATupsIdxs(
 	// sort satpos_, since we want to consider the high-quality (smaller size) seeds first
 	satpos_.sort();
 	gws_.ensure(nrange);
-	currIdx_.ensure(nrange);
 
 	size_t nelt_added = 0;
 	// We may not want to keep all of the ranges
@@ -856,8 +854,6 @@ void SwDriver::prioritizeSATupsIdxs(
 	size_t sp_el = 0;
 	for(sp_el = 0; (sp_el < nrange) && (nelt_added < maxelt); sp_el++) {
 		const SATupleAndPos& satpos = satpos_[sp_el];
-		currIdx_.expand();
-		currIdx_.back() = 0;
 		nelt_added += satpos.sat.size();
 #ifndef NDEBUG
 		for(size_t k = 0; k < sp_el; k++) {
@@ -1009,7 +1005,7 @@ int SwDriver::extendSeeds(
 					nelt,         // out: # elements total
                     maxIters,     // max # to report
 					all);         // report all hits?
-				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(satpos_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 			} else {
 				eeMode = false;
@@ -1043,8 +1039,10 @@ int SwDriver::extendSeeds(
 					prm,           // per-read metrics
 					nelt,          // out: # elements total
 					all);          // report all hits?
-				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
-				assert_eq(gws_.size(), useCurrIdx? 1 : satpos_.size());
+				if (!useCurrIdx) {
+					assert_eq(satpos_.size(), rands_.size());
+					assert_eq(gws_.size(), satpos_.size());
+				}
 				neltLeft = nelt;
 				firstExtend = false;
 			}
@@ -1089,11 +1087,12 @@ int SwDriver::extendSeeds(
 				assert(gws.initialized());
 			}
 			bool first = true;
+			size_t currIdx = 0; // only used when useCurrIdx==true
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			size_t riter = 0;
-			while( (useCurrIdx? (currIdx_[i]<sat_size) : (!rands_[i].done()) ) && 
+			while( (useCurrIdx? (currIdx<sat_size) : (!rands_[i].done()) ) && 
 			        (first || is_small || eeMode) ) {
 				assert(!gws.done());
 				riter++;
@@ -1119,7 +1118,7 @@ int SwDriver::extendSeeds(
 				// Resolve next element offset
 				WalkResult wr;
 				// auto-increment after use
-				size_t elt = useCurrIdx ? (currIdx_[i]++) : rands_[i].next(rnd);
+				size_t elt = useCurrIdx ? (currIdx++) : rands_[i].next(rnd);
 				//cerr << "elt=" << elt << endl;
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos.sat.topf;
@@ -1488,6 +1487,8 @@ int SwDriver::extendSeeds(
 
 			} // while(!gws.done())
 		} // for maxi
+
+		if (useCurrIdx) break; // always one-pass, when using useCurrIdx
 	}
 	// Short-circuited because a limit, e.g. -k, -m or -M, was exceeded
 	return EXTEND_EXHAUSTED_CANDIDATES;
@@ -1716,7 +1717,7 @@ int SwDriver::extendSeedsPaired(
 					nelt,         // out: # elements total
                     maxIters,     // max elts to report
 					all);         // report all hits
-				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
+				assert_eq(satpos_.size(), rands_.size());
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 				// Initialize list that contains the mate-finding failure
@@ -1757,8 +1758,10 @@ int SwDriver::extendSeedsPaired(
 					prm,           // per-read metrics
 					nelt,          // out: # elements total
 					all);          // report all hits?
-				assert_eq(satpos_.size(), useCurrIdx ? currIdx_.size() : rands_.size());
-				assert_eq(gws_.size(), useCurrIdx? 1 : satpos_.size());
+				if (!useCurrIdx) {
+					assert_eq(satpos_.size(), rands_.size());
+					assert_eq(gws_.size(), satpos_.size());
+				}
 				neltLeft = nelt;
 				firstExtend = false;
 				mateStreaks_.resize(satpos_.size());
@@ -1805,11 +1808,12 @@ int SwDriver::extendSeedsPaired(
 				assert(gws.initialized());
 			}
 			bool first = true;
+			size_t currIdx = 0; // only used when useCurrIdx==true
 			// If the range is small, investigate all elements now.  If the
 			// range is large, just investigate one and move on - we might come
 			// back to this range later.
 			size_t riter = 0;
-			while( (useCurrIdx? (currIdx_[i]<sat_size) : (!rands_[i].done()) ) && 
+			while( (useCurrIdx? (currIdx<sat_size) : (!rands_[i].done()) ) && 
 			        (first || is_small || eeMode) ) {
 				if(minsc == perfectScore) {
 					if(!eeMode || eehits_[i].score < perfectScore) {
@@ -1840,7 +1844,7 @@ int SwDriver::extendSeedsPaired(
 				if(mateStreaks_[i] >= maxMateStreak) {
 					// Don't try this seed range anymore
 					if (useCurrIdx) {
-					       currIdx_[i] = sat_size;
+					       currIdx = sat_size;
 					} else {
 						rands_[i].setDone();
 						assert(rands_[i].done());
@@ -1853,7 +1857,7 @@ int SwDriver::extendSeedsPaired(
 				// Resolve next element offset
 				WalkResult wr;
 				// auto-increment after use
-				size_t elt = useCurrIdx ? (currIdx_[i]++) : rands_[i].next(rnd);
+				size_t elt = useCurrIdx ? (currIdx++) : rands_[i].next(rnd);
 				SARangeWithOffs<TSlice> sa;
 				sa.topf = satpos.sat.topf;
 				sa.len = satpos.sat.key.len;
@@ -2626,6 +2630,8 @@ int SwDriver::extendSeedsPaired(
 
 			} // while(!gw.done())
 		} // for(size_t i = 0; i < maxi; i++)
+
+		if (useCurrIdx) break; // always one-pass, when using useCurrIdx
 	}
 	return EXTEND_EXHAUSTED_CANDIDATES;
 }
