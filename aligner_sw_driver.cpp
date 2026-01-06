@@ -857,7 +857,7 @@ void SwDriver::prioritizeSATupsIdxs(
 		nelt_added += satpos.sat.size();
 #ifndef NDEBUG
 		for(size_t k = 0; k < sp_el; k++) {
-			assert(!(satpos_[k] == satpos[sp_el]));
+			assert(!(satpos_[k] == satpos_[sp_el]));
 		}
 #endif
 	}
