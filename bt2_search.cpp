@@ -103,7 +103,7 @@ static bool thread_stealing;// true iff thread stealing is in use
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t lowseeds; // size of seed range above which a seed is considered low quality, and thus discarded (0 disables the cut)
-static bool lowseedsIsPercent; // interpret lowseeds as a percentage of DB size? (abs value if false)
+static uint32_t lowseedsDivider; // how much should I divide the lowseeds parameter by, if 0 use abs value
 static uint32_t khits;    // number of hits per read; >1 is much slower
 static uint32_t mhits;    // don't report any hits if there are > mhits
 static int partitionSz;   // output a partitioning key in first field
@@ -319,7 +319,7 @@ static void resetOptions() {
 	outType		    = OUTPUT_SAM;	// style of output
 	noRefNames	    = false;	// true -> print reference indexes; not names
 	lowseeds	    = 0;	// size of seed range above which a seed is considered low quality, and thus discarded (0 disables the cut)
-	lowseedsIsPercent   = false;	// should lowseeds be interpreted as percentage of DB size?
+	lowseedsDivider	    = 0;	// how much should I divide the lowseeds parameter by, if 0 use the abs value
 	khits		    = 1;	// number of hits per read; >1 is much slower
 	mhits		    = 50;	// stop after finding this many alignments+1
 	partitionSz	    = 0;	// output a partitioning key in first field
@@ -837,7 +837,7 @@ static void printUsage(ostream& out) {
 	    << endl
 	    << " Effort:" << endl
 	    << "  -l/--lowseeds <n>  ignore any low quality seeds with ranges over threshold" << endl
-	    << "                     (0=no cut, if percentage, relative to idx size)" << endl
+	    << "                     (0=no cut, if percentage, mili or nano, relative to idx size)" << endl
 	    << "  -D <int>           give up extending after <int> failed extends in a row (15)" << endl
 	    << "  -R <int>           for reads w/ repetitive seeds, try <int> sets of seeds (2)" << endl
 	    << "  -d/--deterministic-seeds" << endl
@@ -1314,13 +1314,20 @@ static void parseOption(int next_option, const char *arg) {
 	}
 	case 'l': {
 		char remainder = 0;
+		lowseedsDivider = 0;
 		lowseeds = parse<size_t>(arg, remainder);
 		if (remainder=='%') {
-			// User requested pectentage of DB
-			lowseedsIsPercent = true;
+			// User requested percentage of DB
+			lowseedsDivider = 100;
+		} else if (remainder=='m') {
+			// User requested mili of DB
+			lowseedsDivider = 1000;
+		} else if (remainder=='n') {
+			// User requested nano of DB
+			lowseedsDivider = 1000000;
 		} else if (remainder==0) {
 			// We got an absolute value
-                        lowseedsIsPercent = false;
+                        lowseedsDivider = 0;
 		} else {
 			cerr << "Warning: -l argument had training chars "
 			     << "that were not parsed" << endl;
@@ -3076,8 +3083,8 @@ static void multiseedSearchWorker(void *vp) {
 	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
 
 	const size_t lowseeds_ncut = (lowseeds>0) ?
-			(lowseedsIsPercent ? ((msink.num_refnames() * lowseeds + 99)/100) // round up, avoid 0
-					   : lowseeds
+			((lowseedsDivider!=0) ? ((msink.num_refnames() * lowseeds + (lowseedsDivider-1))/lowseedsDivider) // round up, avoid 0
+					      : lowseeds
 			) :
 			std::numeric_limits<size_t>::max(); // never filter by size
 
