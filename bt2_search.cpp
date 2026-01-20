@@ -1757,8 +1757,12 @@ static void parseOptions(int argc, const char **argv) {
 		msample = true;
 	}
 	if (deterministicSeeds ) {
-		if ( doExactUpFront || do1mmUpFront || (mhits!=0) ) {
-			cerr << "Warning: -d cannot be used with --exact-upfront, --1mm-upfront or -m." << endl;
+		if ( (mhits!=0) ) {
+			cerr << "Error: -d cannot be used -m." << endl;
+			throw 1;
+		}
+		if ( doExactUpFront || do1mmUpFront ) {
+			cerr << "Error: -d must be used with --no-exact-upfront and --no-1mm-upfront." << endl;
 			throw 1;
 		}
 		if ( !allHits ) {
