@@ -600,6 +600,7 @@ void SeedAligner::searchAllSeeds(
 	const Ebwt* ebwtBw,          // BWT' index
 	const Read& read,            // read to align
 	const Scoring& pens,         // scoring scheme
+	size_t ncut_f,               // min seed quality for BWT 
 	AlignmentCacheIface& cache,  // local cache for seed alignments
 	SeedResults& sr,             // holds all the seed hits
 	SeedSearchMetrics& met,      // metrics
@@ -613,6 +614,7 @@ void SeedAligner::searchAllSeeds(
 	ebwtBw_ = ebwtBw;
 	sc_ = &pens;
 	read_ = &read;
+	ncut_f_ = ncut_f;
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 
@@ -1582,6 +1584,8 @@ SeedAligner::reportHit(
 	uint16_t len,                      // length of hit
 	DoublyLinkedList<Edit> *prevEdit)  // previous edit
 {
+	if ( (botf - topf) > ncut_f_) return; // low quality seed, just ignore
+
 	const BTDnaString& seq = cache.getSeq();
 
 	// Add information about the seed hit to AlignmentCache.  This

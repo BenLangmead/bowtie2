@@ -2158,7 +2158,7 @@ public:
 		for(size_t i = 0; i < sas_.size(); i++) {
 			size_t en = sink[i].botf - sink[i].topf;
 			sas_[i].init(sink[i].topf, EListSlice<TIndexOffU, 16>(offs_, ei, en));
-			gws_[i].init(ebwtFw, ref, sas_[i], rnd, met);
+			gws_[i].init(ebwtFw, ref, sas_[i], met);
 			ei += en;
 		}
 	}
@@ -2509,7 +2509,7 @@ protected:
 		sas_.resize(1);
 		gws_.resize(1);
 		sas_[0].init(topf, EListSlice<TIndexOffU, 16>(offs_, 0, botf - topf));
-		gws_[0].init(ebwtFw, ref, sas_[0], rnd, met);
+		gws_[0].init(ebwtFw, ref, sas_[0], met);
 	}
 	
 	DescentPartialResolvedAlignmentSink palsink_;
