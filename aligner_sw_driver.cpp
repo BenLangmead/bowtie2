@@ -846,7 +846,6 @@ void SwDriver::prioritizeSATupsIdxs(
 	assert_eq(nrange, satpos_.size());
 	// sort satpos_, since we want to consider the high-quality (smaller size) seeds first
 	satpos_.sort();
-	gws_.ensure(nrange);
 
 	size_t nelt_added = 0;
 	// We may not want to keep all of the ranges
