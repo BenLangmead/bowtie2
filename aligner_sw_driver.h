@@ -346,6 +346,7 @@ public:
 		size_t cpow2,                // interval between diagonals to checkpoint
 		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		AlignmentCacheIface& ca,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -403,6 +404,7 @@ public:
 		size_t cpow2,                // interval between diagonals to checkpoint
 		bool doTri,                  // triangular mini-fills
 		int tighten,                 // -M score tightening mode
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		AlignmentCacheIface& cs,     // alignment cache for seed hits
 		RandomSource& rnd,           // pseudo-random source
 		WalkMetrics& wlm,            // group walk left metrics
@@ -447,6 +449,7 @@ protected:
 		SeedResults& sh,             // seed hits to extend into full alignments
 		const Ebwt& ebwt,            // BWT
 		const BitPairReference& ref, // Reference strings
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		RandomSource& rnd,           // pseudo-random generator
 		WalkMetrics& wlm,            // group walk left metrics
 		SwMetrics& swmSeed,          // metrics for seed extensions
@@ -478,6 +481,7 @@ protected:
 		int seedmms,                 // # seed mismatches allowed
 		size_t maxelt,               // max elts we'll consider
 		bool doExtend,               // extend out seeds
+		bool deterministicSeeds,     // Should I disable the random seed selection? 
 		bool lensq,                  // square extended length
 		bool szsq,                   // square SA range size
 		size_t nsm,                  // if range as <= nsm elts, it's "small"
@@ -488,9 +492,45 @@ protected:
 		size_t& nelt_out,            // out: # elements total
 		bool all);                   // report all hits?
 
+	void prioritizeSATupsRands(
+		const Read& rd,              // read
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		int seedmms,                 // # seed mismatches allowed
+		size_t maxelt,               // max elts we'll consider
+		bool doExtend,               // extend out seeds
+		bool lensq,                  // square extended length
+		bool szsq,                   // square SA range size
+		size_t nsm,                  // if range as <= nsm elts, it's "small"
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		RandomSource& rnd,           // pseudo-random generator
+		WalkMetrics& wlm,            // group walk left metrics
+		PerReadMetrics& prm,         // per-read metrics
+		size_t& nelt_out,            // out: # elements total
+		bool all);                   // report all hits?
+
+	void prioritizeSATupsIdxs(
+		const Read& rd,              // read
+		SeedResults& sh,             // seed hits to extend into full alignments
+		const Ebwt& ebwtFw,          // BWT
+		const Ebwt* ebwtBw,          // BWT'
+		const BitPairReference& ref, // Reference strings
+		int seedmms,                 // # seed mismatches allowed
+		size_t maxelt,               // max elts we'll consider
+		bool doExtend,               // extend out seeds
+		AlignmentCacheIface& ca,     // alignment cache for seed hits
+		WalkMetrics& wlm,            // group walk left metrics
+		PerReadMetrics& prm,         // per-read metrics
+		size_t& nelt_out);           // out: # elements total
+
 	Random1toN               rand_;    // random number generators
-	EList<Random1toN, 16>    rands_;   // random number generators
-	EList<Random1toN, 16>    rands2_;  // random number generators
+
+	bool                     useCurrIdx; // use currIdx if true, rands_ else
+	EList<Random1toN, 16>    rands_;   // random number generators (needed when non-deterministic)
+
+	EList<Random1toN, 16>    rands2_;  // random number generators, internal temp
 	EList<EEHit, 16>         eehits_;  // holds end-to-end hits
 	EList<SATupleAndPos, 16> satpos_;  // holds SATuple, SeedPos pairs
 	EList<SATupleAndPos, 16> satpos2_; // holds SATuple, SeedPos pairs

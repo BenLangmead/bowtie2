@@ -1688,6 +1688,7 @@ public:
 		const Ebwt* ebwtBw,         // BWT' index
 		const Read& read,           // read to align
 		const Scoring& pens,        // scoring scheme
+		size_t ncut_f,              // min seed quality for BWT 
 		AlignmentCacheIface& cache, // local seed alignment cache
 		SeedResults& hits,          // holds all the seed hits
 		SeedSearchMetrics& met,     // metrics
@@ -1834,6 +1835,8 @@ protected:
 	
 	const Read* read_;         // read whose seeds are currently being aligned
 	
+	size_t ncut_f_;            // min seed quality for BWT 
+
 	EList<Edit> edits_;        // temporary place to sort edits
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations

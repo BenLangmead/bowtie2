@@ -45,14 +45,14 @@ jobs:
           make clean; make -j4 allall
           export NUM_CORES=1
           make random-test
-  linux-avx2:
+  linux-noavx2:
     runs-on: ubuntu-latest
     needs: linux
     steps:
       - uses: actions/checkout@v2
-      - name: Run random tests using avx2
+      - name: Run random tests without using avx2
         run: |
-          export SSE_AVX2=1
+          export SSE_AVX2=0
           make clean; make -j4 allall
           export NUM_CORES=1
           make random-test
