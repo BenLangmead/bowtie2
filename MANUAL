@@ -23,12 +23,12 @@ many other tools, some of which are listed here.
 If you use Bowtie 2 for your published research, please cite our work.
 Papers describing Bowtie 2 are:
 
--   Langmead B, Wilks C, Antonescu V, Charles R. Scaling read aligners
-    to hundreds of threads on general-purpose processors.
-    Bioinformatics. 2018 Jul 18. doi: 10.1093/bioinformatics/bty648.
+- Langmead B, Wilks C, Antonescu V, Charles R. Scaling read aligners to
+  hundreds of threads on general-purpose processors. Bioinformatics.
+  2018 Jul 18. doi: 10.1093/bioinformatics/bty648.
 
--   Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2.
-    Nature Methods. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923.
+- Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2.
+  Nature Methods. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923.
 
 How is Bowtie 2 different from Bowtie 1?
 
@@ -155,15 +155,15 @@ and gzipped inputs.
 To build bowtie2-build with libsais first make sure that the libsais
 submodule is available. This can be done in one of the following ways:
 
--   first time cloning bowtie2 --
-    git clone --recursive https://github.com/BenLangmead/bowtie2.git
--   existing checkout of bowtie2 --
-    git submodule init && git submodule update
+- first time cloning bowtie2 --
+  git clone --recursive https://github.com/BenLangmead/bowtie2.git
+- existing checkout of bowtie2 --
+  git submodule init && git submodule update
 
 Issue the following command line to build libsais:
 
--   with OpenMP support -- [g]make libsais USE_SAIS_OPENMP=1
--   without OpenMP support -- [g]make libsais USE_SAIS=1
+- with OpenMP support -- [g]make libsais USE_SAIS_OPENMP=1
+- without OpenMP support -- [g]make libsais USE_SAIS=1
 
 The choice of using OpenMP will determine whether or not the algorithm
 runs multithreaded. The [-p/--threads] argument to bowtie2-build will be
@@ -171,15 +171,15 @@ ignored when libsais is compiled without OpenMP support.
 
 Finally, building the bowtie2-build executable:
 
--   with OpenMP support -- [g]make bowtie2-build-s USE_SAIS_OPENMP=1
--   without OpenMP support -- [g]make bowtie2-build-s USE_SAIS=1
+- with OpenMP support -- [g]make bowtie2-build-s USE_SAIS_OPENMP=1
+- without OpenMP support -- [g]make bowtie2-build-s USE_SAIS=1
 
 Building with CMake
 
 To build Bowtie2 with SRA and libsais support issue the following
 command:
 
--   cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .
+- cmake . -D USE_SRA=1 -D USE_SAIS=1 && cmake --build .
 
 CMake will take care of building and linking against the specified
 dependencies.
@@ -688,20 +688,20 @@ record for such a read, but no alignment will be reported and the YF:i
 SAM optional field will be set to indicate the reason the read was
 filtered.
 
--   YF:Z:LN: the read was filtered because it had length less than or
-    equal to the number of seed mismatches set with the -N option.
--   YF:Z:NS: the read was filtered because it contains a number of
-    ambiguous characters (usually N or .) greater than the ceiling
-    specified with --n-ceil.
--   YF:Z:SC: the read was filtered because the read length and the match
-    bonus (set with --ma) are such that the read can't possibly earn an
-    alignment score greater than or equal to the threshold set with
-    --score-min
--   YF:Z:QC: the read was filtered because it was marked as failing
-    quality control and the user specified the --qc-filter option. This
-    only happens when the input is in Illumina's QSEQ format (i.e. when
-    --qseq is specified) and the last (11th) field of the read's QSEQ
-    record contains 1.
+- YF:Z:LN: the read was filtered because it had length less than or
+  equal to the number of seed mismatches set with the -N option.
+- YF:Z:NS: the read was filtered because it contains a number of
+  ambiguous characters (usually N or .) greater than the ceiling
+  specified with --n-ceil.
+- YF:Z:SC: the read was filtered because the read length and the match
+  bonus (set with --ma) are such that the read can't possibly earn an
+  alignment score greater than or equal to the threshold set with
+  --score-min
+- YF:Z:QC: the read was filtered because it was marked as failing
+  quality control and the user specified the --qc-filter option. This
+  only happens when the input is in Illumina's QSEQ format (i.e. when
+  --qseq is specified) and the last (11th) field of the read's QSEQ
+  record contains 1.
 
 If a read could be filtered for more than one reason, the value YF:Z
 flag will reflect only one of those reasons.
@@ -1246,6 +1246,18 @@ of reads (same length, same number of mismatches allowed) at different
 offsets and searches for more alignments. A read is considered to have
 repetitive seeds if the total number of seed hits divided by the number
 of seeds that aligned at least once is greater than 300. Default: 2.
+
+    -d/--deterministic-seeds
+
+Consider all seeds in order (no subsampling). Can be used to augment -a
+or -k with deterministic behavior. This option significantly speeds up
+-a while also reducing memory consumption. It is not however always
+strictly better than standalone [-a] when considering the number of
+repeated alignments found.
+
+Note: In order to use this option exact upfront and 1mm upfront behavior
+have to be disabled using the following options: [--no-exact-upfront]
+and --no-1mm-upfront.
 
 Paired-end options
 

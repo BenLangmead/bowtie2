@@ -1515,6 +1515,23 @@ the total number of seed hits divided by the number of seeds that aligned at
 least once is greater than 300.  Default: 2.
 
 </td></tr>
+<tr><td id="bowtie2-options-d">
+
+    -d/--deterministic-seeds
+
+</td><td>
+
+Consider all seeds in order (no subsampling). Can be used to augment
+[`-a`] or [`-k`] with deterministic behavior. This option
+significantly speeds up [`-a`] while also reducing memory consumption.
+It is not however always strictly better than standalone `[-a]` when
+considering the number of repeated alignments found.
+
+Note: In order to use this option exact upfront and 1mm upfront behavior
+have to be disabled using the following options: [`--no-exact-upfront`]
+and [`--no-1mm-upfront`].
+
+</td></tr>
 </table>
 
 #### Paired-end options

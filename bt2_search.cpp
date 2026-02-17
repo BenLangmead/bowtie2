@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2011, Ben Langmead <langmea@cs.jhu.edu>
  *
@@ -1774,7 +1775,7 @@ static void parseOptions(int argc, const char **argv) {
 		assert_gt(mhits, 0);
 		msample = true;
 	}
-	if (deterministicSeeds ) {
+	if (deterministicSeeds) {
 		if ( doExactUpFront || do1mmUpFront || (mhits!=0) ) {
 			cerr << "Warning: -d cannot be used with --exact-upfront, --1mm-upfront or -m." << endl;
 			throw 1;
