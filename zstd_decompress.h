@@ -19,9 +19,13 @@ struct zstd_stream {
 };
 
 zstdStrm *initDStream(zstdStrm *s);
+zstdStrm *zstdStrmInit();
 zstdStrm *zstdOpen(const char *fn);
 zstdStrm *zstdFdOpen(int fd);
 int zstdDecompress(zstdStrm *s);
+
+int zstdDecompressBuffer(zstdStrm *s, unsigned char *in_buf, size_t in_len, unsigned char *out_buf, size_t out_len);
+
 int zstdRead(zstdStrm *s, void *buf, size_t len);
 int zstdUngetc(int c, zstdStrm *s);
 int zstdGetc(zstdStrm *s);

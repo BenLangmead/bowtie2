@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -83,6 +84,16 @@ int zstdDecompress(zstdStrm *s)
 	s->o_pos = out.pos;
 
         return ret;
+}
+
+
+int zstdGetUncompressedSize();
+
+int zstdDecompressBuffer(zstdStrm *s, unsigned char *in_buf, size_t in_len, unsigned char *out_buf, size_t out_len) {
+  ZSTD_inBuffer in = {in_buf, in_len, 0};
+  ZSTD_outBuffer out = {out_buf, out_len, 0};
+
+  return ZSTD_decompressStream(s->strm, &out, &in);
 }
 
 int zstdRead(zstdStrm *s, void *buf, size_t len)
