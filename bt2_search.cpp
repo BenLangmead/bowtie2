@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2011, Ben Langmead <langmea@cs.jhu.edu>
  *

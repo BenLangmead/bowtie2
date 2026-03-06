@@ -18,6 +18,17 @@ Please report any issues to the Bowtie 2 Github page or using the Sourceforge bu
 
 Version Release History
 =======================
+## Version 2.5.5 - Feb 16, 2026 ##
+
+### bowtie2 ###
+    * Added `-d` command line option that makes `-a`/`-k`
+      deterministic in the way alignments are reported. This
+      deterministic mode runs much significantly faster than `-a` and
+      consumes less memory.  It not yet strictly better than `-a` when
+      considering alignments found. (PR #520, 521)
+    * Add support for selecting AVX version at runtime on x86_64/amd64
+      CPUs. (PR #515)
+
 
 ## Version 2.5.4 - May 16, 2024 ##
 
