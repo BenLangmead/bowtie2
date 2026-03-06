@@ -16,7 +16,8 @@ if [ "$branch" == "" ] ; then
 fi
 
 set -x
-yum install -y git zip unzip pandoc
+dnf config-manager --set-enabled devel
+dnf install -y git zip unzip pandoc
 
 git clone --recursive https://github.com/BenLangmead/bowtie2.git
 if [ $? -ne 0 ] ; then
@@ -37,7 +38,7 @@ fi
 if [ $use_sra -eq 1 ] ; then
     # this variant is needed to compile ncbi-vdb
     source /hbb/activate
-    yum install -y java-1.8.0-openjdk-devel.$(uname -m)
+    dnf install -y java-1.8.0-openjdk-devel.$(uname -m)
     make sra-deps
 fi
 
