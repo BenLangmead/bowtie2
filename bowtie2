@@ -537,28 +537,31 @@ if(defined($cap_out)) {
                                 $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
                                 $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
                                 $fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
-                                my ($redir1, $redir2) = (">$fn1", ">$fn2");
-                                $redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
-                                $redir1 = "| bzip2 -c $redir1" if $read_compress{$i} eq "bzip2";
-                                $redir1 = "| lz4 -c $redir1" if $read_compress{$i} eq "lz4";
-                                $redir1 = "| zstd -c $redir1" if $read_compress{$i} eq "zstd";
-                                $redir2 = "| gzip -c $redir2"  if $read_compress{$i} eq "gzip";
-                                $redir2 = "| bzip2 -c $redir2" if $read_compress{$i} eq "bzip2";
-                                $redir2 = "| lz4 -c $redir2" if $read_compress{$i} eq "lz4";
-                                $redir2 = "| zstd -c $redir2" if $read_compress{$i} eq "zstd";
+                                my ($redir1, $redir2) = ("$fn1", "$fn2");
+                                $redir1 = ">$redir1" if $read_compress{$i} eq "";
+                                $redir1 = "| gzip -c > \"$redir1\""  if $read_compress{$i} eq "gzip";
+                                $redir1 = "| bzip2 -c > \"$redir1\"" if $read_compress{$i} eq "bzip2";
+                                $redir1 = "| lz4 -c > \"$redir1\"" if $read_compress{$i} eq "lz4";
+                                $redir1 = "| zstd -c > \"$redir1\"" if $read_compress{$i} eq "zstd";
+                                $redir2 = ">$redir2" if $read_compress{$i} eq "";
+                                $redir2 = "| gzip -c > \"$redir2\""  if $read_compress{$i} eq "gzip";
+                                $redir2 = "| bzip2 -c > \"$redir2\"" if $read_compress{$i} eq "bzip2";
+                                $redir2 = "| lz4 -c > \"$redir2\"" if $read_compress{$i} eq "lz4";
+                                $redir2 = "| zstd -c > \"$redir2\"" if $read_compress{$i} eq "zstd";
                                 open($read_fhs{$i}{1}, $redir1) || Fail("Could not open --$i mate-1 output file '$fn1'\n");
                                 open($read_fhs{$i}{2}, $redir2) || Fail("Could not open --$i mate-2 output file '$fn2'\n");
                                 push @fhs_to_close, $read_fhs{$i}{1};
                                 push @fhs_to_close, $read_fhs{$i}{2};
                         } else {
-                                my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
+                                my $redir = File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
                                 if ($base_fname) {
-                                        $redir = ">$read_fns{$i}";
+                                        $redir = "$read_fns{$i}";
                                 }
-                                $redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
-                                $redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
-                                $redir = "| lz4 -c $redir" if $read_compress{$i} eq "lz4";
-                                $redir = "| zstd -c $redir" if $read_compress{$i} eq "zstd";
+                                $redir = ">$redir" if $read_compress{$i} eq "";
+                                $redir = "| gzip -c > \"$redir\""  if $read_compress{$i} eq "gzip";
+                                $redir = "| bzip2 -c > \"$redir\"" if $read_compress{$i} eq "bzip2";
+                                $redir = "| lz4 -c > \"$redir\"" if $read_compress{$i} eq "lz4";
+                                $redir = "| zstd -c > \"$redir\"" if $read_compress{$i} eq "zstd";
                                 open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
                                 push @fhs_to_close, $read_fhs{$i};
                         }
