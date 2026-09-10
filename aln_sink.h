@@ -1356,9 +1356,9 @@ public:
                 }
                 if (rs2) {
                         staln2.reset();
-                        rs1->initStacked(*rd1, staln2);
+                        rs2->initStacked(*rd2, staln2);
                         staln2.leftAlign(false /* not past MMs */);
-                        staln2.buildCigar(flags1->xeq());
+                        staln2.buildCigar(flags2->xeq());
                         staln2.buildMdz();
                 }
                 if(rd1 != NULL) {
