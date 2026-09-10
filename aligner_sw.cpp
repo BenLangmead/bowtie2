@@ -588,7 +588,6 @@ bool SwAligner::align(
 			// 16-bit local
 			flag = 0;
 			if(checkpointed) {
-				best = alignNucleotidesLocalSseI16(flag, false);
 				best = alignGatherLoc16(flag, false);
 				if(flag == 0) {
 					gathered = true;
