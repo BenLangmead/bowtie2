@@ -125,7 +125,8 @@ void SamConfig::printAlignedOptFlags(
 	const Read* rdo,           // the opposite read
 	AlnRes& res,               // individual alignment result
 	StackedAln& staln,         // stacked alignment buffer
-	const AlnFlags& flags,     // alignment flags
+        StackedAln& stalno,        // stacked alignment buffer
+        const AlnFlags& flags,     // alignment flags
 	const AlnSetSumm& summ,    // summary of alignments for this read
 	const SeedAlSumm& ssm,     // seed alignment summary
 	const PerReadMetrics& prm, // per-read metrics
@@ -242,11 +243,15 @@ void SamConfig::printAlignedOptFlags(
 		// MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
 		WRITE_SEP();
 		o.append("MD:Z:");
-		staln.buildMdz();
 		staln.writeMdz(
 			&o,        // output buffer
 			NULL);     // no char buffer
-	}
+        }
+        if (print_mc_ && stalno.inited()) {
+                WRITE_SEP();
+                o.append("MC:Z:");
+                stalno.writeCigar(&o, NULL);
+        }
 	if(print_ys_ && summ.paired()) {
 		// YS:i: Alignment score of opposite mate
 		assert(res.oscore().valid());

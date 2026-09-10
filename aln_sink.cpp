@@ -810,8 +810,9 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
@@ -941,8 +942,9 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd1_,
 				rd2_,
 				rdid_,
@@ -1225,8 +1227,9 @@ void AlnSinkWrap::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 				obuf_,
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd1_,
 				repRs2 != NULL ? rd2_ : NULL,
 				rdid_,
@@ -1258,8 +1261,9 @@ void AlnSinkWrap::finishRead(
 			assert(!select2_.empty());
 			g_.reportHits(
 				obuf_,
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd2_,
 				repRs1 != NULL ? rd1_ : NULL,
 				rdid_,
@@ -1315,8 +1319,9 @@ void AlnSinkWrap::finishRead(
 				xeq);
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd1_,    // read 1
 				NULL,    // read 2
 				rdid_,   // read id
@@ -1363,8 +1368,9 @@ void AlnSinkWrap::finishRead(
 				xeq);
 			g_.reportUnaligned(
 				obuf_,      // string to write output to
-				staln_,
-				threadid_,
+				staln1_,
+                                staln2_,
+                                threadid_,
 				rd2_,    // read 1
 				NULL,    // read 2
 				rdid_,   // read id
@@ -1888,8 +1894,9 @@ void AlnSink::appendSeedSummary(
  */
 void AlnSinkSam::appendMate(
 	BTString&     o,           // append to this string
-	StackedAln&   staln,       // store stacked alignment struct here
-	const Read&   rd,
+	StackedAln&   staln1,       // store stacked alignment struct here
+        StackedAln&   staln2,
+        const Read&   rd,
 	const Read*   rdo,
 	const TReadId rdid,
 	AlnRes* rs,
@@ -1907,11 +1914,11 @@ void AlnSinkSam::appendMate(
 	}
 	char buf[1024];
 	char mapqInps[1024];
-	if(rs != NULL) {
-		staln.reset();
-		rs->initStacked(rd, staln);
-		staln.leftAlign(false /* not past MMs */);
-	}
+	// if(rs != NULL) {
+	// 	staln.reset();
+	// 	rs->initStacked(rd, staln);
+	// 	staln.leftAlign(false /* not past MMs */);
+	// }
 	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name, flags.partOfPair());
@@ -1948,7 +1955,7 @@ void AlnSinkSam::appendMate(
 	}
 	itoa10<int>(fl, buf);
 	o.append(buf);
-	o.append('\t');
+        o.append('\t');
 	// RNAME
 	if(rs != NULL) {
 		samc_.printRefNameFromIndex(o, (size_t)rs->refid());
@@ -1999,8 +2006,7 @@ void AlnSinkSam::appendMate(
 	}
 	// CIGAR
 	if(rs != NULL) {
-		staln.buildCigar(flags.xeq());
-		staln.writeCigar(&o, NULL);
+                staln1.writeCigar(&o, NULL);
 		o.append('\t');
 	} else {
 		// No alignment
@@ -2094,8 +2100,9 @@ void AlnSinkSam::appendMate(
 			rd,          // read
 			rdo,         // opposite read
 			*rs,         // individual alignment result
-			staln,       // stacked alignment
-			flags,       // alignment flags
+                        staln1,      // stacked alignment mate1
+                        staln2,      // stacked alignment mate2
+                        flags,       // alignment flags
 			summ,        // summary of alignments for this read
 			ssm,         // seed alignment summary
 			prm,         // per-read metrics
