@@ -1906,19 +1906,13 @@ void AlnSinkSam::appendMate(
 	const SeedAlSumm& ssmo,
 	const AlnFlags& flags,
 	const PerReadMetrics& prm,
-	const Mapq& mapqCalc,
+	const std::vector<char const*>& mapqs,
 	const Scoring& sc)
 {
 	if(rs == NULL && samc_.omitUnalignedReads()) {
 		return;
 	}
 	char buf[1024];
-	char mapqInps[1024];
-	// if(rs != NULL) {
-	// 	staln.reset();
-	// 	rs->initStacked(rd, staln);
-	// 	staln.leftAlign(false /* not past MMs */);
-	// }
 	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name, flags.partOfPair());
@@ -1966,7 +1960,7 @@ void AlnSinkSam::appendMate(
 			// mate's RNAME and POS as is customary
 			assert(flags.partOfPair());
 			samc_.printRefNameFromIndex(o, (size_t)summ.orefid());
-		} else {		
+		} else {
 			// No alignment
 			o.append('*');
 		}
@@ -1993,12 +1987,8 @@ void AlnSinkSam::appendMate(
 		o.append('\t');
 	}
 	// MAPQ
-	mapqInps[0] = '\0';
 	if(rs != NULL) {
-		itoa10<TMapq>(mapqCalc.mapq(
-			summ, flags, rd.mate < 2, rd.length(),
-			rdo == NULL ? 0 : rdo->length(), mapqInps), buf);
-		o.append(buf);
+		o.append(mapqs[0]);
 		o.append('\t');
 	} else {
 		// No alignment
@@ -2107,7 +2097,7 @@ void AlnSinkSam::appendMate(
 			ssm,         // seed alignment summary
 			prm,         // per-read metrics
 			sc,          // scoring scheme
-			mapqInps);   // inputs to MAPQ calculation
+			mapqs);   // inputs to MAPQ calculation
 	} else {
 		samc_.printEmptyOptFlags(
 			o,           // output buffer

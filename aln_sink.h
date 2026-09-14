@@ -1343,16 +1343,27 @@ public:
 		const Scoring& sc,         // scoring scheme
 		bool report2)              // report alns for both mates
 	{
-		assert(rd1 != NULL || rd2 != NULL);
+                assert(rd1 != NULL || rd2 != NULL);
+                char buf1[1024] = {0};
+                char buf2[1024] = {0};
+                char mapqInps1[1024] = {0};
+                char mapqInps2[1024] = {0};
+                // vector contained MAPQ #1, MAPQ #2, MAPQ_INP #1, MAPQ_INP #2
+                std::vector<char const *> mapqs{nullptr, nullptr, nullptr, nullptr};
+
                 if (rs1) {
-                        staln1.reset();
+                        staln1.reset(); 
                         rs1->initStacked(*rd1, staln1);
                         staln1.leftAlign(false /* not past MMs */);
                         staln1.buildCigar(flags1->xeq());
                         staln1.buildMdz();
-                        // mapq.mapq(
-			// summ, flags1, rd1->mate < 2, rd1->length(),
-			// rd2 == NULL ? 0 : rd2->length(), mapqInps)
+                        itoa10<TMapq>(mapq.mapq(summ, *flags1, rd1->mate < 2,
+                                                rd1->length(),
+                                                rd2 == NULL ? 0 : rd2->length(),
+                                                mapqInps1),
+                                      buf1);
+                        mapqs[0] = buf1;
+                        mapqs[2] = mapqInps1;
                 }
                 if (rs2) {
                         staln2.reset();
@@ -1360,16 +1371,31 @@ public:
                         staln2.leftAlign(false /* not past MMs */);
                         staln2.buildCigar(flags2->xeq());
                         staln2.buildMdz();
+                        itoa10<TMapq>(mapq.mapq(summ, *flags2, rd2->mate < 2,
+                                                rd2->length(),
+                                                rd2 == NULL ? 0 : rd2->length(),
+                                                mapqInps2),
+                                      buf2);
+                        mapqs[1] = buf2;
+                        mapqs[3] = mapqInps2;
                 }
                 if(rd1 != NULL) {
 			assert(flags1 != NULL);
 			appendMate(o, staln1, staln2, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
-			           *flags1, prm, mapq, sc);
+			           *flags1, prm, mapqs, sc);
 		}
 		if(rd2 != NULL && report2) {
-			assert(flags2 != NULL);
+                        assert(flags2 != NULL);
+                        // swap MAPQ scores when processing mate2
+                        const char *tmp = mapqs[0];
+                        mapqs[0] = mapqs[1];
+                        mapqs[1] = tmp;
+                        // swap MAPQ inputs when processing mate2
+                        tmp = mapqs[2];
+                        mapqs[2] = mapqs[3];
+                        mapqs[3] = tmp;
 			appendMate(o, staln2, staln1, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
-			           *flags2, prm, mapq, sc);
+			           *flags2, prm, mapqs, sc);
 		}
 	}
 
@@ -1394,7 +1420,7 @@ protected:
 		const SeedAlSumm& ssmo,
 		const AlnFlags& flags,
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq,          // MAPQ calculator
+		const std::vector<char const*>& mapq,          // MAPQ calculator
 		const Scoring& sc);        // scoring scheme
 
 	const SamConfig& samc_;    // settings & routines for SAM output

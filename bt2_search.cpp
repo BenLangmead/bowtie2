@@ -152,6 +152,7 @@ static bool sam_print_xg;
 static bool sam_print_nm;
 static bool sam_print_md;
 static bool sam_print_mc;
+static bool sam_print_mq;
 static bool sam_print_yf;
 static bool sam_print_yi;
 static bool sam_print_ym;
@@ -388,6 +389,7 @@ static void resetOptions() {
 	sam_print_nm        = true;
 	sam_print_md        = true;
         sam_print_mc        = false;
+        sam_print_mq        = false;
         sam_print_yf        = true;
 	sam_print_yi        = false;
 	sam_print_ym        = false;
@@ -5085,6 +5087,7 @@ static void driver(
 			sam_print_nm,
 			sam_print_md,
                         sam_print_mc,
+                        sam_print_mq,
                         sam_print_yf,
 			sam_print_yi,
 			sam_print_ym,

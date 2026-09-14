@@ -131,7 +131,7 @@ void SamConfig::printAlignedOptFlags(
 	const SeedAlSumm& ssm,     // seed alignment summary
 	const PerReadMetrics& prm, // per-read metrics
 	const Scoring& sc,         // scoring scheme
-	const char *mapqInp)       // inputs to MAPQ calculation
+	const std::vector<char const*> &mapqs)       // inputs to MAPQs and MAPQ inputs
 	const
 {
 	char buf[1024];
@@ -252,6 +252,11 @@ void SamConfig::printAlignedOptFlags(
                 o.append("MC:Z:");
                 stalno.writeCigar(&o, NULL);
         }
+        if (print_mq_ && mapqs[1] != nullptr) {
+                WRITE_SEP();
+                o.append("MQ:i:");
+                o.append(mapqs[1]);
+        }
 	if(print_ys_ && summ.paired()) {
 		// YS:i: Alignment score of opposite mate
 		assert(res.oscore().valid());
@@ -341,11 +346,11 @@ void SamConfig::printAlignedOptFlags(
 	}
 	if(print_yi_) {
 		// Print MAPQ calibration info
-		if(mapqInp[0] != '\0') {
+		if(mapqs[2] != nullptr && mapqs[2][0] != '\0') {
 			// YI:i: Suboptimal alignment score
 			WRITE_SEP();
 			o.append("YI:Z:");
-			o.append(mapqInp);
+			o.append(mapqs[2]);
 		}
 	}
 	if(flags.partOfPair() && print_zp_) {
