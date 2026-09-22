@@ -1368,8 +1368,12 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		uint32_t l_text;
 		uint32_t nref;
 
-		memcpy(magic, &alignment_batch[0], 4);
-		assert(magic[0] == 'B'&& magic[1] == 'A' && magic[2] == 'M' && magic[3] == 1);
+                memcpy(magic, &alignment_batch[0], 4);
+                if (magic[0] != 'B' || magic[1] != 'A' || magic[2] != 'M' || magic[3] != 1) {
+                        std::cerr << "Error: Invalid BAM file (bad magic number)" << std::endl;
+                        return make_pair(true, 0);
+                }
+		// assert(magic[0] == 'B'&& magic[1] == 'A' && magic[2] == 'M' && magic[3] == 1);
 		i += 4;
 		memcpy(&l_text, &alignment_batch[0] + i, sizeof(l_text));
 		i = i + sizeof(uint32_t) + l_text;
@@ -1402,7 +1406,7 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 		if (block_size > (alignment_batch.size() - i - sizeof(block_size))) {
 		  next_batch:
 			delta_ = alignment_batch.size() - i;
-			memcpy(&alignment_batch[0], &alignment_batch[0] + i, delta_);
+			memmove(&alignment_batch[0], &alignment_batch[0] + i, delta_);
 			i = alignment_batch.size();
 			return make_pair(done, readi);
 		}
@@ -1455,12 +1459,14 @@ int BAMPatternSource::decompress_bgzf_block(uint8_t *dst, size_t dst_len, uint8_
 	stream.next_out = dst;
 
 	int ret  = inflateInit2(&stream, -8);
-	if (ret != Z_OK) {
+        if (ret != Z_OK) {
+                inflateEnd(&stream);
 		return ret;
 	}
 
 	ret = inflate(&stream, Z_FINISH);
-	if (ret != Z_STREAM_END) {
+        if (ret != Z_STREAM_END) {
+                inflateEnd(&stream);
 		return ret;
 	}
 
