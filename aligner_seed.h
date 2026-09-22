@@ -1635,6 +1635,11 @@ protected:
 	std::vector<CacheEl> cacheVec;
 };
 
+// Per-parameter scratch space for SeedAligner::searchSeedBi.  Defined in
+// aligner_seed.cpp; the caller owns the storage so that neither the batched
+// nor the recursive entry point has to allocate.
+class SeedAlignerSearchState;
+
 /**
  * Given an index and a seeding scheme, searches for seed hits.
  */
@@ -1785,9 +1790,15 @@ protected:
 
 	/**
 	 * Main, recursive implementation of the seed search.
-	 * Given a vector of instantiated seeds, search
+	 * Given a vector of instantiated seeds, search.
+	 * sstateVec is caller-owned scratch space with room for nparams entries;
+	 * its contents are (re)initialised here and need not be preserved between
+	 * calls.
 	 */
-	void searchSeedBi(const size_t nparams, SeedAlignerSearchParams paramVec[]);
+	void searchSeedBi(
+		const size_t nparams,
+		SeedAlignerSearchParams paramVec[],
+		SeedAlignerSearchState sstateVec[]);
 
 	// helper function
 	bool startSearchSeedBi(SeedAlignerSearchParams &p);
