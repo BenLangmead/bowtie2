@@ -26,6 +26,11 @@
 
 #ifdef ENABLE_x86_64_v3
 #include <unistd.h>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
 #endif
 
 using namespace std;
@@ -35,38 +40,108 @@ extern "C" {
 }
 
 #ifdef ENABLE_x86_64_v3
-// taken from https://attractivechaos.wordpress.com/2017/09/04/on-cpu-dispatch/
-#define SIMD_SSE     0x1
-#define SIMD_SSE2    0x2
-#define SIMD_SSE3    0x4
-#define SIMD_SSE4_1  0x8
-#define SIMD_SSE4_2  0x10
-#define SIMD_AVX     0x20
-#define SIMD_AVX2    0x40
-#define SIMD_AVX512F 0x80
 
-unsigned x86_simd(void) {
-        unsigned eax, ebx, ecx, edx, flag = 0;
-#ifdef _MSC_VER
-        int cpuid[4];
-        __cpuid(cpuid, 1);
-        eax = cpuid[0], ebx = cpuid[1], ecx = cpuid[2], edx = cpuid[3];
+/*
+ * Feature bits making up the x86-64-v3 microarchitecture level, as listed in
+ * the Intel SDM Vol. 2A under CPUID.  The -v256 binary is compiled with
+ * -march=x86-64-v3, so it may emit any instruction in that level and not just
+ * AVX2; testing a subset would let it launch on a CPU that then dies with
+ * SIGILL on the first BMI2 or FMA instruction.
+ *
+ * AVX2, BMI1 and BMI2 are reported in leaf 7 sub-leaf 0, and LZCNT in
+ * extended leaf 0x80000001.  Only the SSE levels are in leaf 1.
+ */
+
+/* CPUID.(EAX=1, ECX=0):ECX */
+#define V3_L1_ECX_SSE3    (1u <<  0)
+#define V3_L1_ECX_SSSE3   (1u <<  9)
+#define V3_L1_ECX_FMA     (1u << 12)
+#define V3_L1_ECX_CX16    (1u << 13)
+#define V3_L1_ECX_SSE4_1  (1u << 19)
+#define V3_L1_ECX_SSE4_2  (1u << 20)
+#define V3_L1_ECX_MOVBE   (1u << 22)
+#define V3_L1_ECX_POPCNT  (1u << 23)
+#define V3_L1_ECX_OSXSAVE (1u << 27)
+#define V3_L1_ECX_AVX     (1u << 28)
+#define V3_L1_ECX_F16C    (1u << 29)
+
+/* CPUID.(EAX=1, ECX=0):EDX */
+#define V3_L1_EDX_SSE     (1u << 25)
+#define V3_L1_EDX_SSE2    (1u << 26)
+
+/* CPUID.(EAX=7, ECX=0):EBX */
+#define V3_L7_EBX_BMI1    (1u <<  3)
+#define V3_L7_EBX_AVX2    (1u <<  5)
+#define V3_L7_EBX_BMI2    (1u <<  8)
+
+/* CPUID.(EAX=0x80000001):ECX */
+#define V3_E1_ECX_LZCNT   (1u <<  5)
+
+/* XCR0 bits that have to be set for the OS to preserve YMM state */
+#define V3_XCR0_YMM       0x6
+
+/*
+ * Read one CPUID leaf into regs[] = {EAX, EBX, ECX, EDX}.  Returns 0 if the
+ * CPU does not implement the leaf.  Masking the leaf with 0x80000000 picks
+ * the basic or the extended range, which is what the maximum-leaf query
+ * expects.
+ */
+static int cpuid_leaf(unsigned int leaf, unsigned int subleaf, unsigned int regs[4]) {
+#if defined(_MSC_VER)
+	int r[4];
+	__cpuid(r, (int)(leaf & 0x80000000u));
+	if((unsigned int)r[0] < leaf) return 0;
+	__cpuidex(r, (int)leaf, (int)subleaf);
+	regs[0] = (unsigned int)r[0]; regs[1] = (unsigned int)r[1];
+	regs[2] = (unsigned int)r[2]; regs[3] = (unsigned int)r[3];
+	return 1;
 #else
-        asm volatile("cpuid" : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "a" (1));
+	if(__get_cpuid_max(leaf & 0x80000000u, NULL) < leaf) return 0;
+	__cpuid_count(leaf, subleaf, regs[0], regs[1], regs[2], regs[3]);
+	return 1;
 #endif
-        if (edx>>25&1) flag |= SIMD_SSE;
-        if (edx>>26&1) flag |= SIMD_SSE2;
-        if (ecx>>0 &1) flag |= SIMD_SSE3;
-        if (ecx>>19&1) flag |= SIMD_SSE4_1;
-        if (ecx>>20&1) flag |= SIMD_SSE4_2;
-        if (ecx>>28&1) flag |= SIMD_AVX;
-        if (ebx>>5 &1) flag |= SIMD_AVX2;
-        if (ebx>>16&1) flag |= SIMD_AVX512F;
-        return flag;
+}
+
+/* Only valid once CPUID has reported OSXSAVE. */
+static unsigned long long read_xcr0(void) {
+#if defined(_MSC_VER)
+	return _xgetbv(0);
+#else
+	unsigned int lo, hi;
+	__asm__ __volatile__("xgetbv" : "=a" (lo), "=d" (hi) : "c" (0));
+	return ((unsigned long long)hi << 32) | lo;
+#endif
+}
+
+static int has_x86_64_v3(void) {
+	unsigned int regs[4];
+	const unsigned int need_l1_ecx =
+		V3_L1_ECX_SSE3 | V3_L1_ECX_SSSE3 | V3_L1_ECX_FMA | V3_L1_ECX_CX16 |
+		V3_L1_ECX_SSE4_1 | V3_L1_ECX_SSE4_2 | V3_L1_ECX_MOVBE |
+		V3_L1_ECX_POPCNT | V3_L1_ECX_OSXSAVE | V3_L1_ECX_AVX | V3_L1_ECX_F16C;
+	const unsigned int need_l1_edx = V3_L1_EDX_SSE | V3_L1_EDX_SSE2;
+	const unsigned int need_l7_ebx = V3_L7_EBX_BMI1 | V3_L7_EBX_AVX2 | V3_L7_EBX_BMI2;
+
+	if(!cpuid_leaf(1, 0, regs)) return 0;
+	if((regs[2] & need_l1_ecx) != need_l1_ecx) return 0;
+	if((regs[3] & need_l1_edx) != need_l1_edx) return 0;
+
+	// The CPU can have AVX and the OS still not preserve the upper halves of
+	// the YMM registers across a context switch, in which case any AVX
+	// instruction faults.  OSXSAVE above says XGETBV is safe to execute.
+	if((read_xcr0() & V3_XCR0_YMM) != V3_XCR0_YMM) return 0;
+
+	if(!cpuid_leaf(7, 0, regs)) return 0;
+	if((regs[1] & need_l7_ebx) != need_l7_ebx) return 0;
+
+	if(!cpuid_leaf(0x80000001u, 0, regs)) return 0;
+	if(!(regs[2] & V3_E1_ECX_LZCNT)) return 0;
+
+	return 1;
 }
 
 void check_x86_64_v3(int argc, const char **argv) {
-	if ((x86_simd() & SIMD_AVX2) && (argc<126)) {
+	if (has_x86_64_v3() && (argc<126)) {
 		const char* new_argv[128]; // should always be enough, but above check enforces it, too
 		const char * org_path = argv[0];
 		// Append -v256 to the original path 
