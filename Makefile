@@ -89,7 +89,7 @@ ifneq (,$(findstring $(ARCH), x86_64 amd64))
     # tell 128-bit version to check for v256 capability and use it, if found
     SSE_FLAG += -DENABLE_x86_64_v3
   endif
-else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le))
+else ifneq (,$(findstring $(ARCH), aarch64 arm64 s390x powerpc64 powerpc64le ppc64 ppc64le riscv64))
   BITS := 64
   SSE_FLAG :=
   CXXFLAGS += -fopenmp-simd
