@@ -145,13 +145,12 @@ void SamConfig::printAlignedOptFlags(
 		o.append(buf);
 	}
 	if(print_xs_) {
-		// XS:i: Suboptimal alignment score
-		AlnScore sco;
-		if(flags.partOfPair()) {
-			sco = summ.bestUnchosenPScore(rd.mate < 2);
-		} else {
-			sco = summ.bestUnchosenUScore();
-		}
+		// XS:i: Suboptimal alignment score.  For a mate reported as an
+		// unpaired alignment (YT:Z:UP) the summary holds unpaired
+		// alignments only, so take the second-best unpaired score there,
+		// as the MAPQ calculation does; the paired second-best is only
+		// filled in for concordant and discordant pairs.
+		AlnScore sco = summ.bestUnchosenScore(rd.mate < 2);
 		if(sco.valid()) {
 			itoa10<TAlScore>(sco.score(), buf);
 			WRITE_SEP();
