@@ -1373,7 +1373,7 @@ public:
                         staln2.buildMdz();
                         itoa10<TMapq>(mapq.mapq(summ, *flags2, rd2->mate < 2,
                                                 rd2->length(),
-                                                rd2 == NULL ? 0 : rd2->length(),
+                                                rd1 == NULL ? 0 : rd1->length(),
                                                 mapqInps2),
                                       buf2);
                         mapqs[1] = buf2;
