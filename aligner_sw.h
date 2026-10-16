@@ -218,7 +218,12 @@ public:
 		btcells_(DP_CAT),
 		btdiag_(),
 		btncand_(DP_CAT),
+		btncandtmp_(DP_CAT),
+		btncandhist_(DP_CAT),
 		btncanddone_(DP_CAT),
+		btncanddonerow_(DP_CAT),
+		btncanddonecol_(DP_CAT),
+		btncanddonemir_(0),
 		btncanddoneSucc_(0),
 		btncanddoneFail_(0),
 		cper_(),
@@ -495,6 +500,42 @@ protected:
 	void buildQueryProfileLocalSseU8(bool fw);
 
 	/**
+	 * The row and column mirrors of btncanddone_ for nextAlignment's
+	 * domination test hold btncanddonemir_ entries followed by
+	 * BT_DONE_SENTINEL up to their size, a multiple of 8, so the test runs
+	 * in whole blocks of 8.  The sentinel is outside every domination window
+	 * when rows, columns and the window are below 2^31 (nextAlignment's dom32
+	 * guard).
+	 */
+	static const uint32_t BT_DONE_SENTINEL = 0xC0000000u;
+
+	/**
+	 * Empty the mirrors; called where btncanddone_ is cleared.
+	 */
+	void clearDoneMirrors() {
+		btncanddonerow_.clear();
+		btncanddonecol_.clear();
+		btncanddonemir_ = 0;
+	}
+
+	/**
+	 * Append a done candidate's row and column to the mirrors.
+	 */
+	void pushDoneMirrors(size_t row, size_t col) {
+		size_t k = btncanddonemir_;
+		if(k == btncanddonerow_.size()) {
+			btncanddonerow_.resize(k + 8);
+			btncanddonecol_.resize(k + 8);
+			for(size_t i = k; i < k + 8; i++) {
+				btncanddonerow_[i] = btncanddonecol_[i] = BT_DONE_SENTINEL;
+			}
+		}
+		btncanddonerow_[k] = (uint32_t)row;
+		btncanddonecol_[k] = (uint32_t)col;
+		btncanddonemir_ = k + 1;
+	}
+
+	/**
 	 * Build query profile look up tables for the read.  The query profile look
 	 * up table is organized as a 1D array indexed by [i][j] where i is the
 	 * reference character in the current DP column (0=A, 1=C, etc), and j is
@@ -505,6 +546,8 @@ protected:
 	
 	bool gatherCellsNucleotidesLocalSseU8(TAlScore best);
 	bool gatherCellsNucleotidesEnd2EndSseU8(TAlScore best);
+
+	void sortLocalCandidates(TAlScore best);
 
 	bool gatherCellsNucleotidesLocalSseI16(TAlScore best);
 	bool gatherCellsNucleotidesEnd2EndSseI16(TAlScore best);
@@ -626,7 +669,13 @@ protected:
 
 	NBest<DpBtCandidate> btdiag_;      // per-diagonal backtrace candidates
 	EList<DpBtCandidate> btncand_;     // cells we might backtrace from
+	EList<DpBtCandidate> btncandtmp_;  // scratch for sortLocalCandidates
+	EList<uint32_t>      btncandhist_; // bucket counts for sortLocalCandidates
 	EList<DpBtCandidate> btncanddone_; // candidates that we investigated
+	EList<uint32_t>      btncanddonerow_; // btncanddone_'s rows and columns
+	EList<uint32_t>      btncanddonecol_; // in 32 bits, for nextAlignment;
+	                     // padded to a multiple of 8 with BT_DONE_SENTINEL
+	size_t              btncanddonemir_; // # of btncanddone_ in the mirrors
 	size_t              btncanddoneSucc_; // # investigated and succeeded
 	size_t              btncanddoneFail_; // # investigated and failed
 	

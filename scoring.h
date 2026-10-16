@@ -21,6 +21,8 @@
 #define SCORING_H_
 
 #include <limits>
+#include <stddef.h>
+#include <stdint.h>
 #include "qual.h"
 #include "simple_func.h"
 
@@ -169,6 +171,7 @@ public:
 		initPens<int>(mmpens, mmcostType, mmpMin_, mmpMax_);
 		initPens<int>(npens, npenType, npen, npen);
 		initPens<float>(matchBonuses, matchType, matchConst, matchConst);
+		initQualProf();
 		assert(repOk());
 	}
 	
@@ -179,6 +182,7 @@ public:
 		matchType  = COST_MODEL_CONSTANT;
 		matchConst = bonus;
 		initPens<float>(matchBonuses, matchType, matchConst, matchConst);
+		initQualProf();
 		assert(repOk());
 	}
 	
@@ -190,6 +194,7 @@ public:
 		mmpMax     = mmpMax_;
 		mmpMin     = mmpMin_;
 		initPens<int>(mmpens, mmcostType, mmpMin, mmpMax);
+		initQualProf();
 	}
 	
 	/**
@@ -199,6 +204,7 @@ public:
 		npenType     = nType;
 		npen         = n;
 		initPens<int>(npens, npenType, npen, npen);
+		initQualProf();
 	}
 	
 #ifndef NDEBUG
@@ -458,6 +464,56 @@ public:
 	float   matchBonuses[256]; // map from qualities to match bonus
 	int     mmpens[256];       // map from qualities to mm penalty
 	int     npens[256];        // map from N qualities to penalty
+
+	/**
+	 * score(rdc, 1 << refc, q) for the five reference characters refc
+	 * (A, C, G, T, N) at once, in the forms SwAligner's 8-bit query-profile
+	 * builders store, with the extremes they track.  One entry per read
+	 * character rdc (0-4) and quality q (0-255).  Derived from matchBonuses,
+	 * mmpens and npens by initQualProf(), which every function that changes
+	 * those arrays calls; code that writes the arrays directly must call it
+	 * too.
+	 */
+	struct QualProf {
+		uint64_t ee;       // byte refc: (uint8_t)-score, end-to-end penalty
+		uint64_t loc;      // byte refc: (uint8_t)score, local score before bias
+		int      eeMax;    // the -score whose (size_t) is largest, or 0
+		int      locMin;   // the smallest score, or 0 if none is negative
+		int      locPen;   // the largest -score of a negative score, or 0
+		int      locBonus; // the largest non-negative score, or 0
+	};
+	QualProf qualProf[5][256];
+
+	/**
+	 * Fill qualProf from score().
+	 */
+	void initQualProf() {
+		for(int rdc = 0; rdc < 5; rdc++) {
+			for(int q = 0; q < 256; q++) {
+				QualProf& e = qualProf[rdc][q];
+				e.ee = e.loc = 0;
+				e.eeMax = e.locMin = e.locPen = e.locBonus = 0;
+				for(int refc = 0; refc < 5; refc++) {
+					int sc = score(rdc, 1 << refc, q);
+					e.ee  |= (uint64_t)(uint8_t)(-sc) << (8 * refc);
+					e.loc |= (uint64_t)(uint8_t)sc << (8 * refc);
+					if((size_t)(-sc) > (size_t)e.eeMax) {
+						e.eeMax = -sc;
+					}
+					if(sc < e.locMin) {
+						e.locMin = sc;
+					}
+					if(sc < 0) {
+						if(-sc > e.locPen) {
+							e.locPen = -sc;
+						}
+					} else if(sc > e.locBonus) {
+						e.locBonus = sc;
+					}
+				}
+			}
+		}
+	}
 
 	static Scoring base1() {
 		const double DMAX = std::numeric_limits<double>::max();

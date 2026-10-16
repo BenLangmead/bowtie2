@@ -252,6 +252,7 @@ public:
 	void init(T* p, size_t sz, bool freeable = true) {
 		assert(p_ == NULL);
 		p_ = p;
+		base_ = p;
 		sz_ = sz;
 		freeable_ = freeable;
 #ifdef USE_MEM_TALLY
@@ -263,10 +264,25 @@ public:
 #endif
 	}
 
+	/**
+	 * Allocate sz elements with new[] and wrap them at an address that
+	 * is a multiple of 'align' bytes, a power of two that sizeof(T)
+	 * divides.  The block is over-allocated by 'align' bytes, and free()
+	 * deletes the block new[] returned.  Throws bad_alloc as new[] does.
+	 */
+	void initAligned(size_t sz, size_t align) {
+		assert_eq(0, align & (align - 1));
+		assert_eq(0, align % sizeof(T));
+		T* base = new T[sz + align / sizeof(T)];
+		const uintptr_t a = align;
+		init((T*)(((uintptr_t)base + a - 1) & ~(a - 1)), sz, true);
+		base_ = base;
+	}
+
 	void free() {
 		if(p_ != NULL) {
 			if(freeable_) {
-				delete[] p_;
+				delete[] base_;
 #ifdef USE_MEM_TALLY
 				gMemTally.del(cat_, sizeof(T) * sz_);
 #endif
@@ -281,6 +297,7 @@ public:
 private:
 	int cat_;
 	T *p_;
+	T *base_; // what new[] returned; p_ unless initAligned() moved p_ up
 	bool freeable_;
 	size_t sz_;
 };
@@ -3244,6 +3261,42 @@ public:
 	}
 
 	/**
+	 * Add up to 'num' objects, all equal to 'o', to the list, and return
+	 * how many were added.  This has the effect of calling add(p, o) up to
+	 * 'num' times and stopping at the first call that fails: pages are
+	 * taken from the pool one at a time, when the first object that needs
+	 * one is added, and the return value is less than 'num' only when the
+	 * pool ran out.  The list and the pool are then in the state that
+	 * add(p, o) leaves them in when it fails.  The objects are stored a
+	 * page-sized run at a time rather than one call per object.
+	 */
+	size_t addFillUpTo(Pool& p, size_t num, const T& o) {
+		assert(repOk());
+		if(num == 0) return 0;
+		if(pages_.size() == 0 && expand(p) == NULL) {
+			return 0;
+		}
+		size_t added = 0;
+		while(added < num) {
+			if(cur_ == PLIST_PER_PAGE) {
+				if(curPage_ == pages_.size()-1 && expand(p) == NULL) {
+					return added;
+				}
+				cur_ = 0;
+				curPage_++;
+			}
+			assert_lt(curPage_, pages_.size());
+			assert_lt(cur_, PLIST_PER_PAGE);
+			size_t n = std::min<size_t>(num - added, PLIST_PER_PAGE - cur_);
+			std::fill_n(pages_[curPage_] + cur_, n, o);
+			cur_ += n;
+			added += n;
+		}
+		assert(repOk());
+		return added;
+	}
+
+	/**
 	 * Free all pages associated with the list.
 	 */
 	void clear() {
@@ -3296,6 +3349,19 @@ public:
 		assert_lt(page, pages_.size());
 		assert(page < pages_.size()-1 || elt < cur_);
 		return pages_[page][elt];
+	}
+
+	/**
+	 * Return a pointer to the ith element if the elements i through
+	 * i+n-1 lie on one page, i.e. are contiguous in memory; else NULL.
+	 */
+	inline T* contiguous(size_t i, size_t n) {
+		assert_gt(n, 0);
+		assert_leq(i + n, size());
+		if(i / PLIST_PER_PAGE != (i + n - 1) / PLIST_PER_PAGE) {
+			return NULL;
+		}
+		return &get(i);
 	}
 
 	/**
@@ -3451,6 +3517,15 @@ public:
 	}
 
 	/**
+	 * Return a pointer to the slice's first element (the elements of an
+	 * EList are contiguous), or NULL if the slice is empty.
+	 */
+	inline T* contiguous() {
+		if(len_ == 0) return NULL;
+		return &list_->get(i_);
+	}
+
+	/**
 	 * Return a reference to the ith element.
 	 */
 	inline const T& operator[](size_t i) const {
@@ -3580,6 +3655,15 @@ public:
 		assert(valid());
 		assert_lt(i, len_);
 		return list_->get(i+i_);
+	}
+
+	/**
+	 * Return a pointer to the slice's first element if its elements are
+	 * contiguous in memory, else NULL.
+	 */
+	inline T* contiguous() {
+		if(len_ == 0) return NULL;
+		return list_->contiguous(i_, len_);
 	}
 
 	/**

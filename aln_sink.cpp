@@ -1913,6 +1913,7 @@ void AlnSinkSam::appendMate(
 		return;
 	}
 	char buf[1024];
+	size_t nbuf = 0; // length of the number itoa10 last wrote into buf
 	int offAdj = 0;
 	// QNAME
 	samc_.printReadName(o, rd.name, flags.partOfPair());
@@ -1947,8 +1948,8 @@ void AlnSinkSam::appendMate(
 		// Failed to align
 		fl |= SAM_FLAG_UNMAPPED;
 	}
-	itoa10<int>(fl, buf);
-	o.append(buf);
+	nbuf = (size_t)(itoa10<int>(fl, buf) - buf);
+	o.append(buf, nbuf);
         o.append('\t');
 	// RNAME
 	if(rs != NULL) {
@@ -1970,16 +1971,16 @@ void AlnSinkSam::appendMate(
 	// Note: POS is *after* soft clipping.  I.e. POS points to the
 	// upstream-most character *involved in the clipped alignment*.
 	if(rs != NULL) {
-		itoa10<int64_t>(rs->refoff()+1+offAdj, buf);
-		o.append(buf);
+		nbuf = (size_t)(itoa10<int64_t>(rs->refoff()+1+offAdj, buf) - buf);
+		o.append(buf, nbuf);
 		o.append('\t');
 	} else {
 		if(summ.orefid() != -1) {
 			// Opposite mate aligned but this one didn't - print the opposite
 			// mate's RNAME and POS as is customary
 			assert(flags.partOfPair());
-			itoa10<int64_t>(summ.orefoff()+1+offAdj, buf);
-			o.append(buf);
+			nbuf = (size_t)(itoa10<int64_t>(summ.orefoff()+1+offAdj, buf) - buf);
+			o.append(buf, nbuf);
 		} else {
 			// No alignment
 			o.append('0');
@@ -2020,29 +2021,29 @@ void AlnSinkSam::appendMate(
 	// PNEXT
 	if(rs != NULL && flags.partOfPair()) {
 		if(rso != NULL) {
-			itoa10<int64_t>(rso->refoff()+1, buf);
-			o.append(buf);
+			nbuf = (size_t)(itoa10<int64_t>(rso->refoff()+1, buf) - buf);
+			o.append(buf, nbuf);
 			o.append('\t');
 		} else {
 			// The convenstion is that if this mate aligns but the opposite
 			// doesn't, we print this mate's offset here
-			itoa10<int64_t>(rs->refoff()+1, buf);
-			o.append(buf);
+			nbuf = (size_t)(itoa10<int64_t>(rs->refoff()+1, buf) - buf);
+			o.append(buf, nbuf);
 			o.append('\t');
 		}
 	} else if(summ.orefid() != -1) {
 		// The convention if this mate fails to align but the other doesn't is
 		// to copy the mate's details into here
-		itoa10<int64_t>(summ.orefoff()+1, buf);
-		o.append(buf);
+		nbuf = (size_t)(itoa10<int64_t>(summ.orefoff()+1, buf) - buf);
+		o.append(buf, nbuf);
 		o.append('\t');
 	} else {
 		o.append("0\t");
 	}
 	// ISIZE
 	if(rs != NULL && rs->isFraglenSet()) {
-		itoa10<int64_t>(rs->fragmentLength(), buf);
-		o.append(buf);
+		nbuf = (size_t)(itoa10<int64_t>(rs->fragmentLength(), buf) - buf);
+		o.append(buf, nbuf);
 		o.append('\t');
 	} else {
 		// No fragment
@@ -2056,10 +2057,11 @@ void AlnSinkSam::appendMate(
 		if(rd.patFw.length() == 0) {
 			o.append('*');
 		} else {
+			// Same bytes as o.append(rd.patFw.toZBuf()), written directly
 			if(rs == NULL || rs->fw()) {
-				o.append(rd.patFw.toZBuf());
+				o.appendXForm(rd.patFw.buf(), rd.patFw.length(), "ACGTN");
 			} else {
-				o.append(rd.patRc.toZBuf());
+				o.appendXForm(rd.patRc.buf(), rd.patRc.length(), "ACGTN");
 			}
 		}
 	}

@@ -47,6 +47,9 @@
  *
  * The constraint can put both caps and ceilings on the number and
  * types of edits allowed.
+ *
+ * A field added here must also be compared in sameConstraint()
+ * (aligner_seed.cpp), which keys cached seed instantiations.
  */
 struct Constraint {
 	
@@ -318,6 +321,9 @@ struct InstantiatedSeed;
  *
  * If the read is shorter than a single seed, one seed is used and it
  * is shrunk to accommodate the read.
+ *
+ * A field added here must also be compared in sameSeed()
+ * (aligner_seed.cpp), which keys cached seed instantiations.
  */
 struct Seed {
 
@@ -410,7 +416,7 @@ struct Seed {
  */
 struct InstantiatedSeed {
 
-	InstantiatedSeed() : steps(AL_CAT), zones(AL_CAT) { }
+	InstantiatedSeed() : steps(AL_CAT), zones(AL_CAT), instGen(0) { }
 
 	// Steps map.  There are as many steps as there are positions in
 	// the seed.  The map is a helpful abstraction because we sometimes
@@ -464,6 +470,12 @@ struct InstantiatedSeed {
 	
 	// Seed this was instantiated from
 	Seed s;
+
+	// Generation of the SeedInstKey whose instantiation this object holds
+	// (steps, zones, cons, overall, maxjump and s as Seed::instantiate
+	// writes them for a seed without Ns), or 0 if it holds none.  Set by
+	// SeedAligner::instantiateSeeds only.
+	uint64_t instGen;
 	
 #ifndef NDEBUG
 	/**
@@ -473,6 +485,37 @@ struct InstantiatedSeed {
 		return true;
 	}
 #endif
+};
+
+/**
+ * The inputs to the part of Seed::instantiate that is the same for every
+ * seed without Ns: the seed policy (length, type, zone constraints and the
+ * overall-constraint pointer), the overall constraint it points to, and the
+ * read length.  Every distinct value set gets a new generation number,
+ * unique in the process.  An InstantiatedSeed whose instGen equals gen
+ * holds Seed::instantiate's output for these inputs, so instantiating a
+ * seed without Ns into it again only has to set its offset fields.
+ */
+struct SeedInstKey {
+
+	SeedInstKey() : rdlen(0), gen(0) { }
+
+	/**
+	 * Return true iff 'sd', the constraint it points to and 'rdl' are
+	 * the inputs this key was set from.
+	 */
+	bool matches(const Seed& sd, size_t rdl) const;
+
+	/**
+	 * Set the key from 'sd', the constraint it points to and 'rdl', and
+	 * take a new generation number.
+	 */
+	void set(const Seed& sd, size_t rdl);
+
+	Seed seed;          // the seed policy
+	Constraint overall; // *seed.overall
+	size_t rdlen;       // read length
+	uint64_t gen;       // 0: never set
 };
 
 /**
@@ -626,10 +669,17 @@ public:
 		offIdx2off_(AL_CAT),
 		rankOffs_(AL_CAT),
 		rankFws_(AL_CAT),
+		rankCnt_(AL_CAT),
 		mm1Hit_(AL_CAT)
 	{
 		clear();
 	}
+
+	/**
+	 * Keys of the seed instantiations held in this object's
+	 * InstantiatedSeed lists, one per seed policy (see SeedInstKey).
+	 */
+	std::vector<SeedInstKey>& instKeys() { return instKeys_; }
 	
 	/**
 	 * Set the current read.
@@ -1010,6 +1060,22 @@ public:
 #endif
 	
 	/**
+	 * The element count rankSeedHits ranks a QVal by: its count if it is
+	 * valid, non-empty and not ranked yet (held as at most 'none'), else
+	 * 'none'.
+	 */
+	static uint32_t rankCount(const QVal& qv, bool sorted, uint32_t none) {
+		if(!qv.valid() || sorted) {
+			return none;
+		}
+		TIndexOffU ne = qv.numElts();
+		if(ne == 0 || ne >= (TIndexOffU)none) {
+			return none;
+		}
+		return (uint32_t)ne;
+	}
+
+	/**
 	 * Populate rankOffs_ and rankFws_ with the list of QVals that need to be
 	 * examined for this SeedResults, in order.  The order is ascending by
 	 * number of elements, so QVals with fewer elements (i.e. seed sequences
@@ -1037,8 +1103,23 @@ public:
 				rankFws_.push_back(false);
 			}
 		} else {
+			// Each pick draws a coin for which strand is scanned first, then
+			// per strand a random start and a circular scan for the first
+			// strictly smaller element count.  The scans read a compact array
+			// of counts in which a QVal that is invalid, empty or already
+			// ranked holds MAX_U32, which is never below the running minimum
+			// (it starts at MAX_U32); counts at or above MAX_U32 are held as
+			// MAX_U32 for the same reason.  Same draws, same picks.
+			const uint32_t none = MAX_U32;
+			const uint32_t n = (uint32_t)numOffs_;
+			rankCnt_.resize(2 * (size_t)n);
+			uint32_t* const cnt = rankCnt_.ptr(); // fw [0, n), rc [n, 2n)
+			for(uint32_t i = 0; i < n; i++) {
+				cnt[i] = rankCount(hitsFw_[i], sortedFw_[i], none);
+				cnt[n + i] = rankCount(hitsRc_[i], sortedRc_[i], none);
+			}
 			while(rankOffs_.size() < nonzTot_) {
-				TIndexOffU minsz = MAX_U32;
+				uint32_t minsz = none;
 				uint32_t minidx = 0;
 				bool minfw = true;
 				// Rank seed-hit positions in ascending order by number of elements
@@ -1047,25 +1128,29 @@ public:
 				assert(rb == 0 || rb == 1);
 				for(int fwi = 0; fwi <= 1; fwi++) {
 					bool fw = (fwi == (rb ? 1 : 0));
-					EList<QVal>& rrs = (fw ? hitsFw_ : hitsRc_);
-					EList<bool>& sorted = (fw ? sortedFw_ : sortedRc_);
-					uint32_t i = (rnd.nextU32() % (uint32_t)numOffs_);
-					for(uint32_t ii = 0; ii < numOffs_; ii++) {
-						if(rrs[i].valid() &&         // valid QVal
-						   rrs[i].numElts() > 0 &&   // non-empty
-						   !sorted[i] &&             // not already sorted
-						   rrs[i].numElts() < minsz) // least elts so far?
-						{
-							minsz = rrs[i].numElts();
-							minidx = i;
-							minfw = (fw == 1);
-						}
-						if((++i) == numOffs_) {
-							i = 0;
-						}
+					const uint32_t* c = cnt + (fw ? 0 : n);
+					uint32_t i = (rnd.nextU32() % n);
+					// First strict minimum of this strand in circular order
+					// from i: a later equal count does not replace it
+					uint32_t sm = none, si = 0;
+					for(uint32_t j = i; j < n; j++) {
+						const bool lt = c[j] < sm;
+						sm = lt ? c[j] : sm;
+						si = lt ? j : si;
+					}
+					for(uint32_t j = 0; j < i; j++) {
+						const bool lt = c[j] < sm;
+						sm = lt ? c[j] : sm;
+						si = lt ? j : si;
+					}
+					if(sm < minsz) {
+						minsz = sm;
+						minidx = si;
+						minfw = fw;
 					}
 				}
-				assert_neq(MAX_U32, minsz);
+				assert_neq(none, minsz);
+				cnt[(minfw ? 0 : n) + minidx] = none;
 				if(minfw) {
 					sortedFw_[minidx] = true;
 				} else {
@@ -1370,6 +1455,7 @@ protected:
 	// are ignored.
 	EList<uint32_t>     rankOffs_;  // sorted offests of seeds to try
 	EList<bool>         rankFws_;   // sorted orientations assoc. with rankOffs_
+	EList<uint32_t>     rankCnt_;   // rankSeedHits scratch: counts, fw then rc
 	bool                sorted_;    // true if sort() called since last reset
 	
 	// These fields set once per read
@@ -1381,6 +1467,7 @@ protected:
 	EList<EEHit>        mm1Hit_;     // 1-mismatch end-to-end hits
 	size_t              mm1Elt_;     // number of 1-mismatch hit rows
 	bool                mm1Sorted_;  // true iff we've sorted the mm1Hit_ list
+	std::vector<SeedInstKey> instKeys_; // per seed policy; kept across reads
 
 	EList<size_t> tmpMedian_; // temporary storage for calculating median
 };
@@ -1457,21 +1544,36 @@ struct SeedSearchMetrics {
 
 /**
  * Wrap the search cache with all the relevant objects
+ *
+ * Reused across seeds and reads (see SeedSearchMultiCache): reset() points
+ * it at a new seed and empties it.
  */
 class SeedSearchCache {
 
 public:
-	SeedSearchCache(
-		const BTDnaString& _seq,  // sequence of current seed
-		const BTString& _qual     // quality string for current seed
-		)
+	SeedSearchCache()
 		: qv()
-		, seq(_seq)
-		, qual(_qual)
+		, seq(NULL)
+		, qual(NULL)
 		, cachedEls()
 		, cachep(NULL)
 	{
 		cachedEls.reserve(16); // do not expect I will need more
+	}
+
+	/**
+	 * Point this cache at a new seed and forget everything about the
+	 * previous one.
+	 */
+	void reset(
+		const BTDnaString* _seq,  // sequence of current seed
+		const BTString* _qual)    // quality string for current seed
+	{
+		qv.reset();
+		seq = _seq;
+		qual = _qual;
+		cachedEls.clear();
+		cachep = NULL;
 	}
 
 	/**
@@ -1482,7 +1584,7 @@ public:
 	 */
 	int beginAlign(AlignmentCacheIface& cache) 
 	{ 
-		int ret = cache.beginAlign(seq, qual, qv);
+		int ret = cache.beginAlign(*seq, *qual, qv);
 		if (ret>=0) {
 			cachep = &cache;
 		}
@@ -1502,7 +1604,7 @@ public:
 			AddEl &el = cachedEls[i];
 			success &= cachep->addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
 		}
-		cachedEls.clear();
+		// cachedEls is emptied by the next reset()
 		return success;
 	}
 
@@ -1545,8 +1647,8 @@ public:
 	bool qvValid() const { return qv.valid();}
 
 	const QVal&          getQv() const {return qv;}
-	const BTDnaString&   getSeq() const {return seq;}
-	const BTString&      getQual() const {return qual;}
+	const BTDnaString&   getSeq() const {return *seq;}
+	const BTString&      getQual() const {return *qual;}
 
 protected:
 	class AddEl {
@@ -1572,39 +1674,47 @@ protected:
 	};
 
 	QVal                 qv;
-	const BTDnaString&   seq;   // sequence of current seed
-	const BTString&      qual;  // quality string for current seed
+	const BTDnaString*   seq;   // sequence of current seed
+	const BTString*      qual;  // quality string for current seed
 
 	std::vector<AddEl>    cachedEls; // tmp storage of values that will go in the cache
 	AlignmentCacheIface*  cachep; // local alignment cache for seed alignment, set at beginAliginings
 };
 
 /**
- * Wrap the search cache with all the relevant objects
+ * The SeedSearchCaches of one searchAllSeeds call, in search order.  The
+ * caches are kept, with their buffers, across calls: clear() only forgets
+ * how many are in use.
  */
 class SeedSearchMultiCache {
 
 public:
 	SeedSearchMultiCache(
 		) 
-		: cacheVec()
+		: cacheVec(), n_(0)
 	{}
 
-	void emplace_back( 
+	/**
+	 * Take the next cache and point it at the given seed.  May move the
+	 * caches in memory, so take every cache before holding references to
+	 * any of them.
+	 */
+	void add( 
 		const BTDnaString& seq,  // sequence of current seed
 		const BTString& qual,    // quality string for current seed
 		int seedoffidx,          // seed index
 		bool fw                  // is it fw?
 		)
 	{
-		cacheVec.emplace_back(seq, qual, seedoffidx, fw);
+		if(n_ == cacheVec.size()) cacheVec.emplace_back();
+		CacheEl& el = cacheVec[n_++];
+		el.srcache.reset(&seq, &qual);
+		el.seedoffidx = seedoffidx;
+		el.fw = fw;
 	}
 
-	// Same semantics as std::vector
-	void reserve(size_t new_cap) { cacheVec.reserve(new_cap); }
-	size_t size() const {return cacheVec.size(); }
-	void clear() { cacheVec.clear(); }
-	void pop_back() { cacheVec.pop_back(); }
+	size_t size() const {return n_; }
+	void clear() { n_ = 0; }
 
 	// Access one of the search caches
 	const SeedSearchCache& operator[](size_t idx) const { return cacheVec[idx].srcache; }
@@ -1616,16 +1726,7 @@ public:
 protected:
 	class CacheEl {
 	public:
-		CacheEl(
-			const BTDnaString& _seq,  // sequence of current seed
-			const BTString& _qual,    // quality string for current seed
-			int _seedoffidx,          // seed index
-			bool _fw                  // is it fw?
-			)
-			: srcache(_seq, _qual)
-			, seedoffidx(_seedoffidx)
-			, fw(_fw) {}
-		
+		CacheEl() : srcache(), seedoffidx(0), fw(false) {}
 
 		SeedSearchCache     srcache;   // search wrapper
 		int                 seedoffidx; // seed index
@@ -1633,12 +1734,163 @@ protected:
 	};
 
 	std::vector<CacheEl> cacheVec;
+	size_t n_; // caches in use
 };
+
+// How many seed offsets (both strands together) SeedAligner::searchAllSeeds
+// searches in one searchSeedBi batch
+static const size_t SEED_BATCH_CACHES = 32;
 
 // Per-parameter scratch space for SeedAligner::searchSeedBi.  Defined in
 // aligner_seed.cpp; the caller owns the storage so that neither the batched
 // nor the recursive entry point has to allocate.
 class SeedAlignerSearchState;
+
+/**
+ * One walk of SeedAligner::oneMmSearch: the main walk of one direction, which
+ * matches the read exactly, or a walk that matches the rest of the read
+ * exactly after a mismatch.
+ */
+struct OneMmWalk {
+
+	void init(
+		int dir_,
+		bool mm_,
+		TIndexOffU top_,
+		TIndexOffU bot_,
+		TIndexOffU topp_,
+		TIndexOffU botp_,
+		size_t dep_)
+	{
+		top = top_; bot = bot_;
+		topp = topp_; botp = botp_;
+		dep = (uint32_t)dep_;
+		mmdep = 0;
+		dir = (uint8_t)dir_;
+		mm = mm_;
+		mmc = rdc = 0;
+		quc = 0;
+		done = hit = false;
+	}
+
+	TIndexOffU top, bot;   // range in the index walked
+	TIndexOffU topp, botp; // range in the other index
+	uint32_t dep;          // depth of the next read character to match
+	uint32_t mmdep;        // mismatch walk: depth of the mismatch
+	int quc;               // mismatch walk: quality at the mismatch
+	uint8_t dir;           // index of the direction
+	bool mm;               // a mismatch walk (else a main walk)
+	int8_t mmc;            // mismatch walk: reference character
+	int8_t rdc;            // mismatch walk: read character
+	bool done;             // the walk has ended
+	bool hit;              // mismatch walk: matched to the end of the read
+};
+
+// How many walks SeedAligner::oneMmSearch steps in turn
+static const size_t ONEMM_WALKS = 16;
+
+// How many walks SeedAligner::oneMmSearchBatch steps in turn
+#ifndef ONEMM_BATCH_LANES
+#define ONEMM_BATCH_LANES 32
+#endif
+
+/**
+ * One direction of a 1-mismatch search: a strand of the read matched
+ * right-to-left in the forward index or in the mirror index.
+ */
+struct OneMmDir {
+	const Ebwt* ebwt;       // index walked
+	const Ebwt* ebwtp;      // the other index
+	const BTDnaString* seq;
+	const BTString* qual;
+	size_t nea;             // length of the near half
+	bool fw;                // strand of the read
+	bool ebwtfw;            // ebwt is the forward index
+	bool exact;             // the main walk matched the whole read
+	TIndexOffU etop, ebot;  // its range in ebwt
+};
+
+/**
+ * The 1-mismatch end-to-end search of one read (one mate): its inputs, its
+ * directions and walks, and the LF operations they took.  oneMmSearch runs
+ * one; oneMmSearchBatch runs many with their walks stepped in turn, and
+ * oneMmSearchApply then reports a job's hits as oneMmSearch would have.
+ */
+struct OneMmJob {
+
+	void init(const Read* read_, bool nofw_, bool norc_) {
+		read = read_;
+		nofw = nofw_;
+		norc = norc_;
+		repex = false;
+		rep1mm = true;
+		len = 0;
+		nceil = 0;
+		ns = 0;
+		ndir = 0;
+		walks.clear();
+		nextw = 0;
+		mainLeft = 0;
+		bwops = 0;
+		ftabPre = false;
+	}
+
+	const Read* read;      // read to align
+	bool nofw;             // don't align the read
+	bool norc;             // don't align its reverse complement
+	bool repex;            // report 0mm hits?
+	bool rep1mm;           // report 1mm hits?
+	size_t len;            // read length
+	int nceil;             // N ceiling for the read length
+	size_t ns;             // Ns in the read
+	OneMmDir dirs[4];      // directions, in search order
+	int ndir;              // # directions; their main walks are walks[0, ndir)
+	EList<OneMmWalk> walks;// all walks, in the order they were made
+	size_t nextw;          // next walk to start
+	size_t mainLeft;       // main walks that have not ended
+	uint64_t bwops;        // Burrows-Wheeler operations
+	// ftab indices of the directions, computed (and their entries
+	// prefetched) by oneMmStartPrefetch before oneMmStart reads them;
+	// direction (fw, ebwtfw) is slot 2 * !fw + !ebwtfw
+	bool ftabPre;          // fi/fip are set
+	bool ftabPreRep1mm;    // the rep1mm they were set for
+	TIndexOffU fi[4];      // ftab index in the direction's index
+	TIndexOffU fip[4];     // ftab index in the other index (rep1mm only)
+};
+
+/**
+ * The exact end-to-end sweep of one read (one mate), as exactSweep does it,
+ * for SeedAligner::exactSweepBatch: its inputs, and the results exactSweep
+ * gives for them.  SeedAligner::exactSweepApply hands the results over.
+ */
+struct ExactSweepJob {
+
+	void init(const Read* read_, bool nofw_, bool norc_) {
+		read = read_;
+		nofw = nofw_;
+		norc = norc_;
+		mine[0] = mine[1] = 0;
+		nelt = 0;
+		bwops = 0;
+		hit[0] = hit[1] = false;
+		top[0] = top[1] = bot[0] = bot[1] = 0;
+		score[0] = score[1] = 0;
+	}
+
+	const Read* read;      // read to sweep
+	bool nofw;             // don't sweep the read
+	bool norc;             // don't sweep its reverse complement
+	size_t mine[2];        // minimum # edits: read, reverse complement
+	size_t nelt;           // # exact hit elements (exactSweep's return value)
+	uint64_t bwops;        // Burrows-Wheeler operations
+	bool hit[2];           // exact hit: read, reverse complement
+	TIndexOffU top[2];     // exact hit ranges
+	TIndexOffU bot[2];
+	int64_t score[2];      // exact hit scores
+};
+
+// How many sweeps SeedAligner::exactSweepBatch steps in turn
+static const size_t EXACT_SWEEP_LANES = 16;
 
 /**
  * Given an index and a seeding scheme, searches for seed hits.
@@ -1650,14 +1902,21 @@ public:
 	/**
 	 * Initialize with index.
 	 */
-	SeedAligner() : edits_(AL_CAT), offIdx2off_(AL_CAT) { }
+	SeedAligner() : edits_(AL_CAT), offIdx2off_(AL_CAT), sss_(NULL) { }
+
+	~SeedAligner();
+
+	// Owns its seed-search scratch (sss_)
+	SeedAligner(const SeedAligner&) = delete;
+	SeedAligner& operator=(const SeedAligner&) = delete;
 
 	/**
 	 * Given a read and a few coordinates that describe a substring of the
 	 * read (or its reverse complement), fill in 'seq' and 'qual' objects
-	 * with the seed sequence and qualities.
+	 * with the seed sequence and qualities.  Return true iff the seed
+	 * sequence contains an N.
 	 */
-	void instantiateSeq(
+	bool instantiateSeq(
 		const Read& read, // input read
 		BTDnaString& seq, // output sequence
 		BTString& qual,   // output qualities
@@ -1732,6 +1991,43 @@ public:
 		SeedSearchMetrics& met);    // metrics
 
 	/**
+	 * exactSweep for many reads at once, with up to EXACT_SWEEP_LANES of
+	 * their sweeps stepped in turn.  Each job gets the results exactSweep
+	 * gives for its read; exactSweepApply hands them over.
+	 */
+	void exactSweepBatch(
+		const Ebwt&        ebwt,    // BWT index
+		const Scoring&     sc,      // scoring scheme
+		size_t             mineMax, // don't care about edit bounds > this
+		bool               repex,   // report 0mm hits?
+		ExactSweepJob* const* jobs, // the reads to sweep
+		size_t             njobs);  // # jobs
+
+	/**
+	 * Hand over the results of a job swept by exactSweepBatch exactly as
+	 * exactSweep would have produced them: the edit bounds of the strands
+	 * swept, the exact hits, the LF operations; returns exactSweep's return
+	 * value.
+	 */
+	size_t exactSweepApply(
+		const ExactSweepJob& job,
+		size_t&            mineFw,  // minimum # edits for forward read
+		size_t&            mineRc,  // minimum # edits for revcomp read
+		SeedResults&       hits)    // holds all the seed hits (and exact hit)
+	{
+		if(!job.nofw) mineFw = job.mine[0];
+		if(!job.norc) mineRc = job.mine[1];
+		if(job.hit[0]) {
+			hits.addExactEeFw(job.top[0], job.bot[0], NULL, NULL, true, job.score[0]);
+		}
+		if(job.hit[1]) {
+			hits.addExactEeRc(job.top[1], job.bot[1], NULL, NULL, false, job.score[1]);
+		}
+		bwops_ += job.bwops;
+		return job.nelt;
+	}
+
+	/**
 	 * Search for end-to-end alignments with up to 1 mismatch.
 	 */
 	bool oneMmSearch(
@@ -1748,7 +2044,87 @@ public:
 		SeedResults&       hits,   // holds all the seed hits (and exact hit)
 		SeedSearchMetrics& met);   // metrics
 
+	/**
+	 * The walks of oneMmSearch for many reads at once, with up to
+	 * ONEMM_BATCH_LANES of them stepped in turn.  Each job must have been
+	 * initialized with its read and strands; it then holds the walks
+	 * oneMmSearch takes for that read, and oneMmSearchApply reports them.
+	 */
+	void oneMmSearchBatch(
+		const Ebwt*        ebwtFw, // BWT index
+		const Ebwt*        ebwtBw, // BWT' index
+		const Scoring&     sc,     // scoring
+		bool               repex,  // report 0mm hits?
+		bool               rep1mm, // report 1mm hits?
+		OneMmJob* const*   jobs,   // the reads to search
+		size_t             njobs); // # jobs
+
+	/**
+	 * Compute the ftab indices oneMmStart reads for the job's directions,
+	 * store them in the job and prefetch their ftab entries, so that
+	 * starting a batch of searches does not wait on them one at a time.
+	 */
+	void oneMmStartPrefetch(
+		const Ebwt*        ebwtFw, // BWT index
+		const Ebwt*        ebwtBw, // BWT' index
+		bool               rep1mm, // report 1mm hits?
+		OneMmJob&          job);
+
+	/**
+	 * Hand over the results of a job searched by oneMmSearchBatch exactly
+	 * as oneMmSearch would have produced them for the job's read, strands
+	 * and repex/rep1mm and the given minimum score and local flag: the hits
+	 * in the same order, and the LF operations; returns oneMmSearch's
+	 * return value.
+	 */
+	bool oneMmSearchApply(
+		const OneMmJob&    job,
+		const Ebwt*        ebwtFw, // BWT index
+		const Scoring&     sc,     // scoring
+		int64_t            minsc,  // minimum score
+		bool               local,  // 1mm hits must be legal local alignments
+		SeedResults&       hits)   // holds all the seed hits (and exact hit)
+	{
+		bwops_ += job.bwops;
+		return oneMmReport(job, ebwtFw, sc, minsc, local, hits);
+	}
+
 protected:
+
+	/**
+	 * Set up the directions and main walks of a 1-mismatch search; false
+	 * if the read cannot have a hit (too many Ns), in which case the job
+	 * has no walks.
+	 */
+	bool oneMmStart(
+		const Ebwt*        ebwtFw, // BWT index
+		const Ebwt*        ebwtBw, // BWT' index
+		const Scoring&     sc,     // scoring
+		bool               repex,  // report 0mm hits?
+		bool               rep1mm, // report 1mm hits?
+		OneMmJob&          job);
+
+	/// One LF step of a main walk; false when the walk has ended.  The loci
+	/// of the next step are prefetched unless 'prefetch' is false.
+	bool oneMmStepMain(OneMmJob& job, size_t i, SideLocus& tloc, SideLocus& bloc, bool prefetch);
+
+	/// One LF step of a mismatch walk; false when the walk has ended
+	bool oneMmStepMm(OneMmJob& job, size_t i, SideLocus& tloc, SideLocus& bloc, bool prefetch);
+
+	/// Step the walks of the jobs in turn, at most LANES at a time; GROUP:
+	/// each round's prefetches are issued together after the round's steps
+	template<size_t LANES, bool GROUP>
+	void oneMmRun(OneMmJob* const* jobs, size_t njobs);
+
+	/// Report a job's hits in the order of a one-walk-at-a-time search
+	bool oneMmReport(
+		const OneMmJob&    job,
+		const Ebwt*        ebwtFw, // BWT index
+		const Scoring&     sc,     // scoring
+		int64_t            minsc,  // minimum score
+		bool               local,  // 1mm hits must be legal local alignments
+		SeedResults&       hits);  // holds all the seed hits (and exact hit)
+
 	class SeedAlignerSearchParams;
 
 	/**
@@ -1852,7 +2228,13 @@ protected:
 	EList<uint32_t> offIdx2off_;// offset idx to read offset map, set up instantiateSeeds()
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits
+	OneMmJob mmJob_;           // the current oneMmSearch
 	BTDnaString tmprfdnastr_;  // used in reportHit
+
+	// searchAllSeeds scratch, kept across calls
+	struct SeedSearchScratch;     // its search params and states (aligner_seed.cpp)
+	SeedSearchMultiCache mcache_; // one SeedSearchCache per searched seed offset
+	SeedSearchScratch* sss_;      // allocated on first use
 	
 	ASSERT_ONLY(ESet<BTDnaString> hits_); // Ref hits so far for seed being aligned
 	BTDnaString tmpdnastr_;
@@ -1864,6 +2246,20 @@ protected:
 		bloc.invalidate(); \
 	} else { \
 		SideLocus::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc); \
+		assert(bloc.valid()); \
+	} \
+}
+
+/**
+ * INIT_LOCS without its prefetches; the caller issues them later with
+ * SIDE_LOCI_PREFETCH(tloc, bloc, (e).ebwt()), which prefetches the same lines.
+ */
+#define INIT_LOCS_NOPF(top, bot, tloc, bloc, e) { \
+	if(bot - top == 1) { \
+		tloc.initFromRow(top, (e).eh(), (e).ebwt(), false); \
+		bloc.invalidate(); \
+	} else { \
+		SideLocus::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc, false); \
 		assert(bloc.valid()); \
 	} \
 }

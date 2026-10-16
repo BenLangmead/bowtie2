@@ -46,7 +46,7 @@ void Ebwt::readIntoMemory(
 	EbwtParams *params,
 	bool mmSweep,
 	bool loadNames,
-	bool startVerbose)
+	bool startVerbose, IndexLoader* loader)
 {
 #ifdef BOWTIE_MM
 	char *mmFile[] = { NULL, NULL };
@@ -347,14 +347,22 @@ void Ebwt::readIntoMemory(
 			}
 		} else {
 			try {
-				_ebwt.init(new uint8_t[eh->_ebwtTotLen], eh->_ebwtTotLen, true);
+				_ebwt.initAligned(eh->_ebwtTotLen, MM_INDEX_ALIGN);
 			} catch(bad_alloc& e) {
 				cerr << "Out of memory allocating the ebwt[] array for the Bowtie index.  Please try" << endl
 				<< "again on a computer with more memory." << endl;
 				throw 1;
 			}
 		}
-		if(shmemLeader) {
+		const off_t ebwtPos = (loader != NULL) ? ftello(_in1) : (off_t)-1;
+		if(shmemLeader && !useShmem_ && !_switchEndian && loader != NULL && ebwtPos >= 0 &&
+		   loader->tryDefer(IndexLoader::LOOP_EBWT, _in1Str, (uint64_t)ebwtPos,
+		                    this->ebwt(), eh->_ebwtTotLen))
+		{
+			// Read on a helper thread (the caller's loader->finish()
+			// waits for it); the rest of the file is read from here on
+			fseeko(_in1, eh->_ebwtTotLen, SEEK_CUR);
+		} else if(shmemLeader) {
 			// Read ebwt from primary stream
 			uint64_t bytesLeft = eh->_ebwtTotLen;
 			char *pebwt = (char*)this->ebwt();
@@ -426,7 +434,7 @@ void Ebwt::readIntoMemory(
 				fseeko(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
-				_ftab.init(new TIndexOffU[eh->_ftabLen], eh->_ftabLen, true);
+				_ftab.initAligned(eh->_ftabLen, MM_INDEX_ALIGN);
 				if(_switchEndian) {
 					for(TIndexOffU i = 0; i < eh->_ftabLen; i++)
 						this->ftab()[i] = readU<TIndexOffU>(_in1, _switchEndian);
@@ -456,7 +464,7 @@ void Ebwt::readIntoMemory(
 				fseeko(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
-				_eftab.init(new TIndexOffU[eh->_eftabLen], eh->_eftabLen, true);
+				_eftab.initAligned(eh->_eftabLen, MM_INDEX_ALIGN);
 				if(_switchEndian) {
 					for(TIndexOffU i = 0; i < eh->_eftabLen; i++)
 						this->eftab()[i] = readU<TIndexOffU>(_in1, _switchEndian);
@@ -524,7 +532,7 @@ void Ebwt::readIntoMemory(
 			if(!useShmem_) {
 				// Allocate offs_
 				try {
-					_offs.init(new TIndexOffU[offsLenSampled], offsLenSampled, true);
+					_offs.initAligned(offsLenSampled, MM_INDEX_ALIGN);
 				} catch(bad_alloc& e) {
 					cerr << "Out of memory allocating the offs[] array  for the Bowtie index." << endl
 					<< "Please try again on a computer with more memory." << endl;
@@ -542,6 +550,7 @@ void Ebwt::readIntoMemory(
 		if(_overrideOffRate < 32) {
 			if(shmemLeader) {
 				// Allocate offs (big allocation)
+				off_t offsPos = -1;
 				if(_switchEndian || offRateDiff > 0) {
 					assert(!_useMm);
 					const TIndexOffU blockMaxSz = (2 * 1024 * 1024); // 2 MB block size
@@ -578,6 +587,14 @@ void Ebwt::readIntoMemory(
 						bytesRead += offsSz;
 						fseeko(_in2, offsSz, SEEK_CUR);
 #endif
+					} else if(!useShmem_ && loader != NULL &&
+					          (offsPos = ftello(_in2)) >= 0 &&
+					          loader->tryDefer(IndexLoader::LOOP_OFFS, _in2Str,
+					                           (uint64_t)offsPos, this->offs(), offsSz))
+					{
+						// Read on a helper thread (the caller's
+						// loader->finish() waits for it)
+						fseeko(_in2, offsSz, SEEK_CUR);
 					} else {
 						// Workaround for small-index mode where MM_READ may
 						// not be able to handle read amounts greater than 2^32
@@ -614,6 +631,7 @@ void Ebwt::readIntoMemory(
 	}
 
 	this->postReadInit(*eh); // Initialize fields of Ebwt not read from file
+	this->buildFragTab(this->_eh._len); // for joinedToTextOff()
 	if(_verbose || startVerbose) print(cerr, *eh);
 
 	// The fact that _ebwt and friends actually point to something

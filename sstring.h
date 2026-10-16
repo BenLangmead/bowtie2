@@ -2007,6 +2007,35 @@ public:
 	}
 
 	/**
+	 * Append xform[b[0]], xform[b[1]], ... up to the first character that
+	 * maps to '\0'.  The same bytes as append(s.toZBufXForm(xform)) for an
+	 * SStringExpandable s holding b[0..sz), without the intermediate print
+	 * buffer and the strlen over it.
+	 */
+	void appendXForm(const char* b, size_t sz, const char* xform) {
+		if(sz_ < len_ + sz) expandCopy((len_ + sz + S) * M);
+		T* dst = cs_ + len_;
+		size_t i = 0;
+		for(; i < sz; i++) {
+			const char c = xform[(int)b[i]];
+			if(c == 0) break;
+			dst[i] = c;
+		}
+		len_ += i;
+	}
+
+	/**
+	 * Exchange buffers, lengths and capacities with another string of the
+	 * same type; no characters are copied.
+	 */
+	void swap(SStringExpandable<T,S,M,I>& o) {
+		T* cs = cs_; cs_ = o.cs_; o.cs_ = cs;
+		char* pcs = printcs_; printcs_ = o.printcs_; o.printcs_ = pcs;
+		size_t l = len_; len_ = o.len_; o.len_ = l;
+		size_t z = sz_; sz_ = o.sz_; o.sz_ = z;
+	}
+
+	/**
 	 * Return the length of the string.
 	 */
 	size_t length() const { return len_; }

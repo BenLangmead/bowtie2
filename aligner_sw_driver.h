@@ -180,8 +180,10 @@ class RowSampler {
 
 public:
 
-	RowSampler(int cat = 0) : elim_(cat), masses_(cat) { 
+	RowSampler(int cat = 0) : elim_(cat), masses_(cat), prefix_(cat) { 
 		mass_ = 0.0f;
+		dirty_ = 0;
+		lastUnelim_ = std::numeric_limits<size_t>::max();
 	}
 	
 	/**
@@ -214,6 +216,9 @@ public:
 			masses_[i - sai] = num / denom;
 			mass_ += masses_[i - sai];
 		}
+		prefix_.resize(saf - sai);
+		dirty_ = 0;
+		lastUnelim_ = saf - sai - 1;
 	}
 	
 	/**
@@ -224,6 +229,21 @@ public:
 		assert_lt(i, masses_.size());
 		elim_[i] = true;
 		mass_ -= masses_[i];
+		if(i < dirty_) {
+			dirty_ = i;
+		}
+		if(i == lastUnelim_) {
+			// The fallback of next() moves to the previous range left
+			size_t j = i;
+			lastUnelim_ = std::numeric_limits<size_t>::max();
+			while(j > 0) {
+				j--;
+				if(!elim_[j]) {
+					lastUnelim_ = j;
+					break;
+				}
+			}
+		}
 	}
 	
 	/**
@@ -232,27 +252,77 @@ public:
 	size_t next(RandomSource& rnd) {
 		// Throw the dart
 		double rd = rnd.nextFloat() * mass_;
-		double mass_sofar = 0.0f;
 		size_t sz = masses_.size();
-		size_t last_unelim = std::numeric_limits<size_t>::max();
-		for(size_t i = 0; i < sz; i++) {
-			if(!elim_[i]) {
-				last_unelim = i;
-				mass_sofar += masses_[i];
-				if(rd < mass_sofar) {
-					// This is the one we hit
-					return i;
+		if(dirty_ < sz) {
+			updatePrefix();
+		}
+		// The first range whose running mass exceeds the dart.  prefix_[i]
+		// is the running sum a scan over the ranges left would hold at range
+		// i (eliminated ranges hold the previous range's, or -inf before the
+		// first range left), so prefix_ never decreases and the ranges
+		// before the first i with rd < prefix_[i] are the ones the scan
+		// passes.  The first such i is never an eliminated range.
+		const double* p = prefix_.ptr();
+		size_t k = 0;
+		if(sz <= 32) {
+			for(size_t i = 0; i < sz; i++) {
+				k += !(rd < p[i]);
+			}
+		} else {
+			size_t hi = sz;
+			while(k < hi) {
+				size_t mid = k + (hi - k) / 2;
+				if(rd < p[mid]) {
+					hi = mid;
+				} else {
+					k = mid + 1;
 				}
 			}
 		}
-		assert_neq(std::numeric_limits<size_t>::max(), last_unelim);
-		return last_unelim;
+		if(k < sz) {
+			assert(!elim_[k]);
+			return k;
+		}
+		// No running mass exceeded the dart (mass_ and the running sum round
+		// differently): the last range left, as the scan returned
+		assert_neq(std::numeric_limits<size_t>::max(), lastUnelim_);
+		return lastUnelim_;
 	}
 
 protected:
+
+	/**
+	 * Recompute prefix_ from dirty_ on: the running mass of the ranges left,
+	 * added one range at a time in index order from 0.0 exactly as the
+	 * scan in next() added them, so every value is the same double.
+	 */
+	void updatePrefix() {
+		const double ninf = -std::numeric_limits<double>::infinity();
+		const size_t sz = masses_.size();
+		double acc = 0.0f;
+		bool any = false;
+		if(dirty_ > 0 && prefix_[dirty_ - 1] != ninf) {
+			acc = prefix_[dirty_ - 1];
+			any = true;
+		}
+		for(size_t i = dirty_; i < sz; i++) {
+			if(!elim_[i]) {
+				acc += masses_[i];
+				any = true;
+				prefix_[i] = acc;
+			} else {
+				prefix_[i] = any ? acc : ninf;
+			}
+		}
+		dirty_ = sz;
+	}
+
 	double        mass_;    // total probability mass to throw darts at
 	EList<bool>   elim_;    // whether the range is eliminated
 	EList<double> masses_;  // mass of each range
+	EList<double> prefix_;  // running mass of the ranges left, by index
+	size_t        dirty_;   // prefix_ is stale from this index on
+	size_t        lastUnelim_; // last range not eliminated
 };
 
 /**
@@ -291,6 +361,29 @@ struct ExtendRange {
 	size_t sz;  // # of elements in SA range
 };
 
+/**
+ * One direction of a seed-hit extension (SwDriver::extend()): the left
+ * chain walks the forward index, the right chain the mirror index.  The two
+ * are independent, so extend() steps them in turn: one LF step per chain per
+ * turn, with each chain's next side prefetched (INIT_LOCS) before the other
+ * chain's step.
+ */
+struct ExtChain {
+	const Ebwt*        ebwt;   // index the chain walks
+	const BTDnaString* seq;    // read characters (patFw or patRc)
+	SideLocus          tloc;
+	SideLocus          bloc;
+	TIndexOffU         top;
+	TIndexOffU         bot;
+	TIndexOffU         tp0;    // topsP[0] handed to mapBiLFEx
+	size_t             i;      // read position of the next step
+	size_t             left;   // steps left before the end of the read
+	size_t             n;      // positions extended (nlex or nrex)
+	size_t             ops;    // LF ops (added to prm.nSdFmops)
+	bool               right;  // walks to the right (i increases)
+	bool               live;   // has another step to take
+};
+
 class SwDriver {
 
 	typedef PList<TIndexOffU, CACHE_PAGE_SZ> TSAList;
@@ -300,6 +393,9 @@ public:
 	SwDriver(size_t bytes) :
 		satups_(DP_CAT),
 		gws_(DP_CAT),
+		lazy_(DP_CAT),
+		lazyBase_(0),
+		lazyAll_(false),
 		seenDiags1_(DP_CAT),
 		seenDiags2_(DP_CAT),
 		redAnchor_(DP_CAT),
@@ -442,7 +538,63 @@ public:
 		redAnchor_.init(maxlen);
 	}
 
+	/**
+	 * Walk, several in turn, the offset resolutions of the rows of the
+	 * exact end-to-end hits (of up to SPEC_WARM_MAX rows) the batch's sweeps
+	 * found.  resolveElement() commits the walk of a single-row hit when,
+	 * and if, the read's extension resolves it; a larger hit's range walk
+	 * then finds the index's sides in the cache.  Nothing is counted or
+	 * resolved here.
+	 */
+	void specBatch(
+		const Ebwt& ebwtFw,              // forward index
+		ExactSweepJob* const* jobs,      // the batch's sweeps
+		size_t njobs);                   // # sweeps
+
 protected:
+
+	/**
+	 * Resolve element 'elt' of the GroupWalk of range 'i' (of satpos_) as
+	 * GroupWalk2S::advanceElement() does.  A single-element walk is walked by
+	 * spec_ instead, together with the walks of the rows of the next ranges
+	 * the loop will reach (SPEC_AHEAD), and committed here; a small range
+	 * is walked by advanceElement() once spec_ has walked its rows.
+	 */
+	void resolveElement(
+		size_t i,                        // range in satpos_ / gws_
+		size_t elt,                      // element of the range
+		GroupWalk2S<TSlice, 16>& gws,    // its GroupWalk
+		SARangeWithOffs<TSlice>& sa,     // SA range with offsets
+		const Ebwt& ebwtFw,              // forward index
+		const BitPairReference& ref,     // reference
+		WalkResult& wr,                  // out: result
+		WalkMetrics& wlm,                // group walk left metrics
+		PerReadMetrics& prm);            // per-read metrics
+
+	/**
+	 * Start spec_'s walks for the rows of range j (of satpos_) that its
+	 * GroupWalk2S will walk; return their number.
+	 */
+	size_t specRange(size_t j, const Ebwt& ebwtFw);
+
+	/**
+	 * Build the satpos_, gws_ and rands_ entries of range i (of satpos_) if
+	 * prioritizeSATupsRands() left them pending.  Call before any of the
+	 * three is read.
+	 */
+	inline void materialize(size_t i, const Ebwt& ebwtFw) {
+		const size_t k = i - lazyBase_;
+		if(k < lazy_.size() && lazy_[k].pending) {
+			materializeSampled(i, ebwtFw);
+		}
+	}
+
+	/**
+	 * Build the entries of the pending sampled element i as the sampling
+	 * loop of prioritizeSATupsRands() would have built them when it drew
+	 * the element.
+	 */
+	void materializeSampled(size_t i, const Ebwt& ebwtFw);
 
 	bool eeSaTups(
 		const Read& rd,              // read
@@ -538,10 +690,40 @@ protected:
 	EList<GroupWalk2S<TSlice, 16> > gws_;   // list of GroupWalks; no particular order
 	EList<size_t>            mateStreaks_; // mate-find fail streaks
 	RowSampler               rowsamp_;     // row sampler
+
+	// An element drawn by the sampling loop of prioritizeSATupsRands(): row
+	// r of range ri of satpos2_.  Pending: its satpos_, gws_ and rands_
+	// entries are not built yet (materialize() builds them); only elements
+	// whose row is neither SA-sampled nor the '$' row, and whose offset slot
+	// was unresolved when drawn, are left pending (building them then wrote
+	// nothing outside their own entries).
+	struct LazyElt {
+		TIndexOffU r;     // element of the range
+		uint32_t   ri;    // range in satpos2_
+		bool       pending;
+	};
+	EList<LazyElt, 16>       lazy_;     // the sampled elements, satpos_ index lazyBase_ + k
+	size_t                   lazyBase_; // satpos_ index of lazy_[0]
+	bool                     lazyAll_;  // 'all' of the prioritizeSATupsRands() call
 	
 	// Ranges that we've extended through when extending seed hits
 	EList<ExtendRange> seedExRangeFw_[2];
 	EList<ExtendRange> seedExRangeRc_[2];
+
+	// Chains of a seed-hit extension (extend())
+	static void extInit(
+		ExtChain* ch,          // out: ch[0] left, ch[1] right
+		const Read& rd,
+		const Ebwt& ebwtFw,
+		const Ebwt* ebwtBw,
+		TIndexOffU topf,
+		TIndexOffU botf,
+		TIndexOffU topb,
+		TIndexOffU botb,
+		bool fw,
+		size_t off,
+		size_t len);
+	static void extStep(ExtChain& c);
 
 	// Data structures encapsulating the diagonals that have already been used
 	// to seed alignment for mate 1 and mate 2.
@@ -564,6 +746,7 @@ protected:
 	Pool           pool_;      // memory pages for salistExact_
 	TSAList        salistEe_;  // PList for offsets for end-to-end hits
 	GroupWalkState gwstate_;   // some per-thread state shared by all GroupWalks
+	SpecWalk       spec_;      // single-row offset walks, stepped in turn
 	
 	// For AlnRes::matchesRef:
 	ASSERT_ONLY(SStringExpandable<char>     raw_refbuf_);

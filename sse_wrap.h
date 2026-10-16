@@ -36,6 +36,7 @@
 typedef __m256i SSERegI;
 #define sse_adds_epi16(x, y) _mm256_adds_epi16(x, y)
 #define sse_adds_epu8(x, y) _mm256_adds_epu8(x, y)
+#define sse_and_siall(x, y) _mm256_and_si256(x, y)
 #define sse_cmpeq_epi16(x, y) _mm256_cmpeq_epi16(x, y)
 #define sse_cmpeq_epi8(x, y) _mm256_cmpeq_epi8(x, y)
 #define sse_cmpgt_epi16(x, y) _mm256_cmpgt_epi16(x, y)
@@ -126,6 +127,7 @@ typedef __m256i SSERegI;
 typedef simde__m128i SSERegI;
 #define sse_adds_epi16(x, y) simde_mm_adds_epi16(x, y)
 #define sse_adds_epu8(x, y) simde_mm_adds_epu8(x, y)
+#define sse_and_siall(x, y) simde_mm_and_si128(x, y)
 #define sse_cmpeq_epi16(x, y) simde_mm_cmpeq_epi16(x, y)
 #define sse_cmpeq_epi8(x, y) simde_mm_cmpeq_epi8(x, y)
 #define sse_cmpgt_epi16(x, y) simde_mm_cmpgt_epi16(x, y)
@@ -155,6 +157,7 @@ typedef simde__m128i SSERegI;
 typedef __m128i SSERegI;
 #define sse_adds_epi16(x, y) _mm_adds_epi16(x, y)
 #define sse_adds_epu8(x, y) _mm_adds_epu8(x, y)
+#define sse_and_siall(x, y) _mm_and_si128(x, y)
 #define sse_cmpeq_epi16(x, y) _mm_cmpeq_epi16(x, y)
 #define sse_cmpeq_epi8(x, y) _mm_cmpeq_epi8(x, y)
 #define sse_cmpgt_epi16(x, y) _mm_cmpgt_epi16(x, y)

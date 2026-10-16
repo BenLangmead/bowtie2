@@ -76,6 +76,92 @@ static const uint64_t c_table[4] = {
 	0x0000000000000000
 };
 
+/**
+ * BT2_COUNT_WORDS: Ebwt::countUpTo() and Ebwt::countUpToEx() count the
+ * characters before a row in its side over every 64-bit word of the side,
+ * each word masked to the characters that precede the row, instead of in
+ * loops whose trip counts depend on the row (and are mispredicted).  Used
+ * where popcount is an instruction and the side's bytes can be read as
+ * little-endian words; elsewhere (e.g. the SSE2-only x86 build) the loops
+ * run as before.
+ */
+#if defined(__POPCNT__) && defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define BT2_COUNT_WORDS 1
+#else
+#define BT2_COUNT_WORDS 0
+#endif
+
+#if BT2_COUNT_WORDS
+/// Bytes of a side that hold characters (4 per byte), and 64-bit words
+static const int BT2_SIDE_BWT_BYTES = 12 * OFF_SIZE;
+static const int BT2_SIDE_WORDS = BT2_SIDE_BWT_BYTES / 8;
+
+#define BT2_R8(x) x, x, x, x, x, x, x, x
+#define BT2_R48(x) BT2_R8(x), BT2_R8(x), BT2_R8(x), BT2_R8(x), BT2_R8(x), BT2_R8(x)
+#if OFF_SIZE == 4
+#define BT2_RSB(x) BT2_R48(x)
+#else
+#define BT2_RSB(x) BT2_R48(x), BT2_R48(x)
+#endif
+/**
+ * Row bp: BT2_SIDE_BWT_BYTES bytes 0xff, then a byte with its low bp
+ * bit-pairs set, then zeros.  Read from byte BT2_SIDE_BWT_BYTES - by on,
+ * as little-endian words, it masks the first 4 * by + bp characters of a
+ * side; see bt2PairMasks().
+ */
+alignas(64) static const uint8_t bt2PairMaskTab[4][2 * BT2_SIDE_BWT_BYTES + 8] = {
+	{ BT2_RSB(0xff), 0x00, BT2_RSB(0x00) },
+	{ BT2_RSB(0xff), 0x03, BT2_RSB(0x00) },
+	{ BT2_RSB(0xff), 0x0f, BT2_RSB(0x00) },
+	{ BT2_RSB(0xff), 0x3f, BT2_RSB(0x00) }
+};
+#undef BT2_R8
+#undef BT2_R48
+#undef BT2_RSB
+
+/**
+ * Masks of the first n characters of a side (0 <= n < 48 * OFF_SIZE): word
+ * w of the side ANDed with bt2LoadWord(bt2PairMasks(n), w).
+ */
+static inline const uint8_t* bt2PairMasks(int n) {
+	return &bt2PairMaskTab[n & 3][BT2_SIDE_BWT_BYTES - (n >> 2)];
+}
+
+/// Word w (little-endian) from p
+static inline uint64_t bt2LoadWord(const uint8_t* p, int w) {
+	uint64_t x;
+	memcpy(&x, p + 8 * w, 8);
+	return x;
+}
+
+/**
+ * Occurrences of each character among the first n characters of a side:
+ * pd = #C + #G + 2 #T (set bits), pl = #C + #T (set low bits of the
+ * bit-pairs), pt = #T.  Every word of the side is read and masked.
+ */
+static inline void bt2CountWordsEx(
+	const uint8_t* side,
+	int n,
+	TIndexOffU& pd,
+	TIndexOffU& pl,
+	TIndexOffU& pt)
+{
+	const uint8_t* m = bt2PairMasks(n);
+	pd = pl = pt = 0;
+	// Two words at a time: the low-bit and T planes use only even bits, so
+	// a word's plane and the next word's shifted left by one share a popcount
+	for(int w = 0; w < BT2_SIDE_WORDS; w += 2) {
+		const uint64_t dx = bt2LoadWord(side, w) & bt2LoadWord(m, w);
+		const uint64_t dy = bt2LoadWord(side, w + 1) & bt2LoadWord(m, w + 1);
+		const uint64_t lx = dx & 0x5555555555555555ull;
+		const uint64_t ly = dy & 0x5555555555555555ull;
+		pd += (TIndexOffU)(__builtin_popcountll(dx) + __builtin_popcountll(dy));
+		pl += (TIndexOffU)__builtin_popcountll(lx | (ly << 1));
+		pt += (TIndexOffU)__builtin_popcountll((lx & (dx >> 1)) | ((ly & (dy >> 1)) << 1));
+	}
+}
+#endif
+
 #ifndef VMSG_NL
 #define VMSG_NL(...)				\
 	if(this->verbose()) {			\
@@ -297,6 +383,34 @@ static inline int64_t fileSize(const char* name) {
 	std::ifstream::pos_type begin_pos = f.tellg();
 	f.seekg(0, std::ios_base::end);
 	return static_cast<int64_t>(f.tellg() - begin_pos);
+}
+
+/**
+ * Prefetch the cache lines of the side at locus 'loc' of the BWT at 'eb':
+ * the lines SideLocus::initFromRow(row, ep, eb, true) prefetches.  Lane loops
+ * set the loci of a round's walks with prefetch=false and then issue the
+ * round's prefetches together with this, so that their page walks overlap.
+ * A macro, so that the prefetches stay in the loop that issues them: GCC
+ * deletes calls to a void helper that only reads memory.
+ */
+#define SIDE_LOCUS_PREFETCH(loc, eb) { \
+	const uint8_t* slp_ = (eb) + (loc)._sideByteOff; \
+	__builtin_prefetch(slp_); \
+	__builtin_prefetch(slp_ + 64); /* 64 byte cache lines */ \
+	if(OFF_SIZE > 4) __builtin_prefetch(slp_ + 2*64); \
+}
+
+/**
+ * Prefetch the lines that setting loci tloc and bloc from a top/bot pair with
+ * prefetches would have prefetched: tloc's side, and bloc's when it is valid
+ * and in another side (SideLocus::initFromTopBot prefetches bot's side only
+ * then).
+ */
+#define SIDE_LOCI_PREFETCH(tloc, bloc, eb) { \
+	SIDE_LOCUS_PREFETCH(tloc, eb); \
+	if((bloc).valid() && (bloc)._sideByteOff != (tloc)._sideByteOff) { \
+		SIDE_LOCUS_PREFETCH(bloc, eb); \
+	} \
 }
 
 /**
@@ -1324,7 +1438,7 @@ public:
 
 	/**
 	 * Load this Ebwt into memory by reading it in from the _in1 and
-	 * _in2 streams.
+	 * _in2 streams; with a loader, call loader->finish() before use.
 	 */
 	void loadIntoMemory(
 		int color,
@@ -1333,7 +1447,7 @@ public:
 		bool loadFtab,
 		bool loadRstarts,
 		bool loadNames,
-		bool verbose)
+		bool verbose, IndexLoader* loader = NULL)
 		{
 			readIntoMemory(
 				color,       // expect index to be colorspace?
@@ -1345,7 +1459,7 @@ public:
 				NULL,        // params
 				false,       // mmSweep
 				loadNames,   // loadNames
-				verbose);    // startVerbose
+				verbose, loader); // startVerbose; BWT, SA sample in background
 		}
 
 	/**
@@ -1357,6 +1471,8 @@ public:
 		_ftab.free();
 		_eftab.free();
 		_rstarts.free();
+		_fragTab.clear();
+		_fragTabLen = 0;
 		_offs.free(); // might not be under control of APtrWrap
 		_ebwt.free(); // might not be under control of APtrWrap
 		// Keep plen; it's small and the client may want to seq it
@@ -1714,7 +1830,7 @@ public:
 	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut);
 
 	// I/O
-	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams *params, bool mmSweep, bool loadNames, bool startVerbose);
+	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams *params, bool mmSweep, bool loadNames, bool startVerbose, IndexLoader* loader = NULL);
 	void writeFromMemory(bool justHeader, ostream& out1, ostream& out2) const;
 	void writeFromMemory(bool justHeader, const string& out1, const string& out2) const;
 
@@ -1726,6 +1842,7 @@ public:
 
 	// Searching and reporting
 	void joinedToTextOff(TIndexOffU qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
+	void buildFragTab(TIndexOffU len);
 
 #define WITHIN_BWT_LEN(x)				\
 	assert_leq(x[0], this->_eh._sideBwtLen);	\
@@ -1931,6 +2048,23 @@ public:
 	 *
 	 */
 	inline TIndexOffU countUpTo(const SideLocus& l, int c) const { // @double-check
+#if BT2_COUNT_WORDS
+		// Every word of the side, masked to the characters before the row
+		const uint8_t *side = l.side(this->ebwt());
+		const uint64_t pat = c_table[c];
+		const int n = (int)l._charOff;
+		const uint8_t *m = bt2PairMasks(n);
+		TIndexOffU cCnt = 0;
+		for(int w = 0; w < BT2_SIDE_WORDS; w += 2) {
+			const uint64_t x = bt2LoadWord(side, w) ^ pat;
+			const uint64_t y = bt2LoadWord(side, w + 1) ^ pat;
+			// even bits only, so two words share a popcount
+			cCnt += (TIndexOffU)__builtin_popcountll(
+				(x & (x >> 1) & 0x5555555555555555ull & bt2LoadWord(m, w)) |
+				((y & (y >> 1) & 0x5555555555555555ull & bt2LoadWord(m, w + 1)) << 1));
+		}
+		return cCnt;
+#else
 		// Count occurrences of c in each 64-bit (using bit trickery);
 		// Someday countInU64() and pop() functions should be
 		// vectorized/SSE-ized in case that helps.
@@ -1962,6 +2096,7 @@ public:
 			cCnt += cCntLUT_4[(int)l._bp][c][side[i]];
 		}
 		return cCnt;
+#endif
 	}
 
 	/**
@@ -2036,6 +2171,17 @@ public:
 	 * mostly eliminate the cache misses. 
 	 */
 	inline void countUpToEx(const SideLocus& l, TIndexOffU* arrs) const {
+#if BT2_COUNT_WORDS
+		// Every word of the side, masked to the characters before the row:
+		// #T = pt, #C = pl - pt, #G = pd - pl - pt, #A = n - pd + pt
+		const int n = (int)l._charOff;
+		TIndexOffU pd, pl, pt;
+		bt2CountWordsEx(l.side(this->ebwt()), n, pd, pl, pt);
+		arrs[0] += (TIndexOffU)n - pd + pt;
+		arrs[1] += pl - pt;
+		arrs[2] += pd - pl - pt;
+		arrs[3] += pt;
+#else
 		int i = 0;
 		// Count occurrences of each nucleotide in each 64-bit word using
 		// bit trickery; note: this seems does not seem to lend a
@@ -2077,6 +2223,7 @@ public:
 			arrs[2] += cCntLUT_4[(int)l._bp][2][side[i]];
 			arrs[3] += cCntLUT_4[(int)l._bp][3][side[i]];
 		}
+#endif
 	}
 
 #ifndef NDEBUG
@@ -2525,6 +2672,11 @@ public:
 	TIndexOffU  _nFrag; /// number of fragments
 	APtrWrap<TIndexOffU> _plen;
 	APtrWrap<TIndexOffU> _rstarts; // starting offset of fragments / text indexes
+	// Fragment by joined-offset bucket, for joinedToTextOff(); see
+	// buildFragTab().  No table when _fragTabLen is 0.
+	EList<uint32_t> _fragTab;
+	TIndexOffU _fragTabLen = 0;
+	int _fragShift = 0;
 	// _fchr, _ftab and _eftab are expected to be relatively small
 	// (usually < 1MB, perhaps a few MB if _fchr is particularly large
 	// - like, say, 11).  For this reason, we don't bother with writing

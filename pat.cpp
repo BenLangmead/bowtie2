@@ -116,9 +116,9 @@ PatternSource* PatternSource::patsrcFromStrings(
  * unpaired read, set all the other key fields of the Read
  * struct.
  */
-void PatternSourcePerThread::finalize(Read& ra) {
+void PatternSourcePerThread::finalize(Read& ra, TReadId rdid) {
 	ra.mate = 1;
-	ra.rdid = buf_.rdid();
+	ra.rdid = rdid;
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
 	ra.finalize();
 	if(pp_.fixName) {
@@ -131,10 +131,10 @@ void PatternSourcePerThread::finalize(Read& ra) {
  * paired-end read, set all the other key fields of the Read
  * structs.
  */
-void PatternSourcePerThread::finalizePair(Read& ra, Read& rb) {
+void PatternSourcePerThread::finalizePair(Read& ra, Read& rb, TReadId rdid) {
 	ra.mate = 1;
 	rb.mate = 2;
-	ra.rdid = rb.rdid = buf_.rdid();
+	ra.rdid = rb.rdid = rdid;
 	ra.seed = genRandSeed(ra.patFw, ra.qual, ra.name, pp_.seed);
 	rb.seed = genRandSeed(rb.patFw, rb.qual, rb.name, pp_.seed);
 	ra.finalize();
@@ -165,23 +165,61 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 		buf_.next(); // advance cursor; no parsing or locking needed
 		assert_gt(buf_.cur_buf_, 0);
 	}
-	// Now fully parse read/pair *outside* the critical section
-	assert(!buf_.read_a().readOrigBuf.empty());
-	assert(buf_.read_a().empty());
-	if(!parse(buf_.read_a(), buf_.read_b())) {
+	// Now fully parse read/pair *outside* the critical section, unless
+	// parseAhead already did
+	const uint8_t ahead = ahead_[buf_.cur_buf_];
+	if(ahead == AHEAD_NONE) {
+		if(!parseRead(buf_.cur_buf_)) {
+			return make_pair(false, false);
+		}
+	} else if(ahead == AHEAD_FAILED) {
 		return make_pair(false, false);
-	}
-	// Finalize read/pair
-	if(!buf_.read_b().patFw.empty()) {
-		trim(buf_.read_a());
-		trim(buf_.read_b());
-		finalizePair(buf_.read_a(), buf_.read_b());
-	} else {
-		trim(buf_.read_a());
-		finalize(buf_.read_a());
 	}
 	bool this_is_last = buf_.cur_buf_ == static_cast<unsigned int>(last_batch_size_-1);
 	return make_pair(true, this_is_last ? last_batch_ : false);
+}
+
+/**
+ * Fully parse, trim and finalize the read (pair) at index i of the batch.
+ * Returns false iff parsing failed.
+ */
+bool PatternSourcePerThread::parseRead(size_t i) {
+	Read& ra = buf_.bufa_[i];
+	Read& rb = buf_.bufb_[i];
+	const TReadId rdid = buf_.rdid_ + i;
+	assert(!ra.readOrigBuf.empty());
+	assert(ra.empty());
+	if(!composer_.parse(ra, rb, rdid)) {
+		return false;
+	}
+	// Finalize read/pair
+	if(!rb.patFw.empty()) {
+		trim(ra);
+		trim(rb);
+		finalizePair(ra, rb, rdid);
+	} else {
+		trim(ra);
+		finalize(ra, rdid);
+	}
+	return true;
+}
+
+/**
+ * Fully parse up to n of the reads that follow the current one in this
+ * batch, ahead of nextReadPair.  Returns how many reads following the
+ * current one are parsed.
+ */
+size_t PatternSourcePerThread::parseAhead(size_t n) {
+	size_t k = 0;
+	for(size_t i = buf_.cur_buf_ + 1;
+	    k < n && i < buf_.bufa_.size() && !buf_.bufa_[i].readOrigBuf.empty();
+	    i++, k++)
+	{
+		if(ahead_[i] == AHEAD_NONE) {
+			ahead_[i] = parseRead(i) ? AHEAD_OK : AHEAD_FAILED;
+		}
+	}
+	return k;
 }
 
 /**

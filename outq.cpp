@@ -26,8 +26,10 @@
  * the read with the given id.
  */
 void OutputQueue::beginReadImpl(TReadId rdid, size_t threadId) {
-	nstarted_.fetch_add(1);
-	if(reorder_) {
+	if(!reorder_) {
+		perThread_[threadId].nstarted++;
+	} else {
+		nstarted_++; // under the lock (reorder_ implies threadSafe_)
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
 		assert_eq(lines_.size(), started_.size());
@@ -58,7 +60,7 @@ void OutputQueue::beginRead(TReadId rdid, size_t threadId) {
 /**
  * Writer is finished writing to 
  */
-void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threadId) {
+void OutputQueue::finishReadImpl(BTString& rec, TReadId rdid, size_t threadId) {
 	if(reorder_) {
 		assert_geq(rdid, cur_);
 		assert_eq(lines_.size(), finished_.size());
@@ -72,20 +74,26 @@ void OutputQueue::finishReadImpl(const BTString& rec, TReadId rdid, size_t threa
 		flush(false, false); // don't force; already have lock
 	} else {
 		// obuf_ is the OutFileBuf for the output file
+		PerThread& t = perThread_[threadId];
 		int i = 0;
 		for(i=0; i < perThreadBufSize_; i++)
 		{
-			obuf_.writeString(perThreadBuf[threadId][i]);
+			obuf_.writeString(t.buf[i]);
 			//TODO: turn these into atomics
 			nfinished_++;
 			nflushed_++;
 		}
-		perThreadCounter[threadId] = 0;
+		t.count = 0;
 	}
 }
 
-void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId) {
-	if(reorder_ || perThreadCounter[threadId] >= perThreadBufSize_) {
+/**
+ * Without reorder_, the record is swapped into this thread's buffer rather
+ * than copied: rec then holds an already-written record's buffer, which the
+ * caller clears before its next use.
+ */
+void OutputQueue::finishRead(BTString& rec, TReadId rdid, size_t threadId) {
+	if(reorder_ || perThread_[threadId].count >= perThreadBufSize_) {
 		if(threadSafe_) {
 			ThreadSafe ts(mutex_m);
 			finishReadImpl(rec, rdid, threadId);
@@ -94,7 +102,8 @@ void OutputQueue::finishRead(const BTString& rec, TReadId rdid, size_t threadId)
 		}
 	}
 	if(!reorder_) {
-		perThreadBuf[threadId][perThreadCounter[threadId]++] = rec;
+		PerThread& t = perThread_[threadId];
+		t.buf[t.count++].swap(rec);
 	}
 }
 
@@ -107,13 +116,14 @@ void OutputQueue::flushImpl(bool force) {
 		int j = 0;
 		for(i=0;i<nthreads_;i++)
 		{
-			for(j=0;j<perThreadCounter[i];j++)
+			PerThread& t = perThread_[i];
+			for(j=0;j<t.count;j++)
 			{
-				obuf_.writeString(perThreadBuf[i][j]);
+				obuf_.writeString(t.buf[j]);
 				nfinished_++;
 				nflushed_++;
 			}
-			perThreadCounter[i]=0;
+			t.count=0;
 		}
 		return;
 	}

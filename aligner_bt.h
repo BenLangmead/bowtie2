@@ -546,7 +546,8 @@ class BtBranchTracer {
 public:
 
 	explicit BtBranchTracer() :
-		prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT), doTri_() { }
+		prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT), doTri_(),
+		resetPending_(false), resetNdiag_(0), resetRflen_(0) { }
 
 	/**
 	 * Add a branch to the queue.
@@ -642,7 +643,10 @@ public:
 	
 	/**
 	 * Initialize the tracer with respect to a new read.  This involves
-	 * resetting all the state relating to the set of cells already visited
+	 * resetting all the state relating to the set of cells already visited.
+	 * The reset itself is deferred to the next initBt(), since most
+	 * reference windows are never backtraced with this tracer;
+	 * seenPaths_ and sawcell_ are read only from initBt() on.
 	 */
 	void initRef(
 		const char*         rd,     // in: read sequence
@@ -660,7 +664,22 @@ public:
 		size_t              nceil)  // in: N ceiling
 	{
 		prob_.initRef(rd, qu, rdlen, rf, rflen, trflen, refid, refoff, fw, rect, cper, &sc, nceil);
-		const size_t ndiag = rflen + rdlen - 1;
+		resetNdiag_ = rflen + rdlen - 1;
+		// An eager reset clears every per-column set below the largest rflen
+		// seen since the last backtrace, so keep the largest.
+		if(!resetPending_ || rflen > resetRflen_) {
+			resetRflen_ = rflen;
+		}
+		resetPending_ = true;
+	}
+
+	/**
+	 * Perform the reset of seenPaths_ and sawcell_ that the last initRef()
+	 * (and any initRef() calls before it since the last initBt()) deferred.
+	 */
+	void resetSeen() {
+		const size_t ndiag = resetNdiag_;
+		const size_t rflen = resetRflen_;
 		seenPaths_.resize(ndiag);
 		for(size_t i = 0; i < ndiag; i++) {
 			seenPaths_[i].clear();
@@ -677,6 +696,7 @@ public:
 			sawcell_[i].setCat(DP_CAT);
 			sawcell_[i].clear(); // clear the set
 		}
+		resetPending_ = false;
 	}
 	
 	/**
@@ -691,6 +711,9 @@ public:
 		bool           doTri,  // in: triangle-shaped mini-fills?
 		RandomSource&  rnd)    // in: random gen, to choose among equal paths
 	{
+		if(resetPending_) {
+			resetSeen();
+		}
 		prob_.initBt(row, col, fill, usecp, escore);
 		Edit e; e.reset();
 		unsorted_.clear();
@@ -938,6 +961,10 @@ protected:
 	EList<CpQuad>  sq_;         // square to fill when doing mini-fills
 	ELList<CpQuad> tri_;        // triangle to fill when doing mini-fills
 	EList<size_t>  ndep_;       // # triangles mini-filled at various depths
+
+	bool           resetPending_; // seenPaths_/sawcell_ reset owed by initRef
+	size_t         resetNdiag_;   // # diagonals of the last initRef's window
+	size_t         resetRflen_;   // largest rflen since the last reset
 
 #ifndef NDEBUG
 	ESet<size_t>  seen_;        // seedn branch ids; should never see same twice
