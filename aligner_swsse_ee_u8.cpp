@@ -2301,7 +2301,7 @@ bool SwAligner::backtraceNucleotidesEnd2EndSseU8(
 		assert_leq(col, origCol);
 		// The cell above; used only when row > 0
 		const bool btwrap = (btrowvec == 0);
-		uint8_t * const btup = btwrap ? btcur + btUpWrap : btcur - btUp;
+		uint8_t * const btup = btwrap ? btcur + (ptrdiff_t)btUpWrap : btcur - btUp; // (size_t)-1 when nvecrow_ is 1
 		assert_eq(btcur[0], ((TCScore*)(d.mat_.matbuf_.ptr() + col * btcolstride + btrowvec * ROWSTRIDE))[row / btnvecrow]);
 		assert(row == 0 || btup[btH] == d.mat_.helt(row - 1, col));
 		// Get score in this cell
