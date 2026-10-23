@@ -295,7 +295,7 @@ fastaRefReadSizes(
 #ifndef NDEBUG
 		// Check that it's really reset
 		int c = in[i]->get();
-		assert_eq('>', c);
+		assert(c == '>' || c == ';');
 		in[i]->reset();
 		assert(!in[i]->eof());
 #endif
