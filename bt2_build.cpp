@@ -434,7 +434,10 @@ static void driver(
 				continue;
 			}
 			assert(!fb->eof());
-			assert(fb->get() == '>');
+			// A FASTA file may begin with ';' comment lines, which the
+			// reference readers skip
+			ASSERT_ONLY(int c0 = fb->get());
+			assert(c0 == '>' || c0 == ';');
 			ASSERT_ONLY(fb->reset());
 			assert(!fb->eof());
 			is.push_back(fb);
