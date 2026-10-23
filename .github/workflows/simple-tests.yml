@@ -44,6 +44,13 @@ jobs:
         run: |
           make clean; make -j4 allall
           make simple-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pytest suite
+        run: |
+          python -m pip install pytest
+          python -m pytest scripts/test -q -rs
   linux-noavx2:
     runs-on: ubuntu-latest
     needs: linux
@@ -54,6 +61,13 @@ jobs:
           export SSE_AVX2=0
           make clean; make -j4 allall
           make simple-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pytest suite
+        run: |
+          python -m pip install pytest
+          python -m pytest scripts/test -q -rs
   macos:
     runs-on: macos-latest
     steps:
@@ -66,3 +80,10 @@ jobs:
         run: |
           make clean; make -j4 allall
           make simple-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pytest suite
+        run: |
+          python -m pip install pytest
+          python -m pytest scripts/test -q -rs
