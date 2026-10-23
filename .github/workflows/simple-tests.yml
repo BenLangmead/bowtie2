@@ -40,13 +40,6 @@ jobs:
     needs: setup
     steps:
       - uses: actions/checkout@v2
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-
       - name: Run simple tests
         run: |
           make clean; make -j4 allall
@@ -63,13 +56,6 @@ jobs:
     needs: linux
     steps:
       - uses: actions/checkout@v2
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-
       - name: Run simple tests without using AVX2
         run: |
           export SSE_AVX2=0
@@ -86,17 +72,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-
       - name: Pull submodules
         run: |
           git submodule init
           git submodule update
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
 
       - name: Run simple tests
         run: |
