@@ -29,11 +29,11 @@ From root:
 
 #### Big index test
 
-Builds an index consisting of both human and mouse genomes, pushing the genome size above the 2^32 limit, and necessitating a "big" 64-bit index.  This takes a lot of time and RAM.  It uses the Python 3 helpers `bt2face.py` and `btdata.py`.
+`scripts/test/test_large_genome.py` aligns reads cut from beyond, and across, the 2^32 offset of a prebuilt large (`.bt2l`) index whose reference exceeds 2^32 bases, such as a combined human and mouse index.  Building such an index takes hours and tens of GB of memory, so the tests are skipped unless `BOWTIE2_LARGE_INDEX` names its prefix.  Running them needs enough memory to load that index.
 
 From root:
 
-    python3 scripts/test/large_idx.py --verbose
+    BOWTIE2_LARGE_INDEX=/path/to/hs_mm python3 -m pytest scripts/test/test_large_genome.py
 
 #### Randomized tests
 
