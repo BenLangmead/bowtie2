@@ -3244,6 +3244,42 @@ public:
 	}
 
 	/**
+	 * Add up to 'num' objects, all equal to 'o', to the list, and return
+	 * how many were added.  This has the effect of calling add(p, o) up to
+	 * 'num' times and stopping at the first call that fails: pages are
+	 * taken from the pool one at a time, when the first object that needs
+	 * one is added, and the return value is less than 'num' only when the
+	 * pool ran out.  The list and the pool are then in the state that
+	 * add(p, o) leaves them in when it fails.  The objects are stored a
+	 * page-sized run at a time rather than one call per object.
+	 */
+	size_t addFillUpTo(Pool& p, size_t num, const T& o) {
+		assert(repOk());
+		if(num == 0) return 0;
+		if(pages_.size() == 0 && expand(p) == NULL) {
+			return 0;
+		}
+		size_t added = 0;
+		while(added < num) {
+			if(cur_ == PLIST_PER_PAGE) {
+				if(curPage_ == pages_.size()-1 && expand(p) == NULL) {
+					return added;
+				}
+				cur_ = 0;
+				curPage_++;
+			}
+			assert_lt(curPage_, pages_.size());
+			assert_lt(cur_, PLIST_PER_PAGE);
+			size_t n = std::min<size_t>(num - added, PLIST_PER_PAGE - cur_);
+			std::fill_n(pages_[curPage_] + cur_, n, o);
+			cur_ += n;
+			added += n;
+		}
+		assert(repOk());
+		return added;
+	}
+
+	/**
 	 * Free all pages associated with the list.
 	 */
 	void clear() {
