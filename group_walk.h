@@ -425,6 +425,67 @@ protected:
 	size_t nrep_;
 };
 
+// kSpecMask[r]: the low r bit-pairs of a 64-bit word
+static const uint64_t kSpecMask[33] = {
+	0x0ull, 0x3ull, 0xfull, 0x3full, 0xffull, 0x3ffull, 0xfffull, 0x3fffull,
+	0xffffull, 0x3ffffull, 0xfffffull, 0x3fffffull, 0xffffffull, 0x3ffffffull,
+	0xfffffffull, 0x3fffffffull, 0xffffffffull, 0x3ffffffffull, 0xfffffffffull,
+	0x3fffffffffull, 0xffffffffffull, 0x3ffffffffffull, 0xfffffffffffull,
+	0x3fffffffffffull, 0xffffffffffffull, 0x3ffffffffffffull, 0xfffffffffffffull,
+	0x3fffffffffffffull, 0xffffffffffffffull, 0x3ffffffffffffffull,
+	0xfffffffffffffffull, 0x3fffffffffffffffull, 0xffffffffffffffffull };
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+// GWState::advance() steps a range of several rows a 64-bit word of the BWT
+// (32 characters) at a time, reading the side's bytes as little-endian words
+#define GW_RANGE_WORDS 1
+#else
+#define GW_RANGE_WORDS 0
+#endif
+
+/**
+ * Bit 2k of the result is set iff the kth character (bit-pair) of 'dw' is
+ * 'c' (as countInU64() counts them).
+ */
+static inline uint64_t gwCharBits(uint64_t dw, int c) {
+	const uint64_t x0 = dw ^ c_table[c];
+	return x0 & (x0 >> 1) & 0x5555555555555555ull;
+}
+
+/**
+ * Call f(dw, rm, j, lo) for each 64-bit word of the BWT holding the last
+ * characters of 'n' consecutive rows, the first of which is character 'k' of
+ * the side at 'side': dw is the word, rm the bits (as gwCharBits() sets them)
+ * of the characters that belong to the rows, j the index (from 0) of the row
+ * of the first of them, and lo its character position in the word.  Sides
+ * hold 48*OFF_SIZE characters, as SideLocus::initFromRow() assumes.
+ */
+template<typename F>
+static inline void gwRangeWords(
+	const uint8_t* side,
+	int k,
+	TIndexOffU n,
+	size_t sideSz,
+	F f)
+{
+	const int CPS = 48 * OFF_SIZE;
+	TIndexOffU j = 0;
+	while(j < n) {
+		const int lo = k & 31;
+		const TIndexOffU left = n - j;
+		const int take = (TIndexOffU)(32 - lo) < left ? 32 - lo : (int)left;
+		uint64_t dw;
+		memcpy(&dw, side + 8 * (k >> 5), 8);
+		f(dw, (kSpecMask[lo + take] ^ kSpecMask[lo]) & 0x5555555555555555ull, j, lo);
+		j += take;
+		k += take;
+		if(k == CPS) {
+			k = 0;
+			side += sideSz;
+		}
+	}
+}
+
 /**
  * Encapsulates the progress made along a particular path from the original
  * range.
@@ -503,7 +564,9 @@ public:
 		TIndexOffU trimBegin = 0, trimEnd = 0;
 		bool empty = true; // assume all resolved until proven otherwise
 		// Commit new information, if any, to the PListSlide.  Also,
-		// trim and check if we're done.
+		// trim and check if we're done.  (initScan() does this loop's work
+		// when it can, faster.)
+		if(!initScan(ebwt, sa, hit, range, reportList, ret, trimBegin, trimEnd, empty, met))
 		for(size_t i = mapi_; i < map_.size(); i++) {
 			bool resolved = (off(i, sa) != OFF_MASK);
 			if(!resolved) {
@@ -712,6 +775,162 @@ public:
 		return ret;
 	}
 
+	/**
+	 * What the loop of init() over the elements does, for when nothing is
+	 * reported as it is resolved (reportList false), mapi_ is 0 and the
+	 * range's offset slots are contiguous in memory: the same offsets
+	 * resolved, forward-map entries written, counts and trims, with the
+	 * lists' pointers and the index's fields held in locals (the build's
+	 * -fno-strict-aliasing otherwise reloads them after every store).  Only
+	 * the rows whose offsets tryOffset() knows are visited to resolve; the
+	 * elements are independent, so the order of the writes does not matter.
+	 * Returns false, having done nothing, when those conditions do not hold.
+	 */
+	bool initScan(
+		const Ebwt& ebwt,             // forward Bowtie index
+		SARangeWithOffs<T>& sa,       // SA range with offsets
+		GWHit<T>& hit,                // Corresponding hit structure
+		TIndexOffU range,             // range being inited
+		bool reportList,              // report resolutions, adding to 'res' list?
+		pair<TIndexOff, TIndexOff>& ret,
+		TIndexOffU& trimBegin,
+		TIndexOffU& trimEnd,
+		bool& empty,
+		WalkMetrics& met)             // update these metrics
+	{
+		if(reportList || mapi_ != 0 || map_.empty()) {
+			return false;
+		}
+		TIndexOffU *offs = sa.offs.contiguous();
+		if(offs == NULL) {
+			return false;
+		}
+		const TIndexOffU *mp = map_.ptr();
+		const size_t sz = map_.size();
+		std::pair<TIndexOffU, TIndexOffU> *fmap = hit.fmap.ptr();
+		const TIndexOffU zOff = ebwt._zOff;
+		const TIndexOffU offMask = ebwt.eh()._offMask;
+		const int offRate = ebwt.eh()._offRate;
+		const TIndexOffU *saOffs = ebwt.offs();
+		const TIndexOffU tp = top;
+		const TIndexOffU stp = (TIndexOffU)step;
+		TIndexOff nres = 0, nleft = 0;
+		TIndexOffU tb = 0, te = 0;
+		bool emp = true;
+		if(sz < 32) {
+			// Few rows: one pass, as init()'s loop
+			for(size_t i = 0; i < sz; i++) {
+				const TIndexOffU e = mp[i];
+				assert_lt(e, sa.offs.size());
+				TIndexOffU o = offs[e];
+				if(o == OFF_MASK) {
+					// Elt not resolved yet; try to resolve it now, as
+					// Ebwt::tryOffset() does
+					const TIndexOffU bwrow = (TIndexOffU)(TIndexOff)(tp + i);
+					assert_eq(bwrow, ebwt.walkLeft(sa.topf + e, step));
+					if(bwrow == zOff || (bwrow & offMask) == bwrow) {
+						const TIndexOffU toff = (bwrow == zOff) ? 0 : saOffs[bwrow >> offRate];
+						assert_eq(toff, ebwt.tryOffset(bwrow));
+						if(toff != OFF_MASK) {
+							o = toff + stp;
+							assert_eq(o, ebwt.getOffset(sa.topf + e));
+							offs[e] = o;
+							nres++;
+						}
+					}
+				}
+				if(o != OFF_MASK) {
+					// Offset resolved
+					if(emp) {
+						tb++;
+					} else {
+						te++;
+					}
+				} else {
+					// Offset not yet resolved
+					nleft++;
+					te = 0;
+					emp = false;
+					fmap[e].first = range;
+					fmap[e].second = (TIndexOffU)i;
+				}
+			}
+		} else {
+			const uint64_t tend = (uint64_t)tp + sz;
+			// Resolve the unresolved elements whose rows' offsets are
+			// known, as Ebwt::tryOffset() finds them: the '$' row's, and
+			// those of the rows that are multiples of 2^offRate (sampled)
+			const uint64_t per = (uint64_t)1 << offRate;
+			assert_eq((TIndexOffU)~(per - 1), offMask);
+			for(uint64_t r = ((uint64_t)tp + per - 1) & ~(per - 1); r < tend; r += per) {
+				if((TIndexOffU)r == zOff) {
+					continue;
+				}
+				const TIndexOffU e = mp[r - tp];
+				if(offs[e] == OFF_MASK) {
+					const TIndexOffU toff = saOffs[r >> offRate];
+					assert_eq(toff, ebwt.tryOffset((TIndexOffU)r));
+					if(toff != OFF_MASK) {
+						offs[e] = toff + stp;
+						assert_eq(offs[e], ebwt.getOffset(sa.topf + e));
+						nres++;
+					}
+				}
+			}
+			if((uint64_t)zOff >= tp && (uint64_t)zOff < tend) {
+				const TIndexOffU e = mp[zOff - tp];
+				if(offs[e] == OFF_MASK) {
+					offs[e] = 0 + stp;
+					nres++;
+				}
+			}
+			// Point the forward map at each element still unresolved; trim
+			// the resolved ones before the first and after the last of
+			// those.  The unresolved are listed a block of rows at a time
+			// without branching on them (which rows are resolved follows no
+			// pattern, so such branches are mispredicted).
+			size_t first = 0, last = 0;
+			const size_t BLK = 256;
+			TIndexOffU blk[BLK];
+			for(size_t i0 = 0; i0 < sz; i0 += BLK) {
+				const size_t i1 = (sz - i0 < BLK) ? sz : i0 + BLK;
+				size_t k = 0;
+				for(size_t i = i0; i < i1; i++) {
+					blk[k] = (TIndexOffU)i;
+					k += (offs[mp[i]] == OFF_MASK) ? 1 : 0;
+				}
+				if(k > 0) {
+					if(nleft == 0) {
+						first = blk[0];
+					}
+					last = blk[k-1];
+					for(size_t j = 0; j < k; j++) {
+						const TIndexOffU i = blk[j];
+						assert_eq(tp + i, ebwt.walkLeft(sa.topf + mp[i], step));
+						std::pair<TIndexOffU, TIndexOffU>& f = fmap[mp[i]];
+						f.first = range;
+						f.second = i;
+					}
+					nleft += (TIndexOff)k;
+				}
+			}
+			if(nleft > 0) {
+				tb = (TIndexOffU)first;
+				te = (TIndexOffU)(sz - 1 - last);
+				emp = false;
+			} else {
+				tb = (TIndexOffU)sz;
+			}
+		}
+		met.resolves += (uint64_t)nres;
+		ret.first += nres;
+		ret.second += nleft;
+		trimBegin = tb;
+		trimEnd = te;
+		empty = emp;
+		return true;
+	}
+
 #ifndef NDEBUG
 	/**
 	 * Check if this GWP is internally consistent.
@@ -885,15 +1104,19 @@ public:
 		if(bloc.valid()) {
 			// Still multiple elements being tracked
 			assert_lt(top+1, bot);
-			TIndexOffU upto[4], in[4];
-			upto[0] = in[0] = upto[1] = in[1] =
-			upto[2] = in[2] = upto[3] = in[3] = 0;
 			assert_eq(bot, bloc.toBWRow());
 			met.bwops++;
 			prm.nExFmops++;
 			// Assert that there's not a dollar sign in the middle of
 			// this range
 			assert(bot <= ebwt._zOff || top > ebwt._zOff);
+#if GW_RANGE_WORDS
+			(void)gws;
+			stepRange<S>(ebwt, ref, sa, hit, reportList, res, st, met, ret);
+#else
+			TIndexOffU upto[4], in[4];
+			upto[0] = in[0] = upto[1] = in[1] =
+			upto[2] = in[2] = upto[3] = in[3] = 0;
 			ebwt.mapLFRange(tloc, bloc, bot-top, upto, in, gws.masks);
 #ifndef NDEBUG
 			for(int i = 0; i < 4; i++) {
@@ -986,6 +1209,7 @@ public:
 			//assert(repOkMapRepeats());
 			//assert(repOkMapInclusive(hit, range));
 			assert_eq(bot-top, map_.size());
+#endif
 		} else {
 			// Down to one element
 			assert_eq(bot, top+1);
@@ -1021,6 +1245,289 @@ public:
 		ret.first += rret.first;
 		ret.second += rret.second;
 		return ret;
+	}
+
+#if GW_RANGE_WORDS
+	/**
+	 * For the 'n' rows starting at the row at locus 'l': 'upto' gets, for
+	 * each character, the row the first of them that ends in the character
+	 * moves to with an LF step, and 'in' how many end in the character;
+	 * what Ebwt::mapLFRange() puts in its cntsUpto and cntsIn.  Counted a
+	 * 64-bit word of the side at a time.
+	 */
+	static void countRange(
+		const Ebwt& ebwt,
+		const SideLocus& l,
+		TIndexOffU n,
+		TIndexOffU* upto,
+		TIndexOffU* in)
+	{
+		assert_gt(n, 0);
+		const EbwtParams& eh = ebwt.eh();
+		const uint8_t *side = l.side(ebwt.ebwt());
+		const int co = (int)l._charOff;
+		const size_t sideSz = (size_t)eh._sideSz;
+		// Occurrences of each character before the top row in its side, then
+		// as Ebwt::countBt2SideRange() completes them
+		upto[0] = upto[1] = upto[2] = upto[3] = 0;
+		const int NW = (48 * OFF_SIZE) / 32;
+		for(int w = 0; w < NW; w++) {
+			uint64_t dw;
+			memcpy(&dw, side + 8 * w, 8);
+			int r = co - 32 * w;
+			r = r < 0 ? 0 : r;
+			r = r > 32 ? 32 : r;
+			const uint64_t m = kSpecMask[r];
+			for(int c = 0; c < 3; c++) {
+				upto[c] += (TIndexOffU)__builtin_popcountll(gwCharBits(dw, c) & m);
+			}
+		}
+		upto[3] = (TIndexOffU)co - upto[0] - upto[1] - upto[2];
+		if(l._sideByteOff <= ebwt._zEbwtByteOff &&
+		   l._sideByteOff + l._by >= ebwt._zEbwtByteOff)
+		{
+			// '$' is represented as an 'A' (as in Ebwt::countBt2SideRange())
+			if((l._sideByteOff + l._by > ebwt._zEbwtByteOff) ||
+			   (l._sideByteOff + l._by == ebwt._zEbwtByteOff && l._bp > ebwt._zEbwtBpOff))
+			{
+				upto[0]--;
+			}
+		}
+		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(side + eh._sideBwtSz);
+		for(int c = 0; c < 4; c++) {
+			upto[c] += endianizeU<TIndexOffU>(acgt[c], ebwt._switchEndian) + ebwt.fchr()[c];
+		}
+		// Occurrences of each character in the range
+		in[0] = in[1] = in[2] = in[3] = 0;
+		gwRangeWords(side, co, n, sideSz,
+			[&](uint64_t dw, uint64_t rm, TIndexOffU, int) {
+				for(int c = 0; c < 3; c++) {
+					in[c] += (TIndexOffU)__builtin_popcountll(gwCharBits(dw, c) & rm);
+				}
+			});
+		in[3] = n - in[0] - in[1] - in[2];
+	}
+
+	/**
+	 * The step of advance() for a range of several rows (bloc valid): what
+	 * mapLFRange() and the loops over its masks do, a word of the BWT at a
+	 * time.  The rows whose last character is the first (lowest) character
+	 * present stay in this state; those of each other character present, in
+	 * increasing order, go to a new state appended to 'st' and initialized
+	 * as soon as it is made, as advance() makes them.  Each list keeps the
+	 * order of the rows.  top, bot, mapi_ and map_ are left as advance()
+	 * leaves them before its final init().  The range never holds the '$'
+	 * row (init() trims or splits it off).
+	 */
+	template <int S>
+	void stepRange(
+		const Ebwt& ebwt,            // the forward Bowtie index, for stepping left
+		const BitPairReference& ref, // bitpair-encoded reference
+		SARangeWithOffs<T>& sa,      // SA range with offsets
+		GWHit<T>& hit,               // the associated GWHit object
+		bool reportList,             // if true, "report" resolved offsets immediately by adding them to 'res' list
+		EList<WalkResult, 16>* res,  // EList where resolved offsets should be appended
+		EList<GWState, S>& st,       // EList of GWStates for range being advanced
+		WalkMetrics& met,
+		pair<TIndexOff, TIndexOff>& ret)
+	{
+		const TIndexOffU n = bot - top;
+		assert_gt(n, 1);
+		const uint8_t *side = tloc.side(ebwt.ebwt());
+		const int co = (int)tloc._charOff;
+		const size_t sideSz = (size_t)ebwt.eh()._sideSz;
+		TIndexOffU upto[4], in[4];
+		countRange(ebwt, tloc, n, upto, in);
+#ifndef NDEBUG
+		{
+			TIndexOffU upto2[4] = { 0, 0, 0, 0 }, in2[4] = { 0, 0, 0, 0 };
+			GroupWalkState gws2(GW_CAT);
+			SideLocus tl = tloc, bl = bloc;
+			ebwt.mapLFRange(tl, bl, n, upto2, in2, gws2.masks);
+			for(int c = 0; c < 4; c++) {
+				assert_eq(upto2[c], upto[c]);
+				assert_eq(in2[c], in[c]);
+			}
+		}
+#endif
+		// cf: the first character present.  The rows of each later one go
+		// to a new state, made and initialized in character order.
+		int cf = 0;
+		while(in[cf] == 0) cf++;
+		const TIndexOffU *src = map_.ptr() + mapi_;
+		for(int c = cf + 1; c < 4; c++) {
+			if(in[c] == 0) continue;
+			// NOTE: this can cause the underlying list to be expanded
+			// which in turn might leave 'st' pointing to bad memory.
+			st.expand();
+			GWState& nst = st.back();
+			nst.reset();
+			nst.map_.resize(in[c]);
+			gather(side, co, n, sideSz, c, src, nst.map_.ptr());
+			met.branches++;
+			pair<TIndexOff, TIndexOff> rret =
+			nst.init(
+				ebwt,        // forward Bowtie index
+				ref,         // bitpair-encodede reference
+				sa,          // SA range with offsets
+				st,          // EList of all GWStates associated with original range
+				hit,         // associated GWHit object
+				(TIndexOffU)st.size()-1, // range offset
+				reportList,  // if true, report hits to 'res' list
+				res,         // report hits here if reportList is true
+				upto[c],     // BW top of new range
+				upto[c] + in[c], // BW bot of new range
+				step+1,      // # steps taken to get to this new range
+				met);        // update these metrics
+			ret.first += rret.first;
+			ret.second += rret.second;
+		}
+		// This state keeps the rows of character cf, moved to the front of
+		// map_ (each moves to the same or an earlier slot)
+		if(in[cf] < n) {
+			gather(side, co, n, sideSz, cf, src, map_.ptr());
+		} else if(mapi_ > 0) {
+			memmove(map_.ptr(), src, n * sizeof(TIndexOffU));
+		}
+		map_.resize(in[cf]);
+		mapi_ = 0;
+		assert(top != upto[cf] || bot != upto[cf] + in[cf]);
+		top = upto[cf];
+		bot = top + in[cf];
+	}
+
+	/**
+	 * Write the entries of 'src' of the rows (of the n starting at character
+	 * 'k' of 'side') whose last character is 'c', in order, to 'dst'.  'dst'
+	 * may be 'src' or before it in the same list.
+	 */
+	static void gather(
+		const uint8_t* side,
+		int k,
+		TIndexOffU n,
+		size_t sideSz,
+		int c,
+		const TIndexOffU* src,
+		TIndexOffU* dst)
+	{
+		gwRangeWords(side, k, n, sideSz,
+			[&](uint64_t dw, uint64_t rm, TIndexOffU j, int lo) {
+				// One row per set bit, in order (each read before any
+				// write that could reach it, as dst never passes src + j)
+				uint64_t b = gwCharBits(dw, c) & rm;
+				while(b != 0) {
+					const int p = __builtin_ctzll(b) >> 1;
+					*dst++ = src[j + (TIndexOffU)(p - lo)];
+					b &= b - 1;
+				}
+			});
+	}
+#endif
+
+	/**
+	 * Leave this state as init() leaves it at step 0 for a one-row range
+	 * (map_ holding element 0) whose element is unresolved and whose row is
+	 * neither SA-sampled nor the '$' row: init() resolves nothing, points
+	 * the forward map at it and sets tloc at the row.  The caller vouches
+	 * that the offset slot was unresolved when the walk was set up; it is
+	 * not read here, so a slot resolved since leaves the state as init()
+	 * left it then.
+	 */
+	void initFreshSingle(
+		const Ebwt& ebwt,
+		GWHit<T>& hit,
+		TIndexOffU row)
+	{
+		assert_eq(1, map_.size());
+		assert_eq(0, mapi_);
+		assert(!inited_);
+		assert_neq(row, ebwt._zOff);
+		assert_neq(row, row & ebwt.eh()._offMask);
+		ASSERT_ONLY(inited_ = true);
+		ASSERT_ONLY(lastStep_ = 0);
+		top = row;
+		bot = row + 1;
+		step = 0;
+		hit.fmap[0].first = 0;
+		hit.fmap[0].second = 0;
+		tloc.initFromRow(top, ebwt.eh(), ebwt.ebwt());
+		bloc.invalidate();
+	}
+
+	/**
+	 * Leave this single-element state as advance() and init() leave it when
+	 * its element is resolved after 'k' (>= 1) steps at row 'rowk', the last
+	 * step having started from row 'rowkm1': top and bot trimmed past the
+	 * resolved row, tloc at the last unresolved row.  For committing a walk
+	 * that SpecWalk took instead of advance().
+	 */
+	void finishSingle(
+		const Ebwt& ebwt,
+		TIndexOffU k,
+		TIndexOffU rowk,
+		TIndexOffU rowkm1)
+	{
+		assert_eq(1, map_.size());
+		assert_eq(0, mapi_);
+		assert_eq(0, step);
+		assert_gt(k, 0);
+		top = bot = rowk + 1;
+		step = (TIndexOff)k;
+		mapi_ = 1;
+		tloc.initFromRow(rowkm1, ebwt.eh(), ebwt.ebwt(), false);
+		bloc.invalidate();
+		ASSERT_ONLY(lastStep_ = step);
+	}
+
+	/**
+	 * Do what 'k' (>= 1) calls of advance() do to this state, which tracks
+	 * one row (bloc invalid) whose element is unresolved, when the walk from
+	 * its row takes k LF steps to 'rowk', the first row whose offset
+	 * tryOffset() knows, the last step starting from 'rowkm1': the same
+	 * counts (bwops, nExFmops, resolves), the offset, the forward-map entry
+	 * (each step but the last points it at slot 0), and the state as the
+	 * last step's init() leaves it.  The walk is SpecWalk's; nothing else
+	 * writes the element's offset slot between those k steps.
+	 */
+	void commitWalk(
+		const Ebwt& ebwt,
+		SARangeWithOffs<T>& sa,
+		GWHit<T>& hit,
+		TIndexOffU range,
+		TIndexOffU k,
+		TIndexOffU rowk,
+		TIndexOffU rowkm1,
+		WalkMetrics& met,
+		PerReadMetrics& prm)
+	{
+		assert(!bloc.valid());
+		assert_eq(1, size());
+		assert_gt(k, 0);
+		assert_eq(top, tloc.toBWRow());
+		assert_eq(rowk, ebwt.walkLeft(top, k));
+		const TIndexOffU e = map_[mapi_];
+		assert_eq(OFF_MASK, sa.offs[e]);
+		// As advance() moves the element to the front
+		map_[0] = e;
+		map_.resize(1);
+		met.bwops += k;
+		prm.nExFmops += k;
+		if(k > 1) {
+			// init() of each step that leaves the element unresolved
+			hit.fmap[e].first = range;
+			hit.fmap[e].second = 0;
+			tloc.initFromRow(rowkm1, ebwt.eh(), ebwt.ebwt(), false);
+		}
+		step += (TIndexOff)k;
+		const TIndexOffU toff = ebwt.tryOffset(rowk);
+		assert_neq(OFF_MASK, toff);
+		met.resolves++;
+		sa.offs[e] = toff + (TIndexOffU)step;
+		assert_eq(sa.offs[e], ebwt.getOffset(sa.topf + e));
+		// The last step's init() trims the resolved row
+		mapi_ = 1;
+		top = bot = rowk + 1;
+		ASSERT_ONLY(lastStep_ = step);
 	}
 
 	/**
@@ -1082,6 +1589,8 @@ protected:
 	TIndexOffU mapi_;           // first untrimmed element of map
 };
 
+class SpecWalk;
+
 template<typename T, int S>
 class GroupWalk2S {
 public:
@@ -1137,6 +1646,33 @@ public:
 			met);               // update metrics here
 		elt_ += sa.size();
 		assert(hit_.repOk(sa));
+	}
+
+	/**
+	 * Do what init() does for a one-element range whose row is neither
+	 * SA-sampled nor the '$' row and whose offset slot was unresolved at
+	 * the time an unbatched walk would call init(): such an init() reads the
+	 * slot, resolves nothing and counts nothing.  The slot is not read, so
+	 * the walk is left as init() left it then even if another walk sharing
+	 * the slot has resolved it since (advanceElement() then only reports
+	 * it, as it would have).
+	 */
+	void initFreshSingle(
+		const Ebwt& ebwtFw,         // forward Bowtie index for walking left
+		SARangeWithOffs<T>& sa)     // SA range with offsets, one element
+	{
+		assert_eq(1, sa.size());
+		reset();
+#ifndef NDEBUG
+		inited_ = true;
+#endif
+		hit_.init(sa, 0, false, 0);
+		st_.resize(1);
+		st_.back().reset();
+		st_.back().initMap(1);
+		st_.ensure(4);
+		st_.back().initFreshSingle(ebwtFw, hit_, sa.topf);
+		elt_ += 1;
 	}
 
 	//
@@ -1215,6 +1751,87 @@ public:
 	}
 
 	/**
+	 * Do what advanceElement() does, but when the state holding the element
+	 * tracks one row, take its remaining LF steps from 'spec' (starting the
+	 * walk there if it is not already finished) and commit them at once.
+	 * After each step of a state of several rows, the walks of the
+	 * one-row states the step leaves are started in 'spec' while it has
+	 * free lanes, so that they proceed alongside the walks needed first.
+	 * Defined after SpecWalk.
+	 */
+	bool advanceElementSpec(
+		TIndexOffU elt,              // element within the range
+		const Ebwt& ebwtFw,          // forward Bowtie index for walking left
+		const BitPairReference& ref, // bitpair-encoded reference
+		SARangeWithOffs<T>& sa,      // SA range with offsets
+		GroupWalkState& gws,         // GroupWalk state; scratch space
+		WalkResult& res,             // put the result here
+		WalkMetrics& met,            // metrics
+		PerReadMetrics& prm,         // per-read metrics
+		SpecWalk& spec);             // single-row walks
+
+	/**
+	 * Return true iff this walk has a single element and advanceElement()
+	 * would step to resolve it: nothing reported yet, no step taken, and
+	 * its offset not resolved, neither at init() nor since (by a walk that
+	 * shares the offset's slot).  Such an element's walk depends only on
+	 * its BW row, sa.topf.
+	 */
+	bool freshSingle(const SARangeWithOffs<T>& sa) const {
+		return elt_ == 1 && rep_ == 0 && st_.size() == 1 &&
+		       st_[0].step == 0 && st_[0].size() == 1 &&
+		       sa.offs.get(0) == OFF_MASK;
+	}
+
+	/**
+	 * Do what advanceElement(0, ...) does for a freshSingle() walk, given the
+	 * walk's outcome as SpecWalk computed it: 'k' LF steps from sa.topf to
+	 * 'rowk', the first row with a known offset, the last step starting from
+	 * 'rowkm1'.  Every count advanceElement() keeps (bwops, resolves,
+	 * reports, nExFmops), the offset, the reported flag and the state are
+	 * left as advanceElement() leaves them.
+	 */
+	void commitSingle(
+		const Ebwt& ebwtFw,          // forward Bowtie index
+		SARangeWithOffs<T>& sa,      // SA range with offsets
+		TIndexOffU k,                // # LF steps
+		TIndexOffU rowk,             // row reached, offset known
+		TIndexOffU rowkm1,           // row the last step left
+		WalkResult& res,             // put the result here
+		WalkMetrics& met,            // metrics
+		PerReadMetrics& prm)         // per-read metrics
+	{
+		assert(inited_);
+		assert(freshSingle(sa));
+		assert_eq(st_[0].top, sa.topf);
+		assert_gt(k, 0);
+		assert_eq(rowk, ebwtFw.walkLeft(sa.topf, k));
+		TIndexOffU toff = ebwtFw.tryOffset(rowk);
+		assert_neq(OFF_MASK, toff);
+		met.bwops += k;
+		prm.nExFmops += k;
+		met.resolves++;
+		toff += k;
+		assert_eq(toff, ebwtFw.getOffset(sa.topf));
+		sa.offs[0] = toff;
+		st_[0].finishSingle(ebwtFw, k, rowk, rowkm1);
+		// As advanceElement() does once the element is resolved
+		if(!hit_.reported(0)) {
+			hit_.setReported(0);
+		}
+		met.reports++;
+		res.init(
+			0,              // seed offset
+			false,          // orientation
+			0,              // range
+			0,              // element
+			sa.topf,        // bw row
+			(TIndexOffU)sa.len, // length of hit
+			sa.offs[0]);    // resolved text offset
+		rep_++;
+	}
+
+	/**
 	 * Return true iff all elements have been resolved and reported.
 	 */
 	bool done() const { return rep_ == elt_; }
@@ -1256,6 +1873,11 @@ public:
 	size_t numElts() const { return elt_; }
 
 	/**
+	 * Return the number of BW elements reported so far.
+	 */
+	size_t numReported() const { return rep_; }
+
+	/**
 	 * Return the size occupied by this GroupWalk and all its constituent
 	 * objects.
 	 */
@@ -1287,5 +1909,328 @@ protected:
 	// For each orientation and seed offset, keep an EList of GWHit.
 	GWHit<T> hit_;
 };
+
+/**
+ * Walks to resolve the offsets of single BW rows, several stepped in turn so
+ * that their memory waits overlap.  A walk starts at a row and takes LF steps
+ * until it reaches a row whose offset is known (sampled, or the '$' row),
+ * exactly as GroupWalk2S::advanceElement() walks a single-element range.  It
+ * reads only the index and writes only this object: nothing is counted or
+ * resolved here.  A finished walk is kept, keyed by its starting row, until
+ * GroupWalk2S::commitSingle() applies it where an unbatched walk would have
+ * walked; walks that are never needed are dropped.  The outcome of a walk
+ * depends only on its starting row and the index.
+ */
+class SpecWalk {
+
+public:
+
+	static const int LANES = 16;   // walks stepped in turn
+	static const int TBITS = 10;   // finished walks kept: 2^TBITS, direct-mapped
+
+	SpecWalk() : ebwt_(NULL), nlive_(0) {
+		for(int i = 0; i < LANES; i++) live_[i] = false;
+		for(int i = 0; i < (1 << TBITS); i++) key_[i] = OFF_MASK;
+	}
+
+	/**
+	 * Drop the walks in progress; finished ones are kept.
+	 */
+	void dropLive() {
+		for(int i = 0; i < LANES; i++) live_[i] = false;
+		nlive_ = 0;
+	}
+
+	/**
+	 * Find the finished walk from row 'row0'; return false if there is none.
+	 */
+	bool lookup(
+		const Ebwt& ebwt,
+		TIndexOffU row0,
+		TIndexOffU& k,
+		TIndexOffU& rowk,
+		TIndexOffU& rowkm1) const
+	{
+		if(&ebwt != ebwt_) return false;
+		const size_t h = slot(row0);
+		if(key_[h] != row0) return false;
+		k = k_[h]; rowk = rowk_[h]; rowkm1 = rowkm1_[h];
+		return true;
+	}
+
+	/**
+	 * Return the number of walks in progress.
+	 */
+	int live() const { return nlive_; }
+
+	/**
+	 * Return true iff a walk from 'row0' is finished or in progress.
+	 */
+	bool have(const Ebwt& ebwt, TIndexOffU row0) const {
+		if(&ebwt != ebwt_) return false;
+		if(key_[slot(row0)] == row0) return true;
+		return lane(row0) >= 0;
+	}
+
+	/**
+	 * Start a walk from 'row0', a row whose offset is not known.  If every
+	 * lane is busy, step the walks in progress until one finishes.
+	 */
+	void start(const Ebwt& ebwt, TIndexOffU row0) {
+		if(&ebwt != ebwt_) {
+			// Results belong to one index
+			for(int i = 0; i < (1 << TBITS); i++) key_[i] = OFF_MASK;
+			dropLive();
+			ebwt_ = &ebwt;
+		}
+		assert(row0 != ebwt._zOff);
+		assert_neq((row0 & ebwt.eh()._offMask), row0);
+		while(nlive_ == LANES) {
+			round(ebwt);
+		}
+		for(int i = 0; i < LANES; i++) {
+			if(!live_[i]) {
+				Lane& x = lanes_[i];
+				x.row0 = x.row = x.prev = row0;
+				x.k = 0;
+				x.loc.initFromRow(row0, ebwt.eh(), ebwt.ebwt());
+				live_[i] = true;
+				nlive_++;
+				return;
+			}
+		}
+		assert(false);
+	}
+
+	/**
+	 * Step the walks in progress until the walk from 'row0' finishes.
+	 */
+	void finish(const Ebwt& ebwt, TIndexOffU row0) {
+		const int l = lane(row0);
+		if(l < 0) return;
+		while(live_[l]) {
+			round(ebwt);
+		}
+	}
+
+	/**
+	 * Step the walks in progress until all have finished.
+	 */
+	void finishAll(const Ebwt& ebwt) {
+		while(nlive_ > 0) {
+			round(ebwt);
+		}
+	}
+
+protected:
+
+	struct Lane {
+		TIndexOffU row0;   // starting row
+		TIndexOffU row;    // current row
+		TIndexOffU prev;   // row the last step started from
+		TIndexOffU k;      // # steps taken
+		SideLocus loc;     // locus of 'row'; set (and prefetched) as the row is reached
+	};
+
+	size_t slot(TIndexOffU row0) const {
+		return (size_t)(((uint64_t)row0 * 0x9E3779B97F4A7C15ull) >> (64 - TBITS));
+	}
+
+	/**
+	 * LF(row) for the row at locus 'l' (not the '$' row): what
+	 * Ebwt::mapLF1(row, l) sets the row to.  The occurrences of the row's
+	 * character before it in its side are counted over every 64-bit word of
+	 * the side with masks, rather than by Ebwt::countUpTo()'s loops, whose
+	 * trip counts depend on the row and are mispredicted.
+	 */
+	static TIndexOffU lf(const Ebwt& ebwt, const SideLocus& l) {
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+		const uint8_t *side = l.side(ebwt.ebwt());
+		const int c = unpack_2b_from_8b(side[l._by], l._bp);
+		const uint64_t pat = c_table[c];
+		const int n = (int)l._charOff;    // characters before the row in its side
+		const int NW = (48 * OFF_SIZE) / 32; // 32 characters per word
+		TIndexOffU cnt = 0;
+		for(int w = 0; w < NW; w++) {
+			uint64_t dw;
+			memcpy(&dw, side + 8 * w, 8);
+			const uint64_t x0 = dw ^ pat;
+			const uint64_t x3 = x0 & (x0 >> 1) & 0x5555555555555555ull;
+			int r = n - 32 * w;
+			r = r < 0 ? 0 : r;
+			r = r > 32 ? 32 : r;
+			cnt += (TIndexOffU)__builtin_popcountll(x3 & kSpecMask[r]);
+		}
+		assert_eq(cnt, ebwt.countUpTo(l, c));
+		if(c == 0 && l._sideByteOff <= ebwt._zEbwtByteOff &&
+		   l._sideByteOff + l._by >= ebwt._zEbwtByteOff)
+		{
+			// '$' is represented as an 'A' (as in Ebwt::countBt2Side())
+			if((l._sideByteOff + l._by > ebwt._zEbwtByteOff) ||
+			   (l._sideByteOff + l._by == ebwt._zEbwtByteOff && l._bp > ebwt._zEbwtBpOff))
+			{
+				cnt--;
+			}
+		}
+		const TIndexOffU *acgt = reinterpret_cast<const TIndexOffU*>(side + ebwt.eh()._sideBwtSz);
+		const TIndexOffU ret = endianizeU<TIndexOffU>(acgt[c], ebwt._switchEndian) + cnt + ebwt.fchr()[c];
+		assert_eq(ret, ebwt.countBt2Side(l, c));
+		return ret;
+#else
+		TIndexOffU row = l.toBWRow();
+		ebwt.mapLF1(row, l);
+		return row;
+#endif
+	}
+
+	int lane(TIndexOffU row0) const {
+		for(int i = 0; i < LANES; i++) {
+			if(live_[i] && lanes_[i].row0 == row0) return i;
+		}
+		return -1;
+	}
+
+	/**
+	 * One LF step of every walk in progress.  A walk ends at the first row
+	 * whose offset Ebwt::tryOffset() knows, as GWState::init() checks.
+	 */
+	void round(const Ebwt& ebwt) {
+		const EbwtParams& eh = ebwt.eh();
+		for(int i = 0; i < LANES; i++) {
+			if(!live_[i]) continue;
+			Lane& x = lanes_[i];
+			x.prev = x.row;
+			x.row = lf(ebwt, x.loc);
+			x.k++;
+			if(x.row == ebwt._zOff || (x.row & eh._offMask) == x.row) {
+				if(x.row != ebwt._zOff) {
+					__builtin_prefetch(ebwt.offs() + (x.row >> eh._offRate));
+				}
+				const size_t h = slot(x.row0);
+				key_[h] = x.row0;
+				k_[h] = x.k;
+				rowk_[h] = x.row;
+				rowkm1_[h] = x.prev;
+				live_[i] = false;
+				nlive_--;
+			} else {
+				x.loc.initFromRow(x.row, eh, ebwt.ebwt());
+			}
+		}
+	}
+
+	const Ebwt* ebwt_;          // index the walks belong to
+	Lane lanes_[LANES];
+	bool live_[LANES];
+	int nlive_;
+	TIndexOffU key_[1 << TBITS];    // starting row of a finished walk, OFF_MASK if none
+	TIndexOffU k_[1 << TBITS];      // # steps
+	TIndexOffU rowk_[1 << TBITS];   // row reached
+	TIndexOffU rowkm1_[1 << TBITS]; // row the last step started from
+};
+
+template<typename T, int S>
+bool GroupWalk2S<T, S>::advanceElementSpec(
+	TIndexOffU elt,              // element within the range
+	const Ebwt& ebwtFw,          // forward Bowtie index for walking left
+	const BitPairReference& ref, // bitpair-encoded reference
+	SARangeWithOffs<T>& sa,      // SA range with offsets
+	GroupWalkState& gws,         // GroupWalk state; scratch space
+	WalkResult& res,             // put the result here
+	WalkMetrics& met,            // metrics
+	PerReadMetrics& prm,         // per-read metrics
+	SpecWalk& spec)              // single-row walks
+{
+	assert(inited_);
+	assert(!done());
+	assert(hit_.repOk(sa));
+	assert_lt(elt, sa.size()); // elt must fall within range
+	// Until we've resolved our element of interest...
+	while(sa.offs[elt] == OFF_MASK) {
+		// Get the GWState that contains our element of interest
+		size_t range = hit_.fmap[elt].first;
+		st_.ensure(4);
+		if(!st_[range].bloc.valid()) {
+			// One row left, the element's: its remaining steps are the walk
+			// from the state's row, or the rest of the walk from the
+			// element's own row (resolveElement() walks the rows of small
+			// ranges)
+			GWState<T>& st = st_[range];
+			assert_eq(elt, st.map(st.mapi()));
+			TIndexOffU k = 0, rowk = 0, rowkm1 = 0;
+			bool have = spec.lookup(ebwtFw, st.top, k, rowk, rowkm1);
+			if(!have &&
+			   spec.lookup(ebwtFw, sa.topf + elt, k, rowk, rowkm1) &&
+			   k > (TIndexOffU)st.step)
+			{
+				k -= (TIndexOffU)st.step;
+				have = true;
+			}
+			if(!have) {
+				if(!spec.have(ebwtFw, st.top)) {
+					spec.start(ebwtFw, st.top);
+				}
+				spec.finish(ebwtFw, st.top);
+				have = spec.lookup(ebwtFw, st.top, k, rowk, rowkm1);
+			}
+			if(have) {
+				st.commitWalk(ebwtFw, sa, hit_, (TIndexOffU)range, k, rowk, rowkm1, met, prm);
+				continue;
+			}
+			// The finished walk was displaced by another's: step as before
+		}
+		const size_t n0 = st_.size();
+		st_[range].advance(
+			ebwtFw,
+			ref,
+			sa,
+			hit_,
+			(TIndexOffU)range,
+			false,
+			NULL,
+			st_,
+			gws,
+			met,
+			prm);
+		// Start the walks of the one-row states this step left (this one
+		// and those it made) while lanes are free.  Most are never needed
+		// (the extension usually stops after a few elements of a large
+		// range), so none is started by stepping the others to free a lane:
+		// they only progress alongside walks that are needed.
+		for(size_t j = n0; j <= st_.size() && spec.live() < SpecWalk::LANES; j++) {
+			const GWState<T>& s = st_[j == st_.size() ? range : j];
+			if(s.done() || s.bloc.valid()) {
+				continue;
+			}
+			const TIndexOffU e = s.map(s.mapi());
+			TIndexOffU k = 0, rowk = 0, rowkm1 = 0;
+			if(sa.offs[e] != OFF_MASK ||
+			   spec.have(ebwtFw, s.top) ||
+			   spec.lookup(ebwtFw, sa.topf + e, k, rowk, rowkm1))
+			{
+				continue;
+			}
+			spec.start(ebwtFw, s.top);
+		}
+		assert(sa.offs[elt] != OFF_MASK ||
+		       !st_[hit_.fmap[elt].first].doneResolving(sa));
+	}
+	assert_neq(OFF_MASK, sa.offs[elt]);
+	// Report it!
+	if(!hit_.reported(elt)) {
+		hit_.setReported(elt);
+	}
+	met.reports++;
+	res.init(
+		0,              // seed offset
+		false,          // orientation
+		0,              // range
+		elt,            // element
+		sa.topf + elt,  // bw row
+		(TIndexOffU)sa.len, // length of hit
+		sa.offs[elt]);  // resolved text offset
+	rep_++;
+	return true;
+}
 
 #endif /*GROUP_WALK_H_*/

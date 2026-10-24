@@ -26,6 +26,8 @@
 #include "read.h"
 #include "threading.h"
 #include "mem_ids.h"
+#include <new>
+#include <stdint.h>
 #include <vector>
 
 /**
@@ -49,42 +51,45 @@ public:
 		int perThreadBufSize,
 		TReadId rdid = 0) :
 		obuf_(obuf),
+		reorder_(reorder),
+		threadSafe_(threadSafe),
+		perThreadBufSize_(perThreadBufSize),
+		nthreads_(nthreads),
+		perThreadMem_(NULL),
+		perThread_(NULL),
+		mutex_m(),
 		cur_(rdid),
+		nstarted_(0),
 		nfinished_(0),
 		nflushed_(0),
 		lines_(RES_CAT),
 		started_(RES_CAT),
-		finished_(RES_CAT),
-		reorder_(reorder),
-		threadSafe_(threadSafe),
-		mutex_m(),
-		nthreads_(nthreads),
-		perThreadBuf(NULL),
-		perThreadCounter(NULL),
-		perThreadBufSize_(perThreadBufSize)
+		finished_(RES_CAT)
 	{
-		nstarted_=0;
 		assert(nthreads_ <= 2 || threadSafe);
 		if(!reorder)
 		{
-			perThreadBuf = new BTString*[nthreads_];
-			perThreadCounter = new int[nthreads_];
-			size_t i = 0;
-			for(i=0;i<nthreads_;i++)
+			// One cache line per thread, so that one thread's per-read
+			// writes never touch a line another thread writes
+			perThreadMem_ = new char[(nthreads_ + 1) * sizeof(PerThread)];
+			uintptr_t a = reinterpret_cast<uintptr_t>(perThreadMem_);
+			a = (a + sizeof(PerThread) - 1) & ~(uintptr_t)(sizeof(PerThread) - 1);
+			perThread_ = reinterpret_cast<PerThread*>(a);
+			for(size_t i = 0; i < nthreads_; i++)
 			{
-				perThreadBuf[i] = new BTString[perThreadBufSize_];
-				perThreadCounter[i] = 0;
+				new (&perThread_[i]) PerThread();
+				perThread_[i].buf = new BTString[perThreadBufSize_];
 			}
 		}
 	}
 
 	~OutputQueue() {
-		if(perThreadBuf != NULL) {
+		if(perThread_ != NULL) {
 			for (size_t i = 0; i < nthreads_; i++) {
-				delete[] perThreadBuf[i];
+				delete[] perThread_[i].buf;
+				perThread_[i].~PerThread();
 			}
-			delete[] perThreadBuf;
-			delete[] perThreadCounter;
+			delete[] perThreadMem_;
 		}
 	}
 
@@ -97,7 +102,7 @@ public:
 	/**
 	 * Writer is finished writing to
 	 */
-	void finishRead(const BTString& rec, TReadId rdid, size_t threadId);
+	void finishRead(BTString& rec, TReadId rdid, size_t threadId);
 
 	/**
 	 * Return the number of records currently being buffered.
@@ -117,7 +122,13 @@ public:
 	 * Return the number of records that have been started so far.
 	 */
 	TReadId numStarted() const {
-		return nstarted_;
+		TReadId n = nstarted_;
+		if(perThread_ != NULL) {
+			for(size_t i = 0; i < nthreads_; i++) {
+				n += perThread_[i].nstarted;
+			}
+		}
+		return n;
 	}
 
 	/**
@@ -134,36 +145,52 @@ public:
 
 protected:
 
+	/**
+	 * A worker thread's buffered records (unordered output) and its count of
+	 * started reads, on a cache line of its own.
+	 */
+	struct PerThread {
+		PerThread() : buf(NULL), count(0), nstarted(0) { }
+		BTString* buf;      // perThreadBufSize_ records
+		int       count;    // # records in buf
+		TReadId   nstarted; // # reads this thread started
+		char      pad_[64 - sizeof(BTString*) - 2 * sizeof(TReadId)];
+	};
+	static_assert(sizeof(PerThread) == 64, "one PerThread per cache line");
+
+	// Read by every beginRead()/finishRead() and not written after
+	// construction; padRead_ keeps them off the cache line of the lock and
+	// of the counters written under it
 	OutFileBuf&     obuf_;
+	bool            reorder_;
+	bool            threadSafe_;
+	int             perThreadBufSize_; // size of each thread's output buffer
+	size_t          nthreads_;
+	char*           perThreadMem_; // backing store of perThread_
+	PerThread*      perThread_;    // nthreads_ slots, 64-byte aligned
+	char            padRead_[64];
+
+	MUTEX_T         mutex_m;
 	TReadId         cur_;
-	std::atomic<TReadId> nstarted_;
+	TReadId         nstarted_;  // reads started with reorder_ (under the lock)
 	TReadId         nfinished_;
 	TReadId         nflushed_;
 	EList<BTString> lines_;
 	EList<bool>     started_;
 	EList<bool>     finished_;
-	bool            reorder_;
-	bool            threadSafe_;
-	MUTEX_T         mutex_m;
-
-	// used for output read buffer
-	size_t nthreads_;
-	BTString** perThreadBuf;
-	int* 		perThreadCounter;
-	int perThreadBufSize_;
 
 private:
 
 	void flushImpl(bool force);
 	void beginReadImpl(TReadId rdid, size_t threadId);
-	void finishReadImpl(const BTString& rec, TReadId rdid, size_t threadId);
+	void finishReadImpl(BTString& rec, TReadId rdid, size_t threadId);
 };
 
 class OutputQueueMark {
 public:
 	OutputQueueMark(
 		OutputQueue& q,
-		const BTString& rec,
+		BTString& rec,
 		TReadId rdid,
 		size_t threadId) :
 		q_(q),
@@ -180,7 +207,7 @@ public:
 
 protected:
 	OutputQueue& q_;
-	const BTString& rec_;
+	BTString& rec_;
 	TReadId rdid_;
 	size_t threadId_;
 };

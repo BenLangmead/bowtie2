@@ -18,6 +18,8 @@
  */
 
 #include <array>
+#include <atomic>
+#include <cstring>
 #include "aligner_cache.h"
 #include "aligner_seed.h"
 #include "search_globals.h"
@@ -358,6 +360,106 @@ Seed::instantiate(
 }
 
 /**
+ * Bitwise equality of two doubles.
+ */
+static inline bool sameDouble(double a, double b) {
+	uint64_t x, y;
+	memcpy(&x, &a, sizeof(x));
+	memcpy(&y, &b, sizeof(y));
+	return x == y;
+}
+
+/**
+ * Return true iff two penalty functions have the same type and parameters.
+ */
+static bool sameFunc(const SimpleFunc& a, const SimpleFunc& b) {
+	return a.getType() == b.getType() &&
+	       sameDouble(a.getMin(),   b.getMin()) &&
+	       sameDouble(a.getMax(),   b.getMax()) &&
+	       sameDouble(a.getConst(), b.getConst()) &&
+	       sameDouble(a.getCoeff(), b.getCoeff());
+}
+
+/**
+ * Return true iff every field of two constraints is the same.
+ */
+static bool sameConstraint(const Constraint& a, const Constraint& b) {
+	return a.edits       == b.edits &&
+	       a.mms         == b.mms &&
+	       a.ins         == b.ins &&
+	       a.dels        == b.dels &&
+	       a.penalty     == b.penalty &&
+	       a.editsCeil   == b.editsCeil &&
+	       a.mmsCeil     == b.mmsCeil &&
+	       a.insCeil     == b.insCeil &&
+	       a.delsCeil    == b.delsCeil &&
+	       a.penaltyCeil == b.penaltyCeil &&
+	       a.instantiated == b.instantiated &&
+	       sameFunc(a.penFunc, b.penFunc);
+}
+
+/**
+ * Return true iff every field of two seed policies is the same (the
+ * overall constraint is compared by pointer).
+ */
+static bool sameSeed(const Seed& a, const Seed& b) {
+	return a.len == b.len &&
+	       a.type == b.type &&
+	       a.overall == b.overall &&
+	       sameConstraint(a.zones[0], b.zones[0]) &&
+	       sameConstraint(a.zones[1], b.zones[1]) &&
+	       sameConstraint(a.zones[2], b.zones[2]);
+}
+
+#ifndef NDEBUG
+/**
+ * Return true iff two InstantiatedSeeds hold the same fields as
+ * Seed::instantiate writes them.
+ */
+static bool sameInstantiation(const InstantiatedSeed& a, const InstantiatedSeed& b) {
+	if(a.steps.size() != b.steps.size() || a.zones.size() != b.zones.size()) {
+		return false;
+	}
+	for(size_t k = 0; k < a.steps.size(); k++) {
+		if(a.steps[k] != b.steps[k]) return false;
+	}
+	for(size_t k = 0; k < a.zones.size(); k++) {
+		if(a.zones[k] != b.zones[k]) return false;
+	}
+	return sameConstraint(a.cons[0], b.cons[0]) &&
+	       sameConstraint(a.cons[1], b.cons[1]) &&
+	       sameConstraint(a.cons[2], b.cons[2]) &&
+	       sameConstraint(a.overall, b.overall) &&
+	       a.maxjump == b.maxjump &&
+	       a.seedoff == b.seedoff &&
+	       a.seedoffidx == b.seedoffidx &&
+	       a.fw == b.fw &&
+	       sameSeed(a.s, b.s);
+}
+#endif
+
+/**
+ * Source of SeedInstKey generation numbers; 0 is never handed out.
+ */
+static std::atomic<uint64_t> seedInstGens(0);
+
+bool SeedInstKey::matches(const Seed& sd, size_t rdl) const {
+	assert(sd.overall != NULL);
+	return gen != 0 &&
+	       rdlen == rdl &&
+	       sameSeed(seed, sd) &&
+	       sameConstraint(overall, *sd.overall);
+}
+
+void SeedInstKey::set(const Seed& sd, size_t rdl) {
+	assert(sd.overall != NULL);
+	seed = sd;
+	overall = *sd.overall;
+	rdlen = rdl;
+	gen = seedInstGens.fetch_add(1, std::memory_order_relaxed) + 1;
+}
+
+/**
  * Return a set consisting of 1 seed encapsulating an exact matching
  * strategy.
  */
@@ -468,7 +570,7 @@ enum {
  * reference strand.  I.e. if fw is false, then the sequence that appears in
  * 'seq' is the reverse complement of the raw read substring.
  */
-void
+bool
 SeedAligner::instantiateSeq(
 	const Read& read, // input read
 	BTDnaString& seq, // output sequence
@@ -484,10 +586,14 @@ SeedAligner::instantiateSeq(
 	qual.resize(len);
 	// If fw is false, we take characters starting at the 3' end of the
 	// reverse complement of the read.
+	int cor = 0; // OR of the characters (0-3, N = 4)
 	for(int i = 0; i < len; i++) {
-		seq.set(read.patFw.windowGetDna(i, fw, depth, len), i);
+		const int c = read.patFw.windowGetDna(i, fw, depth, len);
+		cor |= c;
+		seq.set(c, i);
 		qual.set(read.qual.windowGet(i, fw, depth, len), i);
 	}
+	return (cor & 4) != 0;
 }
 
 /**
@@ -532,6 +638,14 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	ret.second = 0; // # seeds that hit in cache with non-empty results
 	sr.reset(read, offIdx2off_, nseeds);
 	assert(sr.repOk(&cache.current(), true)); // require that SeedResult be initialized
+	// The instantiation keys of sr's InstantiatedSeeds, one per seed policy
+	std::vector<SeedInstKey>& keys = sr.instKeys();
+	if(keys.size() < seeds.size()) keys.resize(seeds.size());
+	for(size_t j = 0; j < seeds.size(); j++) {
+		if(!keys[j].matches(seeds[j], read.length())) {
+			keys[j].set(seeds[j], read.length());
+		}
+	}
 	// For each seed position
 	for(int fwi = 0; fwi < 2; fwi++) {
 		bool fw = (fwi == 0);
@@ -546,7 +660,7 @@ pair<int, int> SeedAligner::instantiateSeeds(
 			// Extract the seed sequence at this offset
 			// If fw == true, we extract the characters from i*per to
 			// i*(per-1) (exclusive).  If fw == false, 
-			instantiateSeq(
+			const bool hasN = instantiateSeq(
 				read,
 				sr.seqs(fw)[i],
 				sr.quals(fw)[i],
@@ -560,7 +674,25 @@ pair<int, int> SeedAligner::instantiateSeeds(
 				iss.expand();
 				assert_eq(seedlen, seeds[j].len);
 				InstantiatedSeed* is = &iss.back();
-				if(seeds[j].instantiate(
+				const uint64_t gen = keys[j].gen;
+				if(!hasN && is->instGen == gen) {
+					// 'is' already holds this policy's instantiation for
+					// this read length, and there are no Ns to charge to
+					// its constraints: only the offset fields differ
+					is->seedoff = depth;
+					is->seedoffidx = i;
+					is->fw = fw;
+#ifndef NDEBUG
+					InstantiatedSeed chk;
+					const bool chkok = seeds[j].instantiate(
+						read, sr.seqs(fw)[i], sr.quals(fw)[i], pens,
+						depth, i, j, fw, chk);
+					assert(chkok);
+					assert(sameInstantiation(chk, *is));
+#endif
+					ret.first++;
+					if(fwi == 0) { instFw.first++; } else { instRc.first++; }
+				} else if(seeds[j].instantiate(
 					read,
 					sr.seqs(fw)[i],
 					sr.quals(fw)[i],
@@ -571,12 +703,16 @@ pair<int, int> SeedAligner::instantiateSeeds(
 					fw,
 					*is))
 				{
+					// Without Ns the constraints are uncharged and 'is'
+					// holds the key's instantiation
+					is->instGen = hasN ? 0 : gen;
 					// Can we fill this seed hit in from the cache?
 					ret.first++;
 					if(fwi == 0) { instFw.first++; } else { instRc.first++; }
 				} else {
 					// Seed may fail to instantiate if there are Ns
 					// that prevent it from matching
+					is->instGen = 0;
 					met.filteredseed++;
 					iss.pop_back();
 				}
@@ -654,6 +790,18 @@ public:
 
 };
 
+// searchAllSeeds scratch, kept across calls so that it allocates only
+// when a read needs more seed searches than any read before it
+struct SeedAligner::SeedSearchScratch {
+	std::vector<SeedAlignerSearchParams> params; // one per seed search
+	std::vector<SeedAlignerSearchState> states;  // one per seed search
+	std::vector<size_t> first;                   // per cache: its first search
+};
+
+SeedAligner::~SeedAligner() {
+	delete sss_;
+}
+
 /**
  * We assume that all seeds are the same length.
  *
@@ -661,6 +809,14 @@ public:
  *
  * 1. Instantiate all seeds, retracting them if necessary.
  * 2. Calculate zone boundaries for each seed
+ *
+ * The seed offsets of both strands are searched together, up to
+ * SEED_BATCH_CACHES offsets per searchSeedBi batch, so that more searches
+ * are in flight than with one batch per strand.  The searches write only
+ * their SeedSearchCaches and the bwops_/bwedits_ counts, and the searches
+ * of one offset stay in one batch, in their order; the results are then
+ * handed to the alignment cache and to sr in the order the per-strand
+ * batches used: forward seed offsets in order, then reverse-complement ones.
  */
 void SeedAligner::searchAllSeeds(
 	const EList<Seed>& seeds,    // search seeds
@@ -686,93 +842,84 @@ void SeedAligner::searchAllSeeds(
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 
-	/**
-	 * TODO: Define is somewhere else
-	 * Note: The ideal may be dependent on the CPU model, but 8 seems to work fine.
-	 *       2 is too small for prefetch to be fully effective, 4 seems already OK, 
-	 *       and 32 is too big (cache trashing).
-	 **/
-	const int ibatch_size = 8;
+	if(sss_ == NULL) sss_ = new SeedSearchScratch();
+	SeedSearchMultiCache& mcache = mcache_;
+	std::vector<SeedAlignerSearchParams>& paramVec = sss_->params;
+	std::vector<SeedAlignerSearchState>& sstateVec = sss_->states;
+	std::vector<size_t>& first = sss_->first;
+	mcache.clear();
+	paramVec.clear();
+	first.clear();
 
-	SeedSearchMultiCache mcache;
-	std::vector<SeedAlignerSearchParams> paramVec;
-	// Scratch space for searchSeedBi, grown on demand and reused across
-	// batches and reads so that the search itself never allocates.
-	std::vector<SeedAlignerSearchState> sstateVec;
-
-	mcache.reserve(ibatch_size);
-	paramVec.reserve(ibatch_size*16); // assume no more than 16 iss per cache, on average
-	sstateVec.reserve(ibatch_size*16);
-
+	// One cache per seed offset with something to search, forward offsets
+	// first.  All caches are taken before the searches refer to them.
 	for(int fwi = 0; fwi < 2; fwi++) {
 		const bool fw = (fwi == 0);
-                int i =0;
-		// For each instantiated seed, but batched
-		while (i < (int)sr.numOffs()) {
-		   const int ibatch_max = std::min(i+ibatch_size,(int)sr.numOffs());
-		   mcache.clear();
-		   paramVec.clear();
-		   // start aligning and find list of seeds to search
-		   for(; i < ibatch_max; i++) {
+		for(int i = 0; i < (int)sr.numOffs(); i++) {
 			assert(sr.repOk(&cache.current()));
-			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
-			if(iss.empty()) {
+			if(sr.instantiatedSeeds(fw, i).empty()) {
 				// Cache hit in an across-read cache
 				continue;
 			}
-			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
-			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			mcache.emplace_back(seq, qual, i, fw);
-			const size_t mnr = mcache.size()-1;
-			SeedSearchCache &srcache = mcache[mnr];
-			{
-				possearches++;
-				for(size_t j = 0; j < iss.size(); j++) {
-					// Set seq and qual appropriately, using the seed sequences
-					// and qualities already installed in SeedResults
-					assert_eq(fw, iss[j].fw);
-					assert_eq(i, (int)iss[j].seedoffidx);
-					paramVec.emplace_back(srcache, iss[j], ebwtFw_, ebwtBw_);
-					seedsearches++;
-				}
-			}
-		   } // internal i (batch) loop
+			mcache.add(sr.seqs(fw)[i], sr.quals(fw)[i], i, fw);
+			possearches++;
+		}
+	}
+	// The searches, in the same order
+	for(size_t mnr = 0; mnr < mcache.size(); mnr++) {
+		const bool fw = mcache.getFw(mnr);
+		const int i = mcache.getSeedOffIdx(mnr);
+		EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
+		SeedSearchCache &srcache = mcache[mnr];
+		first.push_back(paramVec.size());
+		for(size_t j = 0; j < iss.size(); j++) {
+			// Set seq and qual appropriately, using the seed sequences
+			// and qualities already installed in SeedResults
+			assert_eq(fw, iss[j].fw);
+			assert_eq(i, (int)iss[j].seedoffidx);
+			paramVec.emplace_back(srcache, iss[j], ebwtFw_, ebwtBw_);
+			seedsearches++;
+		}
+	}
+	first.push_back(paramVec.size());
 
-		   // do the searches
-		   if (!paramVec.empty()) {
-			if(sstateVec.size() < paramVec.size()) sstateVec.resize(paramVec.size());
-			searchSeedBi(paramVec.size(), &(paramVec[0]), &(sstateVec[0]));
-		   }
+	// do the searches
+	if(sstateVec.size() < paramVec.size()) sstateVec.resize(paramVec.size());
+	for(size_t c0 = 0; c0 < mcache.size(); c0 += SEED_BATCH_CACHES) {
+		const size_t c1 = std::min(c0 + SEED_BATCH_CACHES, mcache.size());
+		const size_t p0 = first[c0], p1 = first[c1];
+		if(p1 > p0) {
+			searchSeedBi(p1 - p0, &(paramVec[p0]), &(sstateVec[p0]));
+		}
+	}
 
-		   // finish aligning and add to SeedResult
-		   for (size_t mnr=0; mnr<mcache.size(); mnr++) {
-			SeedSearchCache &srcache = mcache[mnr];
-			// Tell the cache that we've started aligning, so the cache can
-			// expect a series of on-the-fly updates
-			int ret = srcache.beginAlign(cache);
-			if(ret == -1) {
-				// Out of memory when we tried to add key to map
-				ooms++;
-				continue;
-			}
-			assert(srcache.aligning());
-			if(!srcache.addAllCached()){
-				// Memory exhausted during copy
-				ooms++;
-				continue;
-			}
-			srcache.finishAlign();
-			assert(!srcache.aligning());
-			if(srcache.qvValid()) {
-				sr.add(
-					srcache.getQv(),   // range of ranges in cache
-					cache.current(), // cache
-					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
-					mcache.getFw(mnr));   // whether seed is from forward read
-			}
-		   } // mnr loop
-		} // external i while
-	} // for fwi
+	// finish aligning and add to SeedResult
+	for (size_t mnr=0; mnr<mcache.size(); mnr++) {
+		SeedSearchCache &srcache = mcache[mnr];
+		// Tell the cache that we've started aligning, so the cache can
+		// expect a series of on-the-fly updates
+		int ret = srcache.beginAlign(cache);
+		if(ret == -1) {
+			// Out of memory when we tried to add key to map
+			ooms++;
+			continue;
+		}
+		assert(srcache.aligning());
+		if(!srcache.addAllCached()){
+			// Memory exhausted during copy
+			ooms++;
+			continue;
+		}
+		srcache.finishAlign();
+		assert(!srcache.aligning());
+		if(srcache.qvValid()) {
+			sr.add(
+				srcache.getQv(),   // range of ranges in cache
+				cache.current(), // cache
+				mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
+				mcache.getFw(mnr));   // whether seed is from forward read
+		}
+	} // mnr loop
 	prm.nSeedRanges = sr.numRanges();
 	prm.nSeedElts = sr.numElts();
 	prm.nSeedRangesFw = sr.numRangesFw();
@@ -853,6 +1000,69 @@ inline void exactSweepInit(
 	if(doFtab) {
 		// Use ftab
 		ebwt.ftabLoHi(seq, left - ftabLen, false, top, bot);
+		dep += (size_t)ftabLen;
+	} else {
+		// Use fchr
+		int c = seq[len-dep-1];
+		if(c < 4) {
+			top = ebwt.fchr()[c];
+			bot = ebwt.fchr()[c+1];
+		}
+		dep++;
+	}
+}
+
+/**
+ * The first part of exactSweepInit for a sweep at depth dep: true if it
+ * uses the ftab, and then the ftab index in fi (computed as ftabLoHi does).
+ */
+inline bool exactSweepFtabIdx(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const int          ftabLen,
+	const size_t       len,
+	const size_t       dep,
+	TIndexOffU        &fi)
+{
+	const size_t left = len - dep;
+	assert_gt(left, 0);
+	if(ftabLen <= 1 || left < (size_t)ftabLen) {
+		return false;
+	}
+	const size_t endi = len-dep-1;
+	// Does N interfere with use of Ftab?
+	for(size_t i = 0; i < (size_t)ftabLen; i++) {
+		int c = seq[endi-i];
+		if(c > 3) {
+			return false;
+		}
+	}
+	fi = ebwt.ftabSeqToInt(seq, left - ftabLen, false);
+	return true;
+}
+
+/**
+ * The rest of exactSweepInit, given exactSweepFtabIdx's result for the
+ * same depth: the same top, bot and dep.
+ */
+inline void exactSweepInitIdx(
+	const Ebwt&        ebwt,
+	const BTDnaString& seq,
+	const int          ftabLen,
+	const size_t       len,
+	const bool         doFtab,
+	const TIndexOffU   fi,
+	size_t            &dep,
+	TIndexOffU        &top,
+	TIndexOffU        &bot
+	)
+{
+	top = bot = 0;
+	if(doFtab) {
+		// Use ftab
+		if(fi != std::numeric_limits<TIndexOffU>::max()) {
+			ebwt.ftabLoHi(fi, top, bot);
+		}
 		dep += (size_t)ftabLen;
 	} else {
 		// Use fchr
@@ -1045,26 +1255,270 @@ size_t SeedAligner::exactSweep(
 }
 
 /**
- * Search for end-to-end exact hit for read.  Return true iff one is found.
+ * exactSweep for many reads at once.  exactSweep steps the sweeps of the read
+ * and of its reverse complement in turn, so that each step's prefetch of the
+ * sides its sweep needs next is hidden by the other sweep's step.  Usually
+ * only one of the two survives past the first few steps, so for most of a
+ * sweep one load is in flight.  Here the sweeps of all the jobs (each read,
+ * then its reverse complement, job after job) are stepped in turn in
+ * EXACT_SWEEP_LANES lanes; when a sweep ends, the next one takes its lane.
+ * The sweeps share no state, and each takes exactly the steps it takes in
+ * exactSweep, so each job's edit bounds, exact hits, element count (nelt)
+ * and LF operations are the ones exactSweep gives for its read.
  */
-bool SeedAligner::oneMmSearch(
+void SeedAligner::exactSweepBatch(
+	const Ebwt&        ebwt,    // BWT index
+	const Scoring&     sc,      // scoring scheme
+	size_t             mineMax, // don't care about edit bounds > this
+	bool               repex,   // report 0mm hits?
+	ExactSweepJob* const* jobs, // the reads to sweep
+	size_t             njobs)   // # jobs
+{
+	assert_gt(mineMax, 0);
+	const int ftabLen = ebwt.eh().ftabChars();
+
+	// One sweep in progress
+	struct Lane {
+		ExactSweepJob*     job;    // NULL: lane is idle
+		int                fwi;    // 0: the read, 1: its reverse complement
+		const BTDnaString* seq;
+		size_t             len;
+		size_t             dep;
+		size_t             nedit;
+		TIndexOffU         top;
+		TIndexOffU         bot;
+		SideLocus          tloc;
+		SideLocus          bloc;
+		bool               doInit;
+		bool               done;
+		size_t             prefetch_count;
+		bool               doFtab; // the next (re)start uses the ftab
+		TIndexOffU         fi;     // at this ftab index
+#ifndef NDEBUG
+		size_t             fidep;  // the depth they were computed for
+#endif
+	};
+	Lane lanes[EXACT_SWEEP_LANES];
+
+	// Before a lane's turn that (re)starts its sweep: compute the ftab
+	// index the start reads and prefetch its entries, so that they arrive
+	// while the other lanes take their turns
+	const TIndexOffU* const ftab = ebwt.ftab();
+	auto prepInit = [&](Lane& ln) {
+		ln.doFtab = exactSweepFtabIdx(ebwt, *ln.seq, ftabLen, ln.len, ln.dep, ln.fi);
+		if(ln.doFtab && ln.fi != std::numeric_limits<TIndexOffU>::max()) {
+			__builtin_prefetch(ftab + ln.fi);     // ftabHi(fi)
+			__builtin_prefetch(ftab + ln.fi + 1); // ftabLo(fi+1)
+		}
+#ifndef NDEBUG
+		ln.fidep = ln.dep;
+#endif
+	};
+
+	// Sweep s is job s/2's read (s even) or its reverse complement (s odd)
+	const size_t nsweeps = 2 * njobs;
+	size_t next = 0;
+
+	// The end of a sweep: what exactSweep does after its loop
+	auto finish = [&](Lane& ln) {
+		if( (!ln.done) && (ln.dep >= ln.len) ) {
+			ExactSweepJob& job = *ln.job;
+			// Set the minimum # edits
+			job.mine[ln.fwi] = ln.nedit;
+			// Done
+			if(ln.nedit == 0 && ln.bot > ln.top) {
+				if(repex) {
+					// This is an exact hit
+					int64_t score = ln.len * sc.match();
+					job.hit[ln.fwi] = true;
+					job.top[ln.fwi] = ln.top;
+					job.bot[ln.fwi] = ln.bot;
+					job.score[ln.fwi] = score;
+					assert(ebwt.contains(*ln.seq, NULL, NULL));
+				}
+				job.nelt += (ln.bot - ln.top);
+			}
+		}
+	};
+
+	// Start the next sweep in a lane; false if none is left
+	auto start = [&](Lane& ln) {
+		while(next < nsweeps) {
+			ExactSweepJob& job = *jobs[next >> 1];
+			const int fwi = (int)(next & 1);
+			next++;
+			if(fwi == 0 ? job.nofw : job.norc) {
+				continue;
+			}
+			ln.job = &job;
+			ln.fwi = fwi;
+			ln.seq = fwi == 0 ? &job.read->patFw : &job.read->patRc;
+			ln.len = job.read->length();
+			ln.dep = 0;
+			ln.nedit = 0;
+			ln.top = ln.bot = 0;
+			ln.doInit = true;
+			ln.done = false;
+			ln.prefetch_count = 0;
+			if(ln.len == 0) {
+				finish(ln);
+				continue;
+			}
+			const BTDnaString& seq = *ln.seq;
+			__builtin_prefetch(&(seq[ln.len-1]));
+			if (ln.len>48) __builtin_prefetch(&(seq[ln.len-49])); // HW prefetch prediction assumes forward, help it
+			prepInit(ln);
+			return true;
+		}
+		ln.job = NULL;
+		return false;
+	};
+
+	size_t nlanes = 0;
+	for(size_t l = 0; l < EXACT_SWEEP_LANES; l++) {
+		if(start(lanes[l])) {
+			nlanes++;
+		}
+	}
+	while(nlanes > 0) {
+		for(size_t l = 0; l < EXACT_SWEEP_LANES; l++) {
+			Lane& ln = lanes[l];
+			if(ln.job == NULL) {
+				continue;
+			}
+			const BTDnaString& seq = *ln.seq;
+			if (++ln.prefetch_count >= 48) { // cache line is 64 bytes, but we may skip some deps
+				const size_t left = ln.len-ln.dep;
+				if (left>48) {
+					__builtin_prefetch(&(seq[left-49])); // HW prefetch prediction assumes forward, help it
+				}
+				ln.prefetch_count = 0;
+			}
+			// One turn of exactSweep's loop for this sweep
+			bool step = true;
+			if (ln.doInit) {
+				assert_eq(ln.fidep, ln.dep);
+				exactSweepInitIdx(ebwt, seq, ftabLen, ln.len,    // in
+						ln.doFtab, ln.fi,                       // in
+						ln.dep, ln.top, ln.bot);                // out
+				if ( exactSweepStep(ebwt, ln.top, ln.bot, mineMax,
+						ln.tloc, ln.bloc,
+						ln.job->mine[ln.fwi],
+						ln.nedit, ln.done) ) {
+					step = false;
+				} else {
+					ln.doInit=false;
+					// Its first LF step reads the side INIT_LOCS has just
+					// prefetched: leave it to the lane's next turn
+					step = false;
+				}
+			}
+			if (step && ln.dep < ln.len) {
+				exactSweepMapLF(ebwt, seq, ln.len, ln.dep, ln.tloc, ln.bloc,
+						ln.top, ln.bot, ln.job->bwops);
+
+				if ( exactSweepStep(ebwt, ln.top, ln.bot, mineMax,
+							ln.tloc, ln.bloc,
+							ln.job->mine[ln.fwi],
+							ln.nedit, ln.done) ) {
+					ln.doInit=true;
+				}
+				ln.dep++;
+			}
+			if (ln.done || ln.dep >= ln.len) {
+				// This sweep has ended; the next one takes the lane
+				finish(ln);
+				if(!start(ln)) {
+					nlanes--;
+				}
+			} else if (ln.doInit) {
+				// The sweep restarts on the lane's next turn
+				prepInit(ln);
+			}
+		}
+	}
+}
+
+/**
+ * Compute the ftab indices oneMmStart reads for the job's directions (each
+ * as ftabLoHi computes it from the read), store them in the job, and
+ * prefetch their ftab entries.  Directions oneMmStart skips get an index
+ * too; it is not read.
+ */
+void SeedAligner::oneMmStartPrefetch(
 	const Ebwt*        ebwtFw, // BWT index
 	const Ebwt*        ebwtBw, // BWT' index
-	const Read&        read,   // read to align
+	bool               rep1mm, // report 1mm hits?
+	OneMmJob&          job)
+{
+	const Read& read = *job.read;
+	const size_t len = read.length();
+	const int ftabLen = ebwtFw->eh().ftabChars();
+	job.ftabPre = true;
+	job.ftabPreRep1mm = rep1mm;
+	if(ftabLen <= 1) {
+		return; // oneMmStart uses fchr
+	}
+	const TIndexOffU nomatch = std::numeric_limits<TIndexOffU>::max();
+	for(int fwi = 0; fwi < 2; fwi++) {
+		bool fw = (fwi == 0);
+		if( fw && job.nofw) continue;
+		if(!fw && job.norc) continue;
+		int lim = rep1mm ? 2 : 1;
+		for(int ebwtfwi = 0; ebwtfwi < lim; ebwtfwi++) {
+			bool ebwtfw = (ebwtfwi == 0);
+			// The near half's length, as in oneMmStart
+			const size_t nea = (len >> 1) + (ebwtfw ? 0 : (len & 1));
+			if((size_t)ftabLen > nea) {
+				continue; // oneMmStart uses fchr
+			}
+			const Ebwt* ebwt  = (ebwtfw ? ebwtFw : ebwtBw);
+			const Ebwt* ebwtp = (ebwtfw ? ebwtBw : ebwtFw);
+			const BTDnaString& seq =
+				(fw ? (ebwtfw ? read.patFw : read.patFwRev) :
+				      (ebwtfw ? read.patRc : read.patRcRev));
+			const bool rev = !ebwtfw;
+			const int k = 2 * fwi + ebwtfwi;
+			const TIndexOffU fi = ebwt->ftabSeqToInt(seq, len - ftabLen, rev);
+			job.fi[k] = fi;
+			if(fi != nomatch) {
+				__builtin_prefetch(ebwt->ftab() + fi);
+				__builtin_prefetch(ebwt->ftab() + fi + 1);
+			}
+			if(rep1mm) {
+				const TIndexOffU fip = ebwtp->ftabSeqToInt(seq, len - ftabLen, rev);
+				job.fip[k] = fip;
+				if(fip != nomatch) {
+					__builtin_prefetch(ebwtp->ftab() + fip);
+					__builtin_prefetch(ebwtp->ftab() + fip + 1);
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Set up the directions of a 1-mismatch search and their main walks, which
+ * are the first job.ndir walks.  Returns false if the read cannot have a hit
+ * (too many Ns); the job then has no walks.
+ */
+bool SeedAligner::oneMmStart(
+	const Ebwt*        ebwtFw, // BWT index
+	const Ebwt*        ebwtBw, // BWT' index
 	const Scoring&     sc,     // scoring
-	int64_t            minsc,  // minimum score
-	bool               nofw,   // don't align forward read
-	bool               norc,   // don't align revcomp read
-	bool               local,  // 1mm hits must be legal local alignments
 	bool               repex,  // report 0mm hits?
 	bool               rep1mm, // report 1mm hits?
-	SeedResults&       hits,   // holds all the seed hits (and exact hit)
-	SeedSearchMetrics& met)    // metrics
+	OneMmJob&          job)
 {
 	assert(!rep1mm || ebwtBw != NULL);
+	const Read& read = *job.read;
 	const size_t len = read.length();
-	int nceil = sc.nCeil.f<int>((double)len);
+	job.repex = repex;
+	job.rep1mm = rep1mm;
+	job.len = len;
+	job.nceil = sc.nCeil.f<int>((double)len);
 	size_t ns = read.ns();
+	job.ns = ns;
 	if(ns > 1) {
 		// Can't align this with <= 1 mismatches
 		return false;
@@ -1088,20 +1542,11 @@ bool SeedAligner::oneMmSearch(
 	}
 	assert_geq(halfFw, 1);
 	assert_geq(halfBw, 1);
-	SideLocus tloc, bloc;
-	TIndexOffU t[4], b[4];   // dest BW ranges for BWT
-	t[0] = t[1] = t[2] = t[3] = 0;
-	b[0] = b[1] = b[2] = b[3] = 0;
-	TIndexOffU tp[4], bp[4]; // dest BW ranges for BWT'
-	tp[0] = tp[1] = tp[2] = tp[3] = 0;
-	bp[0] = bp[1] = bp[2] = bp[3] = 0;
-	TIndexOffU top = 0, bot = 0, topp = 0, botp = 0;
-	// Align fw read / rc read
-	bool results = false;
+	int ndir = 0;
 	for(int fwi = 0; fwi < 2; fwi++) {
 		bool fw = (fwi == 0);
-		if( fw && nofw) continue;
-		if(!fw && norc) continue;
+		if( fw && job.nofw) continue;
+		if(!fw && job.norc) continue;
 		// Align going right-to-left, left-to-right
 		int lim = rep1mm ? 2 : 1;
 		for(int ebwtfwi = 0; ebwtfwi < lim; ebwtfwi++) {
@@ -1130,273 +1575,535 @@ bool SeedAligner::oneMmSearch(
 				continue;
 			}
 			size_t dep = 0;
+			TIndexOffU top = 0, bot = 0, topp = 0, botp = 0;
 			// Align near half
 			if(ftabLen > 1 && (size_t)ftabLen <= nea) {
 				// Use ftab to jump partway into near half
 				bool rev = !ebwtfw;
-				ebwt->ftabLoHi(seq, len - ftabLen, rev, top, bot);
-				if(rep1mm) {
-					ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
-					assert_eq(bot - top, botp - topp);
+				if(job.ftabPre && job.ftabPreRep1mm == rep1mm) {
+					// The indices ftabLoHi would compute, computed earlier
+					const TIndexOffU nomatch = std::numeric_limits<TIndexOffU>::max();
+					const int k = 2 * fwi + ebwtfwi;
+					assert_eq(job.fi[k], ebwt->ftabSeqToInt(seq, len - ftabLen, rev));
+					if(job.fi[k] != nomatch) {
+						ebwt->ftabLoHi(job.fi[k], top, bot);
+					}
+					if(rep1mm) {
+						assert_eq(job.fip[k], ebwtp->ftabSeqToInt(seq, len - ftabLen, rev));
+						if(job.fip[k] != nomatch) {
+							ebwtp->ftabLoHi(job.fip[k], topp, botp);
+						}
+						assert_eq(bot - top, botp - topp);
+					}
+				} else {
+					ebwt->ftabLoHi(seq, len - ftabLen, rev, top, bot);
+					if(rep1mm) {
+						ebwtp->ftabLoHi(seq, len - ftabLen, rev, topp, botp);
+						assert_eq(bot - top, botp - topp);
+					}
 				}
 				if(bot - top == 0) {
 					continue;
 				}
-				int c = seq[len - ftabLen];
-				t[c] = top; b[c] = bot;
-				tp[c] = topp; bp[c] = botp;
 				dep = ftabLen;
-				// initialize tloc, bloc??
 			} else {
 				// Use fchr to jump in by 1 pos
 				int c = seq[len-1];
 				assert_range(0, 3, c);
-				top = topp = tp[c] = ebwt->fchr()[c];
-				bot = botp = bp[c] = ebwt->fchr()[c+1];
+				top = topp = ebwt->fchr()[c];
+				bot = botp = ebwt->fchr()[c+1];
 				if(bot - top == 0) {
 					continue;
 				}
 				dep = 1;
-				// initialize tloc, bloc??
 			}
-			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
 			assert(sanityPartial(ebwt, ebwtp, seq, len-dep, len, rep1mm, top, bot, topp, botp));
-			bool do_continue = false;
-			for(; dep < nea; dep++) {
-				assert_lt(dep, len);
-				int rdc = seq[len - dep - 1];
-				tp[0] = tp[1] = tp[2] = tp[3] = topp;
-				bp[0] = bp[1] = bp[2] = bp[3] = botp;
-				if(bloc.valid()) {
-					bwops_++;
-					t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
-					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-					SANITY_CHECK_4TUP(t, b, tp, bp);
-					top = t[rdc]; bot = b[rdc];
-					if(bot <= top) {
-						do_continue = true;
-						break;
-					}
-					topp = tp[rdc]; botp = bp[rdc];
-					assert(!rep1mm || bot - top == botp - topp);
-				} else {
-					assert_eq(bot, top+1);
-					assert(!rep1mm || botp == topp+1);
-					bwops_++;
-					top = ebwt->mapLF1(top, tloc, rdc);
-					if(top == OFF_MASK) {
-						do_continue = true;
-						break;
-					}
-					bot = top + 1;
-					t[rdc] = top; b[rdc] = bot;
-					tp[rdc] = topp; bp[rdc] = botp;
-					assert(!rep1mm || b[rdc] - t[rdc] == bp[rdc] - tp[rdc]);
-					// topp/botp stay the same
-				}
-				INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-				assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
+			OneMmDir& d = job.dirs[ndir];
+			d.ebwt = ebwt;
+			d.ebwtp = ebwtp;
+			d.seq = &seq;
+			d.qual = &qual;
+			d.nea = nea;
+			d.fw = fw;
+			d.ebwtfw = ebwtfw;
+			d.exact = false;
+			d.etop = d.ebot = 0;
+			job.walks.expand();
+			job.walks.back().init(ndir, false, top, bot, topp, botp, dep);
+			ndir++;
+		}
+	}
+	job.ndir = ndir;
+	job.mainLeft = (size_t)ndir;
+	return true;
+}
+
+/**
+ * One LF step of main walk i of a job from loci tloc and bloc, which it then
+ * sets for the next step; returns false when the walk has ended.  It may
+ * append mismatch walks to the job's walks, so it works on a copy.
+ */
+inline bool SeedAligner::oneMmStepMain(
+	OneMmJob& job,
+	size_t i,
+	SideLocus& tloc,
+	SideLocus& bloc,
+	bool prefetch)
+{
+	OneMmWalk m = job.walks[i];
+	OneMmDir& d = job.dirs[m.dir];
+	const Ebwt* ebwt = d.ebwt;
+	const BTDnaString& seq = *d.seq;
+	const size_t len = job.len;
+	const bool rep1mm = job.rep1mm;
+	TIndexOffU t[4], b[4];   // dest BW ranges for BWT
+	t[0] = t[1] = t[2] = t[3] = 0;
+	b[0] = b[1] = b[2] = b[3] = 0;
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for BWT'
+	tp[0] = tp[1] = tp[2] = tp[3] = m.topp;
+	bp[0] = bp[1] = bp[2] = bp[3] = m.botp;
+	if(m.dep < d.nea) {
+		// Near half: exact matching
+		assert_lt(m.dep, len);
+		int rdc = seq[len - m.dep - 1];
+		if(bloc.valid()) {
+			job.bwops++;
+			ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+			SANITY_CHECK_4TUP(t, b, tp, bp);
+			m.top = t[rdc]; m.bot = b[rdc];
+			if(m.bot <= m.top) {
+				return false;
 			}
-			if(do_continue) {
+			m.topp = tp[rdc]; m.botp = bp[rdc];
+			assert(!rep1mm || m.bot - m.top == m.botp - m.topp);
+		} else {
+			assert_eq(m.bot, m.top+1);
+			assert(!rep1mm || m.botp == m.topp+1);
+			job.bwops++;
+			m.top = ebwt->mapLF1(m.top, tloc, rdc);
+			if(m.top == OFF_MASK) {
+				return false;
+			}
+			m.bot = m.top + 1;
+			// topp/botp stay the same
+		}
+		if(prefetch) {
+			INIT_LOCS(m.top, m.bot, tloc, bloc, *ebwt);
+		} else {
+			INIT_LOCS_NOPF(m.top, m.bot, tloc, bloc, *ebwt);
+		}
+		assert(sanityPartial(ebwt, d.ebwtp, seq, len - m.dep - 1, len, rep1mm, m.top, m.bot, m.topp, m.botp));
+		m.dep++;
+		job.walks[i] = m;
+		return true;
+	}
+	// Far half: exact matching, and at each position a mismatch walk
+	// for each other character that occurs
+	if(m.dep >= len) {
+		return false;
+	}
+	int rdc = seq[len - m.dep - 1];
+	int quc = (*d.qual)[len - m.dep - 1];
+	if(rdc > 3 && job.nceil == 0) {
+		return false;
+	}
+	int clo = 0, chi = 3;
+	bool match = true;
+	if(bloc.valid()) {
+		job.bwops++;
+		ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
+		SANITY_CHECK_4TUP(t, b, tp, bp);
+		match = rdc < 4;
+		if(match) {
+			m.top = t[rdc]; m.bot = b[rdc];
+			m.topp = tp[rdc]; m.botp = bp[rdc];
+		}
+	} else {
+		assert_eq(m.bot, m.top+1);
+		assert(!rep1mm || m.botp == m.topp+1);
+		job.bwops++;
+		clo = ebwt->mapLF1(m.top, tloc);
+		match = (clo == rdc);
+		assert_range(-1, 3, clo);
+		if(clo < 0) {
+			return false; // Hit the $
+		}
+		t[clo] = m.top;
+		b[clo] = m.bot = m.top + 1;
+		bp[clo] = m.botp;
+		tp[clo] = m.topp;
+		assert(!rep1mm || m.bot - m.top == m.botp - m.topp);
+		assert(!rep1mm || b[clo] - t[clo] == bp[clo] - tp[clo]);
+		chi = clo;
+	}
+	if(rep1mm && (job.ns == 0 || rdc > 3)) {
+		for(int j = clo; j <= chi; j++) {
+			if(j == rdc || b[j] == t[j]) {
+				// Either matches read or isn't a possibility
 				continue;
 			}
-			// Align far half
-			for(; dep < len; dep++) {
-				int rdc = seq[len-dep-1];
-				int quc = qual[len-dep-1];
-				if(rdc > 3 && nceil == 0) {
-					break;
-				}
-				tp[0] = tp[1] = tp[2] = tp[3] = topp;
-				bp[0] = bp[1] = bp[2] = bp[3] = botp;
-				int clo = 0, chi = 3;
-				bool match = true;
-				if(bloc.valid()) {
-					bwops_++;
-					t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
-					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-					SANITY_CHECK_4TUP(t, b, tp, bp);
-					match = rdc < 4;
-					top = t[rdc]; bot = b[rdc];
-					topp = tp[rdc]; botp = bp[rdc];
-				} else {
-					assert_eq(bot, top+1);
-					assert(!rep1mm || botp == topp+1);
-					bwops_++;
-					clo = ebwt->mapLF1(top, tloc);
-					match = (clo == rdc);
-					assert_range(-1, 3, clo);
-					if(clo < 0) {
-						break; // Hit the $
+			// Potential mismatch - next, try
+			assert_eq(b[j] - t[j], bp[j] - tp[j]);
+			job.walks.expand();
+			OneMmWalk& w = job.walks.back();
+			w.init(m.dir, true, t[j], b[j], tp[j], bp[j], m.dep + 1);
+			w.mmdep = (uint32_t)m.dep;
+			w.mmc = (int8_t)j;
+			w.rdc = (int8_t)rdc;
+			w.quc = quc;
+			if(w.dep == len) {
+				// Mismatch at the last position: nothing left to match
+				w.done = w.hit = true;
+			}
+		}
+	}
+	if(m.bot > m.top && match) {
+		assert_lt(rdc, 4);
+		if(m.dep == len-1) {
+			// Success; this is an exact hit
+			if(d.ebwtfw && job.repex) {
+				d.exact = true;
+				d.etop = m.top;
+				d.ebot = m.bot;
+			}
+			return false; // End of far loop
+		}
+		if(prefetch) {
+			INIT_LOCS(m.top, m.bot, tloc, bloc, *ebwt);
+		} else {
+			INIT_LOCS_NOPF(m.top, m.bot, tloc, bloc, *ebwt);
+		}
+		assert(sanityPartial(ebwt, d.ebwtp, seq, len - m.dep - 1, len, rep1mm, m.top, m.bot, m.topp, m.botp));
+		m.dep++;
+		job.walks[i] = m;
+		return true;
+	}
+	return false; // End of far loop
+}
+
+/**
+ * One LF step of mismatch walk i of a job, as oneMmStepMain.
+ */
+inline bool SeedAligner::oneMmStepMm(
+	OneMmJob& job,
+	size_t i,
+	SideLocus& tloc,
+	SideLocus& bloc,
+	bool prefetch)
+{
+	OneMmWalk& w = job.walks[i];
+	const OneMmDir& d = job.dirs[w.dir];
+	const Ebwt* ebwt = d.ebwt;
+	const size_t len = job.len;
+	int rdcm = (*d.seq)[len - w.dep - 1];
+	assert_lt(rdcm, 4);
+	if(bloc.valid()) {
+		job.bwops++;
+		TIndexOffU tm[4], bm[4];   // dest BW ranges for BWT
+		tm[0] = tm[1] = tm[2] = tm[3] = 0;
+		bm[0] = bm[1] = bm[2] = bm[3] = 0;
+		TIndexOffU tmp[4], bmp[4]; // dest BW ranges for BWT'
+		tmp[0] = tmp[1] = tmp[2] = tmp[3] = w.topp;
+		bmp[0] = bmp[1] = bmp[2] = bmp[3] = w.botp;
+		ebwt->mapBiLFEx(tloc, bloc, tm, bm, tmp, bmp);
+		SANITY_CHECK_4TUP(tm, bm, tmp, bmp);
+		w.top = tm[rdcm]; w.bot = bm[rdcm];
+		w.topp = tmp[rdcm]; w.botp = bmp[rdcm];
+		if(w.bot <= w.top) {
+			return false;
+		}
+	} else {
+		assert_eq(w.bot, w.top+1);
+		assert_eq(w.botp, w.topp+1);
+		job.bwops++;
+		w.top = ebwt->mapLF1(w.top, tloc, rdcm);
+		if(w.top == OFF_MASK) {
+			return false;
+		}
+		w.bot = w.top + 1;
+		// topp/botp stay the same
+	}
+	if(++w.dep == len) {
+		w.hit = true;
+		return false;
+	}
+	if(prefetch) {
+		INIT_LOCS(w.top, w.bot, tloc, bloc, *ebwt);
+	} else {
+		INIT_LOCS_NOPF(w.top, w.bot, tloc, bloc, *ebwt);
+	}
+	return true;
+}
+
+/**
+ * Step the walks of the jobs in turn, at most LANES at a time.  The walks of
+ * each job are started in the order they were made, job after job; starting
+ * a walk sets its loci, which prefetches the sides of its first step.  A
+ * job's main walks may make more walks for it until they end, so every job
+ * from the first one that may still have a walk to start is looked at
+ * whenever a lane is free.  The walks share no state: every walk takes the
+ * same steps as it would alone.
+ *
+ * With GROUP, setting a lane's loci does not prefetch their sides; the
+ * prefetches of every lane are issued together once per round, after the
+ * walks that take free lanes are started and before the lanes are stepped,
+ * so that their page walks overlap.  The same lines are prefetched.
+ * oneMmSearchBatch's 32-lane runs group; oneMmSearch's one-read runs do
+ * not (with 4 KB pages, grouping made the per-read runs slower).
+ */
+template<size_t LANES, bool GROUP>
+void SeedAligner::oneMmRun(OneMmJob* const* jobs, size_t njobs)
+{
+	OneMmJob* actj[LANES];
+	size_t act[LANES];
+	SideLocus tlocs[LANES], blocs[LANES];
+	const uint8_t* ebs[LANES]; // with GROUP: the BWT each lane's walk steps in
+	size_t nact = 0, jfirst = 0;
+	while(true) {
+		while(jfirst < njobs && jobs[jfirst]->mainLeft == 0 &&
+		      jobs[jfirst]->nextw == jobs[jfirst]->walks.size())
+		{
+			jfirst++;
+		}
+		for(size_t j = jfirst; j < njobs && nact < LANES; j++) {
+			OneMmJob& job = *jobs[j];
+			while(nact < LANES && job.nextw < job.walks.size()) {
+				const OneMmWalk& w = job.walks[job.nextw];
+				if(!w.done) {
+					const Ebwt& e = *job.dirs[w.dir].ebwt;
+					if(GROUP) {
+						INIT_LOCS_NOPF(w.top, w.bot, tlocs[nact], blocs[nact], e);
+						ebs[nact] = e.ebwt();
 					} else {
-						t[clo] = top;
-						b[clo] = bot = top + 1;
+						INIT_LOCS(w.top, w.bot, tlocs[nact], blocs[nact], e);
 					}
-					bp[clo] = botp;
-					tp[clo] = topp;
-					assert(!rep1mm || bot - top == botp - topp);
-					assert(!rep1mm || b[clo] - t[clo] == bp[clo] - tp[clo]);
-					chi = clo;
+					actj[nact] = &job;
+					act[nact++] = job.nextw;
 				}
-				//assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
-				if(rep1mm && (ns == 0 || rdc > 3)) {
-					for(int j = clo; j <= chi; j++) {
-						if(j == rdc || b[j] == t[j]) {
-							// Either matches read or isn't a possibility
-							continue;
+				job.nextw++;
+			}
+		}
+		if(nact == 0) {
+			break;
+		}
+		if(GROUP) {
+			// Every lane's loci were set, without prefetches, by its step
+			// in the last round or by the start of its walk above
+			for(size_t k = 0; k < nact; k++) {
+				SIDE_LOCI_PREFETCH(tlocs[k], blocs[k], ebs[k]);
+			}
+		}
+		for(size_t k = 0; k < nact;) {
+			OneMmJob& job = *actj[k];
+			const size_t i = act[k];
+			const bool mm = job.walks[i].mm;
+			if(mm ? oneMmStepMm(job, i, tlocs[k], blocs[k], !GROUP) :
+			        oneMmStepMain(job, i, tlocs[k], blocs[k], !GROUP))
+			{
+				k++;
+			} else {
+				job.walks[i].done = true;
+				if(!mm) {
+					job.mainLeft--;
+				}
+				nact--;
+				actj[k] = actj[nact];
+				act[k] = act[nact];
+				tlocs[k] = tlocs[nact];
+				blocs[k] = blocs[nact];
+				if(GROUP) {
+					ebs[k] = ebs[nact];
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Report the hits of a job whose walks have all ended, in the order of a
+ * one-walk-at-a-time search: by direction, then mismatch position, then
+ * character.  Mismatch walks are made in that order within a direction.
+ */
+bool SeedAligner::oneMmReport(
+	const OneMmJob&    job,
+	const Ebwt*        ebwtFw, // BWT index
+	const Scoring&     sc,     // scoring
+	int64_t            minsc,  // minimum score
+	bool               local,  // 1mm hits must be legal local alignments
+	SeedResults&       hits)   // holds all the seed hits (and exact hit)
+{
+	const Read& read = *job.read;
+	(void)read;
+	(void)ebwtFw;  // read only by the debug checks
+	const size_t len = job.len;
+	const int ndir = job.ndir;
+	const bool repex = job.repex;
+	(void)repex;
+	bool results = false;
+	for(int di = 0; di < ndir; di++) {
+		const OneMmDir& d = job.dirs[di];
+		const bool fw = d.fw;
+		const bool ebwtfw = d.ebwtfw;
+		for(size_t i = (size_t)ndir; i < job.walks.size(); i++) {
+			const OneMmWalk& w = job.walks[i];
+			if(w.dir != di || !w.hit) {
+				continue;
+			}
+			assert(w.mm);
+			const size_t dep = w.mmdep;
+			const int j = w.mmc;
+			const int rdc = w.rdc;
+			const int quc = w.quc;
+			const TIndexOffU topm = w.top, botm = w.bot;
+			const TIndexOffU topmp = w.topp, botmp = w.botp;
+			// Success; this is a 1MM hit
+			size_t off5p = dep;  // offset from 5' end of read
+			if(fw == ebwtfw) {
+				off5p = len - off5p - 1;
+			}
+			Edit e((uint32_t)off5p, j, rdc, EDIT_TYPE_MM, false);
+			results = true;
+			int64_t score = (len - 1) * sc.match();
+			// In --local mode, need to double-check that
+			// end-to-end alignment doesn't violate  local
+			// alignment principles.  Specifically, it
+			// shouldn't to or below 0 anywhere in the middle.
+			int pen = sc.score(rdc, (int)(1 << j), quc - 33);
+			score += pen;
+			bool valid = true;
+			if(local) {
+				int64_t locscore_fw = 0, locscore_bw = 0;
+				for(size_t i = 0; i < len; i++) {
+					if(i == dep) {
+						if(locscore_fw + pen <= 0) {
+							valid = false;
+							break;
 						}
-						// Potential mismatch - next, try
-						size_t depm = dep + 1;
-						TIndexOffU topm = t[j], botm = b[j];
-						TIndexOffU topmp = tp[j], botmp = bp[j];
-						assert_eq(botm - topm, botmp - topmp);
-						TIndexOffU tm[4], bm[4];   // dest BW ranges for BWT
-						tm[0] = t[0]; tm[1] = t[1];
-						tm[2] = t[2]; tm[3] = t[3];
-						bm[0] = b[0]; bm[1] = t[1];
-						bm[2] = b[2]; bm[3] = t[3];
-						TIndexOffU tmp[4], bmp[4]; // dest BW ranges for BWT'
-						tmp[0] = tp[0]; tmp[1] = tp[1];
-						tmp[2] = tp[2]; tmp[3] = tp[3];
-						bmp[0] = bp[0]; bmp[1] = tp[1];
-						bmp[2] = bp[2]; bmp[3] = tp[3];
-						SideLocus tlocm, blocm;
-						INIT_LOCS(topm, botm, tlocm, blocm, *ebwt);
-						for(; depm < len; depm++) {
-							int rdcm = seq[len - depm - 1];
-							tmp[0] = tmp[1] = tmp[2] = tmp[3] = topmp;
-							bmp[0] = bmp[1] = bmp[2] = bmp[3] = botmp;
-							if(blocm.valid()) {
-								bwops_++;
-								tm[0] = tm[1] = tm[2] = tm[3] =
-								bm[0] = bm[1] = bm[2] = bm[3] = 0;
-								ebwt->mapBiLFEx(tlocm, blocm, tm, bm, tmp, bmp);
-								SANITY_CHECK_4TUP(tm, bm, tmp, bmp);
-								topm = tm[rdcm]; botm = bm[rdcm];
-								topmp = tmp[rdcm]; botmp = bmp[rdcm];
-								if(botm <= topm) {
-									break;
-								}
-							} else {
-								assert_eq(botm, topm+1);
-								assert_eq(botmp, topmp+1);
-								bwops_++;
-								topm = ebwt->mapLF1(topm, tlocm, rdcm);
-								if(topm == OFF_MASK) {
-									break;
-								}
-								botm = topm + 1;
-								// topp/botp stay the same
-							}
-							INIT_LOCS(topm, botm, tlocm, blocm, *ebwt);
+						locscore_fw += pen;
+					} else {
+						locscore_fw += sc.match();
+					}
+					if(len-i-1 == dep) {
+						if(locscore_bw + pen <= 0) {
+							valid = false;
+							break;
 						}
-						if(depm == len) {
-							// Success; this is a 1MM hit
-							size_t off5p = dep;  // offset from 5' end of read
-							size_t offstr = dep; // offset into patFw/patRc
-							if(fw == ebwtfw) {
-								off5p = len - off5p - 1;
-							}
-							if(!ebwtfw) {
-								offstr = len - offstr - 1;
-							}
-							Edit e((uint32_t)off5p, j, rdc, EDIT_TYPE_MM, false);
-							results = true;
-							int64_t score = (len - 1) * sc.match();
-							// In --local mode, need to double-check that
-							// end-to-end alignment doesn't violate  local
-							// alignment principles.  Specifically, it
-							// shouldn't to or below 0 anywhere in the middle.
-							int pen = sc.score(rdc, (int)(1 << j), quc - 33);
-							score += pen;
-							bool valid = true;
-							if(local) {
-								int64_t locscore_fw = 0, locscore_bw = 0;
-								for(size_t i = 0; i < len; i++) {
-									if(i == dep) {
-										if(locscore_fw + pen <= 0) {
-											valid = false;
-											break;
-										}
-										locscore_fw += pen;
-									} else {
-										locscore_fw += sc.match();
-									}
-									if(len-i-1 == dep) {
-										if(locscore_bw + pen <= 0) {
-											valid = false;
-											break;
-										}
-										locscore_bw += pen;
-									} else {
-										locscore_bw += sc.match();
-									}
-								}
-							}
-							if(valid) {
-								valid = score >= minsc;
-							}
-							if(valid) {
+						locscore_bw += pen;
+					} else {
+						locscore_bw += sc.match();
+					}
+				}
+			}
+			if(valid) {
+				valid = score >= minsc;
+			}
+			if(valid) {
 #ifndef NDEBUG
-								BTDnaString& rf = tmprfdnastr_;
-								rf.clear();
-								edits_.clear();
-								edits_.push_back(e);
-								if(!fw) Edit::invertPoss(edits_, len, false);
-								Edit::toRef(fw ? read.patFw : read.patRc, edits_, rf);
-								if(!fw) Edit::invertPoss(edits_, len, false);
-								assert_eq(len, rf.length());
-								for(size_t i = 0; i < len; i++) {
-									assert_lt((int)rf[i], 4);
-								}
-								ASSERT_ONLY(TIndexOffU toptmp = 0);
-								ASSERT_ONLY(TIndexOffU bottmp = 0);
-								assert(ebwtFw->contains(rf, &toptmp, &bottmp));
+				BTDnaString& rf = tmprfdnastr_;
+				rf.clear();
+				edits_.clear();
+				edits_.push_back(e);
+				if(!fw) Edit::invertPoss(edits_, len, false);
+				Edit::toRef(fw ? read.patFw : read.patRc, edits_, rf);
+				if(!fw) Edit::invertPoss(edits_, len, false);
+				assert_eq(len, rf.length());
+				for(size_t i = 0; i < len; i++) {
+					assert_lt((int)rf[i], 4);
+				}
+				ASSERT_ONLY(TIndexOffU toptmp = 0);
+				ASSERT_ONLY(TIndexOffU bottmp = 0);
+				assert(ebwtFw->contains(rf, &toptmp, &bottmp));
 #endif
-								TIndexOffU toprep = ebwtfw ? topm : topmp;
-								TIndexOffU botrep = ebwtfw ? botm : botmp;
-								assert_eq(toprep, toptmp);
-								assert_eq(botrep, bottmp);
-								hits.add1mmEe(toprep, botrep, &e, NULL, fw, score);
-							}
-						}
-					}
-				}
-				if(bot > top && match) {
-					assert_lt(rdc, 4);
-					if(dep == len-1) {
-						// Success; this is an exact hit
-						if(ebwtfw && repex) {
-							if(fw) {
-								results = true;
-								int64_t score = len * sc.match();
-								hits.addExactEeFw(
-									ebwtfw ? top : topp,
-									ebwtfw ? bot : botp,
-									NULL, NULL, fw, score);
-								assert(ebwtFw->contains(seq, NULL, NULL));
-							} else {
-								results = true;
-								int64_t score = len * sc.match();
-								hits.addExactEeRc(
-									ebwtfw ? top : topp,
-									ebwtfw ? bot : botp,
-									NULL, NULL, fw, score);
-								assert(ebwtFw->contains(seq, NULL, NULL));
-							}
-						}
-						break; // End of far loop
-					} else {
-						INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-						assert(sanityPartial(ebwt, ebwtp, seq, len - dep - 1, len, rep1mm, top, bot, topp, botp));
-					}
-				} else {
-					break; // End of far loop
-				}
-			} // for(; dep < len; dep++)
-		} // for(int ebwtfw = 0; ebwtfw < 2; ebwtfw++)
-	} // for(int fw = 0; fw < 2; fw++)
+				TIndexOffU toprep = ebwtfw ? topm : topmp;
+				TIndexOffU botrep = ebwtfw ? botm : botmp;
+				assert_eq(toprep, toptmp);
+				assert_eq(botrep, bottmp);
+				hits.add1mmEe(toprep, botrep, &e, NULL, fw, score);
+			}
+		}
+		if(d.exact) {
+			assert(ebwtfw && repex);
+			const BTDnaString& seq = *d.seq;
+			(void)seq;
+			results = true;
+			int64_t score = len * sc.match();
+			if(fw) {
+				hits.addExactEeFw(d.etop, d.ebot, NULL, NULL, fw, score);
+				assert(ebwtFw->contains(seq, NULL, NULL));
+			} else {
+				hits.addExactEeRc(d.etop, d.ebot, NULL, NULL, fw, score);
+				assert(ebwtFw->contains(seq, NULL, NULL));
+			}
+		}
+	}
 	return results;
+}
+
+/**
+ * Search for end-to-end alignments with up to 1 mismatch.  Return true iff
+ * one is found.
+ *
+ * There are up to four directions: each strand of the read, matched
+ * right-to-left in the forward index and, when looking for 1-mismatch hits,
+ * in the mirror index.  Each direction has a main walk that matches the read
+ * exactly, and every mismatch the main walk tries in the far half starts
+ * another walk that matches the rest of the read exactly.  These walks are
+ * independent of each other, and each LF step waits on a load from a random
+ * place in the index.  So the walks are stepped in turn, one LF step each:
+ * each step prefetches the sides its walk needs next, and the steps of the
+ * other walks hide that load.  Every walk takes the same steps as it would
+ * alone, and the hits are reported afterwards in the order in which a
+ * one-walk-at-a-time search finds them.
+ */
+bool SeedAligner::oneMmSearch(
+	const Ebwt*        ebwtFw, // BWT index
+	const Ebwt*        ebwtBw, // BWT' index
+	const Read&        read,   // read to align
+	const Scoring&     sc,     // scoring
+	int64_t            minsc,  // minimum score
+	bool               nofw,   // don't align forward read
+	bool               norc,   // don't align revcomp read
+	bool               local,  // 1mm hits must be legal local alignments
+	bool               repex,  // report 0mm hits?
+	bool               rep1mm, // report 1mm hits?
+	SeedResults&       hits,   // holds all the seed hits (and exact hit)
+	SeedSearchMetrics& met)    // metrics
+{
+	OneMmJob& job = mmJob_;
+	job.init(&read, nofw, norc);
+	if(!oneMmStart(ebwtFw, ebwtBw, sc, repex, rep1mm, job)) {
+		return false;
+	}
+	OneMmJob* jobs[1] = { &job };
+	oneMmRun<ONEMM_WALKS, false>(jobs, 1);
+	bwops_ += job.bwops;
+	return oneMmReport(job, ebwtFw, sc, minsc, local, hits);
+}
+
+/**
+ * oneMmSearch's walks for many reads at once.  oneMmSearch steps the walks
+ * of one read in turn, but most reads have only two or three walks going at
+ * a time.  Here the walks of all the jobs are stepped in turn in
+ * ONEMM_BATCH_LANES lanes.  Each walk takes the same steps as in
+ * oneMmSearch, so each job ends with the walks, hits and LF operations
+ * oneMmSearch has for its read; oneMmSearchApply reports them.
+ */
+void SeedAligner::oneMmSearchBatch(
+	const Ebwt*        ebwtFw, // BWT index
+	const Ebwt*        ebwtBw, // BWT' index
+	const Scoring&     sc,     // scoring
+	bool               repex,  // report 0mm hits?
+	bool               rep1mm, // report 1mm hits?
+	OneMmJob* const*   jobs,   // the reads to search
+	size_t             njobs)  // # jobs
+{
+	for(size_t j = 0; j < njobs; j++) {
+		oneMmStartPrefetch(ebwtFw, ebwtBw, rep1mm, *jobs[j]);
+	}
+	for(size_t j = 0; j < njobs; j++) {
+		oneMmStart(ebwtFw, ebwtBw, sc, repex, rep1mm, *jobs[j]);
+	}
+	oneMmRun<ONEMM_BATCH_LANES, true>(jobs, njobs);
 }
 
 inline void

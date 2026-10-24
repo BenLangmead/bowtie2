@@ -21,8 +21,63 @@
 #define RANDOM_UTIL_H_
 
 #include <algorithm>
+#include <limits>
 #include "random_source.h"
 #include "ds.h"
+#if defined(SSE_AVX2) && defined(__AVX2__)
+#include <immintrin.h>
+#elif defined(__SSE2__)
+#include <emmintrin.h>
+#endif
+
+/**
+ * Return true iff v equals one of s[0], ..., s[k-1].  The same answer as
+ * comparing them one at a time; only the number of compares per step differs.
+ */
+static inline bool random1toNSeen(const size_t* s, size_t k, size_t v) {
+	size_t i = 0;
+#if defined(SSE_AVX2) && defined(__AVX2__)
+	if(sizeof(size_t) == 8) {
+		const __m256i nv = _mm256_set1_epi64x((long long)v);
+		for(; i + 8 <= k; i += 8) {
+			__m256i a = _mm256_cmpeq_epi64(_mm256_loadu_si256((const __m256i*)(s + i)), nv);
+			__m256i b = _mm256_cmpeq_epi64(_mm256_loadu_si256((const __m256i*)(s + i + 4)), nv);
+			a = _mm256_or_si256(a, b);
+			if(!_mm256_testz_si256(a, a)) {
+				return true;
+			}
+		}
+		if(i + 4 <= k) {
+			__m256i a = _mm256_cmpeq_epi64(_mm256_loadu_si256((const __m256i*)(s + i)), nv);
+			if(!_mm256_testz_si256(a, a)) {
+				return true;
+			}
+			i += 4;
+		}
+	}
+#elif defined(__SSE2__)
+	if(sizeof(size_t) == 8) {
+		// SSE2 has no 64-bit compare: a 64-bit lane is equal iff both of its
+		// 32-bit halves are
+		const __m128i nv = _mm_set1_epi64x((long long)v);
+		for(; i + 4 <= k; i += 4) {
+			__m128i a = _mm_cmpeq_epi32(_mm_loadu_si128((const __m128i*)(s + i)), nv);
+			__m128i b = _mm_cmpeq_epi32(_mm_loadu_si128((const __m128i*)(s + i + 2)), nv);
+			a = _mm_and_si128(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(2, 3, 0, 1)));
+			b = _mm_and_si128(b, _mm_shuffle_epi32(b, _MM_SHUFFLE(2, 3, 0, 1)));
+			if(_mm_movemask_epi8(_mm_or_si128(a, b)) != 0) {
+				return true;
+			}
+		}
+	}
+#endif
+	for(; i < k; i++) {
+		if(s[i] == v) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /**
  * Return a random integer in [1, N].  Each time it's called it samples again
@@ -111,19 +166,12 @@ public:
 		} else {
 			assert(!converted_);
 			// Get next pseudo-random but reject it if it's in the seen-list
-			bool again = true;
 			T rn = 0;
 			size_t seenSz = seen_.size();
-			while(again) {
+			const T* seen = seen_.ptr();
+			do {
 				rn = rnd.nextU32() % (T)n_;
-				again = false;
-				for(size_t i = 0; i < seenSz; i++) {
-					if(seen_[i] == rn) {
-						again = true;
-						break;
-					}
-				}
-			}
+			} while(random1toNSeen(seen, seenSz, rn));
 			// Add it to the seen-list
 			seen_.push_back(rn);
 			cur_++;
@@ -134,22 +182,28 @@ public:
 				// Add all elements not already in the seen list to the
 				// swap-list
 				assert(!seen_.empty());
-				seen_.sort();
-				list_.resize(n_ - cur_);
-				size_t prev = 0;
-				size_t cur = 0;
-				for(size_t i = 0; i <= seenSz; i++) {
-					// Add all the elements between the previous element and
-					// this one
-					for(size_t j = prev; j < seen_[i]; j++) {
-						list_[cur++] = (T)j;
-					}
-					prev = seen_[i]+1;
+				// The elements not in the seen list, in increasing order, as
+				// sorting the seen list and filling the gaps gave: write 0..n-1,
+				// overwrite the seen ones with a value no element has, and keep
+				// the others in order
+				const T gone = std::numeric_limits<T>::max();
+				list_.resize(n_);
+				T* l = list_.ptr();
+				for(size_t j = 0; j < n_; j++) {
+					l[j] = (T)j;
 				}
-				for(size_t j = prev; j < n_; j++) {
-					list_[cur++] = (T)j;
+				const T* sp = seen_.ptr(); // seenSz + 1 entries now
+				for(size_t i = 0; i <= seenSz; i++) {
+					l[sp[i]] = gone;
+				}
+				size_t cur = 0;
+				for(size_t j = 0; j < n_; j++) {
+					const T v = l[j];
+					l[cur] = v;
+					cur += (v != gone);
 				}
 				assert_eq(cur, n_ - cur_);
+				list_.resize(cur);
 				seen_.clear();
 				cur_ = 0;
 				n_ = list_.size();

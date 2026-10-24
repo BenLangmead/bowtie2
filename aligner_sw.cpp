@@ -207,12 +207,13 @@ void SwAligner::initRef(
 	// rfbuf_ = uint32_t list large enough to accommodate both the reference
 	// sequence and any Ns we might add to either side.
 	rfwbuf_.resize((rflen + 16) / 4);
-	int offset = refs.getStretch(
+	// Unpack the stretch straight to masks: 1 << c for a base c, 16 for N
+	int offset = refs.getStretchMasks(
 		rfwbuf_.ptr(),               // buffer to store words in
 		refidx,                      // which reference
 		(rfi < 0) ? 0 : (size_t)rfi, // starting offset (can't be < 0)
 		rflenInner                   // length to grab (exclude overhang)
-		ASSERT_ONLY(, tmp_destU32_));// for BitPairReference::getStretch()
+		ASSERT_ONLY(, tmp_destU32_));// for BitPairReference::getStretchMasks()
 	assert_leq(offset, 16);
 	rf_ = (char*)rfwbuf_.ptr() + offset;
 	// Shift ref chars away from 0 so we can stick Ns at the beginning
@@ -223,33 +224,27 @@ void SwAligner::initRef(
 		}
 		// Add Ns
 		for(size_t i = 0; i < leftNs; i++) {
-			rf_[i] = 4;
+			rf_[i] = 16;
 		}
 	}
 	if(rightNs > 0) {
 		// Add Ns to the end
 		for(size_t i = 0; i < rightNs; i++) {
-			rf_[i + leftNs + rflenInner] = 4;
+			rf_[i + leftNs + rflenInner] = 16;
 		}
 	}
 #ifndef NDEBUG
-	// Sanity check reference characters
+	// Sanity check reference masks
 	for(size_t i = 0; i < rflen; i++) {
-		assert(!haveRfbuf2 || rf_[i] == rfbuf2[i]);
-		assert_range(0, 4, (int)rf_[i]);
+		assert(!haveRfbuf2 || (int)rf_[i] == (1 << rfbuf2[i]));
+		assert(rf_[i] == 1 || rf_[i] == 2 || rf_[i] == 4 || rf_[i] == 8 || rf_[i] == 16);
 	}
 #endif
-	// Count Ns and convert reference characters into A/C/G/T masks.  Ambiguous
-	// nucleotides (IUPAC codes) have more than one mask bit set.  If a
-	// reference scanner was provided, use it to opportunistically resolve seed
-	// hits.
+	// Count Ns (mask 16) among the first 'upto' reference characters
 	nsUpto = 0;
-	for(size_t i = 0; i < rflen; i++) {
-		// rf_[i] gets mask version of refence char, with N=16
-		if(i < upto && rf_[i] > 3) {
-			nsUpto++;
-		}
-		rf_[i] = (1 << rf_[i]);
+	const size_t nsLim = min(upto, rflen);
+	for(size_t i = 0; i < nsLim; i++) {
+		nsUpto += (rf_[i] == 16);
 	}
 	// Correct for having captured an extra reference character
 	rff--;
@@ -494,6 +489,84 @@ int SwAligner::ungappedAlign(
 }
 
 /**
+ * Put btncand_ in the order btncand_.sort() gives it (std::stable_sort by
+ * DpBtCandidate::operator<: score descending, then row descending, then
+ * column descending).  Called after a local-mode gather, whose candidates
+ * are in nondecreasing column order.
+ *
+ * For a list in that order, two stable counting sorts give the same order:
+ * the first by row, descending, reading the list from its end, so that the
+ * cells of one row come out in descending column order; the second by score,
+ * descending.  Two elements end up in the opposite relative order to
+ * stable_sort's only if their row, column, score and fate are all equal, so
+ * the resulting list is the same.
+ *
+ * A short list is sorted by insertion sort, which is stable.  A list that is
+ * not in column order, has a fate set, or has a row or score outside the
+ * rectangle and [minsc_, best] is sorted by btncand_.sort().
+ */
+void SwAligner::sortLocalCandidates(TAlScore best) {
+	const size_t n = btncand_.size();
+	DpBtCandidate *c = btncand_.ptr();
+	if(n < 16) {
+		for(size_t i = 1; i < n; i++) {
+			if(c[i] < c[i-1]) {
+				DpBtCandidate x = c[i];
+				size_t j = i;
+				do {
+					c[j] = c[j-1];
+					j--;
+				} while(j > 0 && x < c[j-1]);
+				c[j] = x;
+			}
+		}
+		return;
+	}
+	const size_t nrow = dpRows();
+	if(best < minsc_ || best - minsc_ >= 1024) {
+		btncand_.sort();
+		return;
+	}
+	const size_t nsc = (size_t)(best - minsc_) + 1;
+	// Bucket counts: by row (nrow-1-row), then by score (best-score)
+	btncandhist_.resizeNoCopy(nrow + nsc);
+	btncandhist_.fillZero();
+	uint32_t *hrow = btncandhist_.ptr();
+	uint32_t *hsc = hrow + nrow;
+	size_t prevcol = 0;
+	for(size_t i = 0; i < n; i++) {
+		const DpBtCandidate& x = c[i];
+		if(x.col < prevcol || x.fate != 0 || x.row >= nrow ||
+		   x.score < minsc_ || x.score > best)
+		{
+			btncand_.sort();
+			return;
+		}
+		prevcol = x.col;
+		hrow[nrow - 1 - x.row]++;
+		hsc[(size_t)(best - x.score)]++;
+	}
+	// Turn the counts into each bucket's first position
+	uint32_t tot = 0;
+	for(size_t i = 0; i < nrow + nsc; i++) {
+		if(i == nrow) {
+			tot = 0;
+		}
+		uint32_t k = hrow[i];
+		hrow[i] = tot;
+		tot += k;
+	}
+	btncandtmp_.resizeNoCopy(n);
+	DpBtCandidate *t = btncandtmp_.ptr();
+	for(size_t i = n; i-- > 0;) {
+		t[hrow[nrow - 1 - c[i].row]++] = c[i];
+	}
+	for(size_t i = 0; i < n; i++) {
+		c[hsc[(size_t)(best - t[i].score)]++] = t[i];
+	}
+}
+
+/**
  * Align read 'rd' to reference using read & reference information given
  * last time init() was called.
  */
@@ -506,6 +579,7 @@ bool SwAligner::align(
 	// Reset solutions lists
 	btncand_.clear();
 	btncanddone_.clear();
+	clearDoneMirrors();
 	btncanddoneSucc_ = btncanddoneFail_ = 0;
 	best = std::numeric_limits<TAlScore>::min();
 	sse8succ_ = sse16succ_ = false;
@@ -719,7 +793,22 @@ bool SwAligner::align(
 		}
 	}
 	if(!btncand_.empty()) {
-		btncand_.sort();
+		if(sc_->monotone) {
+			btncand_.sort();
+		} else {
+#ifndef NDEBUG
+			cand_tmp_ = btncand_;
+			cand_tmp_.sort();
+#endif
+			sortLocalCandidates(best);
+#ifndef NDEBUG
+			assert_eq(cand_tmp_.size(), btncand_.size());
+			for(size_t i = 0; i < btncand_.size(); i++) {
+				assert(cand_tmp_[i] == btncand_[i]);
+				assert_eq(cand_tmp_[i].fate, btncand_[i].fate);
+			}
+#endif
+		}
 	}
 	if(dpLog_ != NULL) {
 		(*dpLog_) << ",1," << best;
@@ -755,6 +844,9 @@ bool SwAligner::nextAlignment(
 	if(SQ == 0) SQ = 1;
 	size_t rdlen = rdf_ - rdi_;
 	bool checkpointed = rdlen >= cperMinlen_;
+	// Rows and columns fit in 31 bits, so the domination test can use the
+	// 32-bit copies in btncanddonerow_ and btncanddonecol_
+	const bool dom32 = dpRows() <= 0x7fffffff && (size_t)(rff_ - rfi_) <= 0x7fffffff;
 	while(cural_ < candsz) {
 		// Doing 'continue' anywhere in here simply causes us to move on to the
 		// next candidate
@@ -943,7 +1035,41 @@ bool SwAligner::nextAlignment(
 			// majority of valid-but-redundant candidates lying in the
 			// "penumbra" of a high-scoring alignment.
 			bool dom = false;
-			{
+			if(dom32) {
+				// The same test as below, on every done candidate without
+				// an early exit: |row - row'| <= SQ and |col - col'| <= SQ,
+				// as (row' - (row - SQ)) mod 2^32 <= 2*SQ.
+				// btncanddonerow_/col_ are appended to with btncanddone_
+				// and cleared with it in align(), and rebuilt if their
+				// count differs (btncanddone_ cleared elsewhere).  They are
+				// padded with BT_DONE_SENTINEL to a multiple of 8, which
+				// never passes the row test, so the loop runs in blocks
+				// of 8 with no scalar remainder.
+				const size_t donesz = btncanddone_.size();
+				if(btncanddonemir_ != donesz) {
+					clearDoneMirrors();
+					for(size_t i = 0; i < donesz; i++) {
+						pushDoneMirrors(btncanddone_[i].row, btncanddone_[i].col);
+					}
+				}
+				const size_t n8 = btncanddonerow_.size();
+				assert_eq(0, n8 & 7);
+				assert_geq(n8, donesz);
+				assert_lt(n8, donesz + 8);
+				const uint32_t *prow = btncanddonerow_.ptr();
+				const uint32_t *pcol = btncanddonecol_.ptr();
+				const uint32_t rlo = (uint32_t)row - (uint32_t)SQ;
+				const uint32_t clo = (uint32_t)col - (uint32_t)SQ;
+				const uint32_t w = 2 * (uint32_t)SQ;
+				uint32_t any = 0;
+				for(size_t i = 0; i < n8; i += 8) {
+					for(size_t j = 0; j < 8; j++) {
+						any |= (uint32_t)((prow[i + j] - rlo) <= w) &
+						       (uint32_t)((pcol[i + j] - clo) <= w);
+					}
+				}
+				dom = (any != 0);
+			} else {
 				size_t donesz = btncanddone_.size();
 				const size_t col = btncand_[cural_].col;
 				const size_t row = btncand_[cural_].row;
@@ -962,6 +1088,20 @@ bool SwAligner::nextAlignment(
 					}
 				}
 			}
+#ifndef NDEBUG
+			{
+				bool dom2 = false;
+				for(size_t i = 0; i < btncanddone_.size(); i++) {
+					const DpBtCandidate& o = btncanddone_[i];
+					if((row > o.row ? row - o.row : o.row - row) <= SQ &&
+					   (col > o.col ? col - o.col : o.col - col) <= SQ)
+					{
+						dom2 = true;
+					}
+				}
+				assert_eq(dom, dom2);
+			}
+#endif
 			if(dom) {
 				btncand_[cural_].fate = BT_CAND_FATE_FILT_DOMINATED;
 				nbtfiltdo_++;
@@ -1116,12 +1256,14 @@ bool SwAligner::nextAlignment(
 			if(ret) {
 				btncand_[cural_].fate = BT_CAND_FATE_SUCCEEDED;
 				btncanddone_.push_back(btncand_[cural_]);
+				pushDoneMirrors(btncand_[cural_].row, btncand_[cural_].col);
 				btncanddoneSucc_++;
 				assert(res.repOk());
 				break;
 			} else {
 				btncand_[cural_].fate = BT_CAND_FATE_FAILED;
 				btncanddone_.push_back(btncand_[cural_]);
+				pushDoneMirrors(btncand_[cural_].row, btncand_[cural_].col);
 				btncanddoneFail_++;
 			}
 		}

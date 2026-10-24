@@ -95,67 +95,103 @@ void SwAligner::buildQueryProfileLocalSseU8(bool fw) {
 	d.lastIter_    = d.lastWord_ = 0;
 	d.qprofStride_ = d.gbarStride_ = 2;
 	d.bias_ = 0;
-	// Calculate bias
-	for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
-		for(size_t i = 0; i < len; i++) {
-			int readc = (*rd)[i];
-			int readq = (*qu)[i];
-			int sc = sc_->score(readc, (int)(1 << refc), readq - 33);
-			if(sc < 0 && sc < d.bias_) {
-				d.bias_ = sc;
+	// The scorer's qualProf table holds sc_->score(readc, 1 << refc,
+	// readq - 33) for the five reference characters at once, as bytes, with
+	// the smallest score and the largest penalty and bonus among them.
+	const char *rdbuf = rd->buf();
+	const char *qubuf = qu->buf();
+	// Calculate bias: minus the most negative score, or 0
+	int minsc = 0;
+	for(size_t j = 0; j < len; j++) {
+		const int readc = rdbuf[j];
+		const int readq = qubuf[j];
+		assert_range(0, 4, readc);
+		assert_range(0, 255, readq - 33);
+		minsc = std::min(minsc, sc_->qualProf[readc][readq - 33].locMin);
+	}
+	d.bias_ = -minsc;
+	assert_geq(d.bias_, 0);
+	const int bias = d.bias_;
+	if(len > 0) {
+		// Remember which 128-bit word and which smaller word has the final
+		// row: read position j is in segment j % seglen, word j / seglen
+		d.lastIter_ = (len - 1) % seglen;
+		d.lastWord_ = (len - 1) / seglen;
+	}
+	// For each reference character A, C, G, T, N there are seglen segments,
+	// each a query-profile register followed by a gap-barrier register.
+	// Word k of segment i holds read position j = k * seglen + i.
+	SSERegI *pvec = d.profbuf_.ptr();
+	uint8_t *prof = reinterpret_cast<uint8_t*>(pvec);
+	const size_t segBytes = 2 * NBYTES_PER_REG;  // one segment's two registers
+	const size_t refBytes = seglen * segBytes;   // one reference character's segments
+	// The gap barrier depends on the read position alone: 0xff where j < len
+	// and j or len - j - 1 is below gapbar, 0 elsewhere.  Zero it, then mark
+	// the barrier positions at both ends.
+	SSERegI vzero = sse_setzero_siall();
+	for(size_t s = 0; s < seglen * ALPHA_SIZE; s++) {
+		sse_store_siall(pvec + 2 * s + 1, vzero);
+	}
+	{
+		const size_t gapbar = (size_t)sc_->gapbar;
+		const size_t nbar = std::min(len, gapbar);
+		// j < gapbar for j in [0, nbar); len - j - 1 < gapbar for j in
+		// [len - nbar, len)
+		const size_t ranges[2][2] = {
+			{ 0, nbar },
+			{ std::max(nbar, len - nbar), len } };
+		for(size_t r = 0; r < 2; r++) {
+			if(ranges[r][0] >= ranges[r][1]) {
+				continue;
+			}
+			size_t i = ranges[r][0] % seglen, k = ranges[r][0] / seglen;
+			for(size_t j = ranges[r][0]; j < ranges[r][1]; j++) {
+				uint8_t *g = prof + i * segBytes + NBYTES_PER_REG + k;
+				for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
+					g[refc * refBytes] = 0xff;
+				}
+				if(++i == seglen) {
+					i = 0;
+					k++;
+				}
 			}
 		}
 	}
-	assert_leq(d.bias_, 0);
-	d.bias_ = -d.bias_;
-	// For each reference character A, C, G, T, N ...
-	for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
-		// For each segment ...
-		for(size_t i = 0; i < seglen; i++) {
-			size_t j = i;
-			uint8_t *qprofWords =
-				reinterpret_cast<uint8_t*>(d.profbuf_.ptr() + (refc * seglen * 2) + (i * 2));
-			uint8_t *gbarWords =
-				reinterpret_cast<uint8_t*>(d.profbuf_.ptr() + (refc * seglen * 2) + (i * 2) + 1);
-			// For each sub-word (byte) ...
-			for(size_t k = 0; k < NWORDS_PER_REG; k++) {
-				int sc = 0;
-				*gbarWords = 0;
-				if(j < len) {
-					int readc = (*rd)[j];
-					int readq = (*qu)[j];
-					sc = sc_->score(readc, (int)(1 << refc), readq - 33);
-					assert_range(0, 255, sc + d.bias_);
-					size_t j_from_end = len - j - 1;
-					if(j < (size_t)sc_->gapbar ||
-					   j_from_end < (size_t)sc_->gapbar)
-					{
-						// Inside the gap barrier
-						*gbarWords = 0xff;
-					}
-				}
-				if(refc == 0 && j == len-1) {
-					// Remember which 128-bit word and which smaller word has
-					// the final row
-					d.lastIter_ = i;
-					d.lastWord_ = k;
-				}
-				if(sc < 0) {
-					if((size_t)(-sc) > d.maxPen_) {
-						d.maxPen_ = (size_t)(-sc);
-					}
-				} else {
-					if((size_t)sc > d.maxBonus_) {
-						d.maxBonus_ = (size_t)sc;
-					}
-				}
-				*qprofWords = (uint8_t)(sc + d.bias_);
-				gbarWords++;
-				qprofWords++;
-				j += seglen; // update offset into query
+	// Query profile: (uint8_t)(score + bias), adding the bias to each of the
+	// five bytes modulo 256 without carries between them; the bias alone (a
+	// score of 0) past the read's end.
+	const uint64_t hi = 0x8080808080808080ULL;
+	const uint64_t biasw = (uint64_t)(uint8_t)bias * 0x0101010101010101ULL;
+	size_t maxPen = 0, maxBonus = 0;
+	for(size_t i = 0; i < seglen; i++) {
+		uint8_t *p = prof + i * segBytes;
+		size_t j = i, k = 0;
+		for(; j < len; j += seglen, k++) {
+			const int readc = rdbuf[j];
+			const int readq = qubuf[j];
+			const Scoring::QualProf& e = sc_->qualProf[readc][readq - 33];
+			const uint64_t w = (((e.loc & ~hi) + (biasw & ~hi)) ^ ((e.loc ^ biasw) & hi));
+			assert_eq((uint8_t)w,         (uint8_t)(sc_->score(readc, 1, readq - 33) + bias));
+			assert_eq((uint8_t)(w >> 8),  (uint8_t)(sc_->score(readc, 2, readq - 33) + bias));
+			assert_eq((uint8_t)(w >> 16), (uint8_t)(sc_->score(readc, 4, readq - 33) + bias));
+			assert_eq((uint8_t)(w >> 24), (uint8_t)(sc_->score(readc, 8, readq - 33) + bias));
+			assert_eq((uint8_t)(w >> 32), (uint8_t)(sc_->score(readc, 16, readq - 33) + bias));
+			maxPen = std::max(maxPen, (size_t)e.locPen);
+			maxBonus = std::max(maxBonus, (size_t)e.locBonus);
+			p[k] = (uint8_t)w;
+			p[k + refBytes] = (uint8_t)(w >> 8);
+			p[k + 2 * refBytes] = (uint8_t)(w >> 16);
+			p[k + 3 * refBytes] = (uint8_t)(w >> 24);
+			p[k + 4 * refBytes] = (uint8_t)(w >> 32);
+		}
+		for(; k < NWORDS_PER_REG; k++) {
+			for(size_t refc = 0; refc < ALPHA_SIZE; refc++) {
+				p[k + refc * refBytes] = (uint8_t)bias;
 			}
 		}
 	}
+	d.maxPen_ = maxPen;
+	d.maxBonus_ = maxBonus;
 }
 
 #ifndef NDEBUG
@@ -920,6 +956,329 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 	return (TAlScore)score;
 }
 
+#if NBYTES_PER_REG == 32
+/**
+ * The column loop of alignNucleotidesLocalSseU8 for a column of ITER = 2 to 4
+ * 256-bit vectors (33 to 128 rows).  It computes the general loop's saturating
+ * u8 recurrence (see the comments there) and stores the same E, F, H and
+ * column-maximum vectors in the same places, and stops at the same column.
+ * The general loop's speed is set by the chain of dependent instructions from
+ * one column to the next: H from the last vector row through the diagonal
+ * shift, the first pass's F through every row, and Farrar's lazy-F loop, which
+ * carries F one lane further per pass and whose exit is a data-dependent
+ * branch.  Here the chain is a prefix scan with in-half shifts and a few
+ * instructions, and every value passed between columns stays in a register.
+ * This is alignEE8V256Short (aligner_swsse_ee_u8.cpp) with local mode's
+ * diagonal: H0[j] = max(diag + profile - bias, E[j]), saturating at both ends,
+ * and 0 shifted into row 0.
+ *
+ * Row j of lane L is read row L * ITER + j.  For each column:
+ *  - within a lane, F flows from row j to row j + 1 at the cost of rfgapo
+ *    from H0 or of the barrier and rfgape from F (rfgapo >= rfgape); HL and
+ *    FL are H and F with these carries only;
+ *  - the carry c into each lane from the lanes above is the prefix scan of
+ *    the lanes' carry-outs, done within each 128-bit half and then across
+ *    the halves once;
+ *  - each row takes c less the cost from the top of its lane (vpen): F =
+ *    max(FL, that), H = max(HL, that), and the next column's E = max(E -
+ *    rdgape, H - rdgapo - barrier).
+ * The next column's carry-out, the scan's input, is max_j(H0'[j] - cpen[j]).
+ * Every operation is monotone, so it is also the max of terms in HL and E,
+ * which are ready while the scan runs, and of terms in c and in c shifted
+ * down a lane, each taking its least cost (zc, wc, kb).  The chain from one
+ * column to the next is then the scan and one subtraction.
+ *
+ * sat(sat(x - a) - b) = sat(x - sat(a + b)), so costs may be summed before
+ * they are subtracted.  The diagonal adds the profile, a gain where the read
+ * matches: a term in c through it is sat(sat(sat(c - vpen) + P) - bias -
+ * cpen).  While sat(c - vpen) + P < 255 that is sat(c - (vpen + cpen + bias -
+ * P)), and the caller makes vpen + cpen + bias - P >= 0 (the largest bonus is
+ * at most rfgapo) and computes cpen + bias - P without saturating (rfgapo +
+ * (ITER-1) * rfgape + bias <= 255).  Where sat(c - vpen) + P >= 255, the next
+ * column's H0 reaches 255 - bias, so that column saturates in both loops,
+ * which return at it with the same flag.  Its own cells may then differ; the
+ * caller does not use the matrix of a saturated fill.
+ *
+ * Returns -2 if a column saturated, else 0 with the maximum of H over the
+ * filled columns in vmax.
+ */
+template<size_t ITER>
+static int alignLoc8V256Short(
+	const __m256i *prof,    // query profile: per reference character, ITER (score, barrier) pairs
+	__m256i *mat,           // matrix: column 0, row 0, E (SSEMatrix layout)
+	size_t colstride,       // vectors per matrix column
+	const char *rf,         // reference
+	size_t rfi,             // first column
+	size_t rff,             // last column (excl.)
+	const Scoring& sc,      // gap penalties
+	int bias,               // added to every profile score
+	TAlScore minsc,         // minimum score of a valid alignment
+	TAlScore matchsc,       // score of a match, for the bail-out test
+	size_t& colstop,        // out: columns filled (as colstop_)
+	size_t& lastsolcol,     // out: last column reaching minsc (as lastsolcol_)
+	__m256i& vmax)          // out: maximum of H over the filled columns
+{
+	const size_t E = SSEMatrix::E, F = SSEMatrix::F, H = SSEMatrix::H, TMP = SSEMatrix::TMP;
+	const __m256i zero = _mm256_setzero_si256();
+	const __m256i vrfgapo = _mm256_set1_epi8((char)sc.refGapOpen());
+	const __m256i vrfgape = _mm256_set1_epi8((char)sc.refGapExtend());
+	const __m256i vrdgapo = _mm256_set1_epi8((char)sc.readGapOpen());
+	const __m256i vrdgape = _mm256_set1_epi8((char)sc.readGapExtend());
+	const __m256i vbias = _mm256_set1_epi8((char)bias);
+	// Gap barrier rows (the same for every reference character), and the costs
+	// derived from them, per vector row j:
+	//  bpe:   F carried from row j to row j + 1 (barrier, then rfgape);
+	//  cpen:  H0 at row j to the lane's carry-out (rfgapo, then bpe below);
+	//  vpen:  the carry into the lane to row j (as the general loop's vpen);
+	//  epen:  H to the next column's E (rdgapo, then barrier);
+	//  below: 0xff where a row below row j in the lane is in the barrier.
+	__m256i bar[ITER], bpe[ITER], cpen[ITER], vpen[ITER], epen[ITER], below[ITER];
+	__m256i vbar = zero;
+	for(size_t j = 0; j < ITER; j++) {
+		bar[j] = _mm256_load_si256(prof + 2 * j + 1);
+		bpe[j] = _mm256_adds_epu8(bar[j], vrfgape);
+		epen[j] = _mm256_adds_epu8(vrdgapo, bar[j]);
+		vpen[j] = j == 0 ? bar[0] : _mm256_adds_epu8(_mm256_adds_epu8(vpen[j-1], vrfgape), bar[j]);
+		vbar = _mm256_or_si256(vbar, bar[j]);
+	}
+	cpen[ITER-1] = vrfgapo;
+	below[ITER-1] = zero;
+	for(size_t j = ITER-1; j > 0; j--) {
+		cpen[j-1] = _mm256_adds_epu8(cpen[j], bpe[j]);
+		below[j-1] = _mm256_or_si256(below[j], bar[j]);
+	}
+	// The scan's costs: passing lane L whole is pass(L); qN(L) is the cost of
+	// passing the N lanes that end at L, within a half.  chi(L) is the cost of
+	// passing lanes 16 to L - 1, for the carry from lane 15 into lane L > 16.
+	size_t passPen = ITER * (size_t)sc.refGapExtend();
+	if(passPen > 0xff) {
+		passPen = 0xff;
+	}
+	const __m256i q1 = _mm256_or_si256(_mm256_set1_epi8((char)passPen), vbar);
+	const __m256i q2 = _mm256_adds_epu8(q1, _mm256_slli_si256(q1, 1));
+	const __m256i q3 = _mm256_adds_epu8(q2, _mm256_slli_si256(q1, 2));
+	const __m256i q4 = _mm256_adds_epu8(q2, _mm256_slli_si256(q2, 2));
+	const __m256i q8 = _mm256_adds_epu8(q4, _mm256_slli_si256(q4, 4));
+	const __m256i q12 = _mm256_adds_epu8(q8, _mm256_slli_si256(q4, 8));
+	const __m256i q16 = _mm256_adds_epu8(q8, _mm256_slli_si256(q8, 8));
+	const __m256i chi = _mm256_slli_si256(q16, 1);
+	// Selects byte 15 of the upper half (lane 15, once moved there) into
+	// every byte of the upper half, and zero into the lower half
+	const __m256i vidx15 = _mm256_set_epi64x(
+		0x0f0f0f0f0f0f0f0fLL, 0x0f0f0f0f0f0f0f0fLL,
+		(long long)0x8080808080808080ULL, (long long)0x8080808080808080ULL);
+	// Costs to the next column's carry-out, max_j(H0'[j] - cpen[j]), where
+	// H0'[j] = max(diag[j] + profile'[j] - bias, E'[j]), E'[j] = max(E[j] -
+	// rdgape, H[j] - epen[j]), H[j] = max(HL[j], c - vpen[j]) and diag[j] =
+	// H[j - 1] or, for j = 0, H[ITER - 1] shifted down a lane (0 into lane 0):
+	//  rc[j]: from E[j] (rdgape, cpen); ec[j]: from H[j] (epen, cpen);
+	//  bc[j]: from diag[j] after the profile is added (bias, cpen);
+	//  zc[r]: from c, the least over its paths, for reference character r;
+	//  wc[r]: from c shifted down a lane; kb[r]: from lane 15 of the scan,
+	//  carried into the upper half, for both (c and c shifted are taken from
+	//  the scan's values directly).
+	// Through the diagonal, a path's cost is vpen + cpen + bias - profile.
+	// cpen + bias - profile is computed from the scalar cpen of a lane without
+	// a barrier below (the caller keeps it at most 255), as 0xff where there
+	// is one.
+	__m256i rc[ITER], ec[ITER], bc[ITER], zc[5], wc[5], kb[5];
+	// chi for c shifted down a lane: lane 16 takes lane 14's value, with no
+	// carry from lane 15
+	const __m256i chish = _mm256_or_si256(_mm256_slli_si256(chi, 1),
+		_mm256_set_epi64x(0, 0xff, 0, 0));
+	const __m256i vpenSh = _mm256_alignr_epi8(vpen[ITER-1],
+		_mm256_permute2x128_si256(vpen[ITER-1], vpen[ITER-1], 0x08), 15);
+	__m256i cbias[ITER];
+	for(size_t j = 0; j < ITER; j++) {
+		rc[j] = _mm256_adds_epu8(vrdgape, cpen[j]);
+		ec[j] = _mm256_adds_epu8(epen[j], cpen[j]);
+		bc[j] = _mm256_adds_epu8(vbias, cpen[j]);
+		cbias[j] = _mm256_set1_epi8((char)(sc.refGapOpen() +
+			(int)(ITER - 1 - j) * sc.refGapExtend() + bias));
+	}
+	for(size_t r = 0; r < 5; r++) {
+		const __m256i *pr = prof + r * ITER * 2;
+		__m256i z = _mm256_adds_epu8(vpen[0], ec[0]);
+		for(size_t j = 1; j < ITER; j++) {
+			const __m256i cps = _mm256_or_si256(
+				_mm256_subs_epu8(cbias[j], _mm256_load_si256(pr + 2 * j)), below[j]);
+			z = _mm256_min_epu8(z, _mm256_adds_epu8(vpen[j-1], cps));
+			z = _mm256_min_epu8(z, _mm256_adds_epu8(vpen[j], ec[j]));
+		}
+		zc[r] = z;
+		const __m256i cps0 = _mm256_or_si256(
+			_mm256_subs_epu8(cbias[0], _mm256_load_si256(pr)), below[0]);
+		wc[r] = _mm256_adds_epu8(vpenSh, cps0);
+		kb[r] = _mm256_min_epu8(_mm256_adds_epu8(chi, zc[r]), _mm256_adds_epu8(chish, wc[r]));
+	}
+	// lpen[j]: H0 at row j to F of the lane's last row (its barrier included)
+	__m256i lpen[ITER-1];
+	lpen[ITER-2] = vrfgapo;
+	for(size_t j = ITER-2; j > 0; j--) {
+		lpen[j-1] = _mm256_adds_epu8(lpen[j], bpe[j]);
+	}
+	for(size_t j = 0; j + 1 < ITER; j++) {
+		lpen[j] = _mm256_adds_epu8(lpen[j], bar[ITER-1]);
+	}
+	// H0 and E of the column, and its carry-out: for the first, from the
+	// staged initial column (zero), so every diagonal is 0
+	__m256i h0[ITER], ecur[ITER], co = zero;
+	{
+		const __m256i *pvS = prof + (size_t)firsts5[(int)rf[rfi]] * ITER * 2;
+		for(size_t j = 0; j < ITER; j++) {
+			h0[j] = _mm256_subs_epu8(_mm256_load_si256(pvS + 2 * j), vbias);
+			ecur[j] = zero;
+			co = _mm256_max_epu8(co, _mm256_subs_epu8(h0[j], cpen[j]));
+		}
+	}
+	__m256i vm = zero;
+	size_t ls = 0;
+	colstop = rff - rfi;
+	__m256i *pvCol = mat;
+	for(size_t i = rfi; i < rff; i++) {
+		// The next column's reference character.  (After the last column,
+		// the values computed with it are not used.)
+		const size_t rn = (size_t)firsts5[(int)rf[i + 1 < rff ? i + 1 : i]];
+		const __m256i *pvS = prof + rn * ITER * 2;
+		// The scan within each half, four lanes per step: over the 4 lanes
+		// ending at each lane, then over 16
+		__m256i y = co;
+		y = _mm256_max_epu8(
+			_mm256_max_epu8(y, _mm256_subs_epu8(_mm256_slli_si256(y, 1), q1)),
+			_mm256_max_epu8(_mm256_subs_epu8(_mm256_slli_si256(y, 2), q2),
+			                _mm256_subs_epu8(_mm256_slli_si256(y, 3), q3)));
+		y = _mm256_max_epu8(
+			_mm256_max_epu8(y, _mm256_subs_epu8(_mm256_slli_si256(y, 4), q4)),
+			_mm256_max_epu8(_mm256_subs_epu8(_mm256_slli_si256(y, 8), q8),
+			                _mm256_subs_epu8(_mm256_slli_si256(y, 12), q12)));
+		// The carry into each lane is the scan's value one lane up (y15), and
+		// into the upper half also lane 15's (yc), carried down
+		const __m256i py = _mm256_permute2x128_si256(y, y, 0x08);
+		const __m256i y15 = _mm256_alignr_epi8(y, py, 15);
+		const __m256i y14 = _mm256_alignr_epi8(y, py, 14);
+		const __m256i yc = _mm256_shuffle_epi8(py, vidx15);
+		const __m256i c = _mm256_max_epu8(y15, _mm256_subs_epu8(yc, chi));
+		// The next column's carry-out: its terms in c and in c shifted down a
+		// lane (from y14 and yc)
+		const __m256i cc = _mm256_max_epu8(
+			_mm256_subs_epu8(y14, wc[rn]), _mm256_subs_epu8(yc, kb[rn]));
+		// c shifted down a lane (0 into lane 0), for the next column's
+		// diagonal
+		const __m256i csh = _mm256_max_epu8(y14, _mm256_subs_epu8(yc, chish));
+		// F and H with the carries from within the lane only
+		__m256i fl[ITER], hl[ITER];
+		fl[0] = zero;
+		hl[0] = h0[0];
+		{
+			__m256i vf = _mm256_subs_epu8(h0[0], vrfgapo);
+			for(size_t j = 1; j < ITER; j++) {
+				// (into the last row of ITER > 2, vf has the barrier, from lpen)
+				fl[j] = j + 1 == ITER && ITER > 2 ? vf : _mm256_subs_epu8(vf, bar[j]);
+				hl[j] = _mm256_max_epu8(h0[j], fl[j]);
+				if(j + 2 < ITER) {
+					vf = _mm256_max_epu8(
+						_mm256_subs_epu8(vf, bpe[j]), _mm256_subs_epu8(h0[j], vrfgapo));
+				} else if(j + 2 == ITER) {
+					// into the last row, as a maximum over the rows above
+					__m256i fz = _mm256_subs_epu8(h0[0], lpen[0]);
+					for(size_t k = 1; k < ITER-1; k++) {
+						fz = _mm256_max_epu8(fz, _mm256_subs_epu8(h0[k], lpen[k]));
+					}
+					vf = fz;
+				}
+			}
+		}
+		// ... and its other terms, the latest (from the last row of HL) last.
+		// hlsh: HL's last row shifted down a lane (0 into lane 0)
+		__m256i hlsh;
+		{
+			__m256i a = _mm256_max_epu8(
+				_mm256_subs_epu8(ecur[0], rc[0]), _mm256_subs_epu8(ecur[1], rc[1]));
+			for(size_t j = 2; j < ITER; j++) {
+				a = _mm256_max_epu8(a, _mm256_subs_epu8(ecur[j], rc[j]));
+			}
+			for(size_t j = 0; j + 1 < ITER; j++) {
+				a = _mm256_max_epu8(a, _mm256_max_epu8(
+					_mm256_subs_epu8(hl[j], ec[j]),
+					_mm256_subs_epu8(_mm256_adds_epu8(hl[j], _mm256_load_si256(pvS + 2 * (j+1))), bc[j+1])));
+			}
+			hlsh = _mm256_alignr_epi8(hl[ITER-1],
+				_mm256_permute2x128_si256(hl[ITER-1], hl[ITER-1], 0x08), 15);
+			a = _mm256_max_epu8(a, _mm256_max_epu8(
+				_mm256_subs_epu8(hl[ITER-1], ec[ITER-1]),
+				_mm256_subs_epu8(_mm256_adds_epu8(hlsh, _mm256_load_si256(pvS)), bc[0])));
+			co = _mm256_max_epu8(_mm256_max_epu8(a, _mm256_subs_epu8(y15, zc[rn])), cc);
+		}
+		// F, H and the next column's E with the carry from the lanes above
+		__m256i hcur[ITER];
+		__m256i colmax = zero;
+		__m256i *pv = pvCol;
+		for(size_t j = 0; j < ITER; j++) {
+			const __m256i s = _mm256_subs_epu8(c, vpen[j]);
+			const __m256i f = j == 0 ? s : _mm256_max_epu8(fl[j], s);
+			const __m256i h = _mm256_max_epu8(hl[j], s);
+			const __m256i e = _mm256_max_epu8(
+				_mm256_subs_epu8(ecur[j], vrdgape), _mm256_subs_epu8(h, epen[j]));
+			_mm256_store_si256(pv + F, f);
+			_mm256_store_si256(pv + H, h);
+			_mm256_store_si256(pv + colstride + E, e);
+			pv += ROWSTRIDE;
+			colmax = _mm256_max_epu8(colmax, h);
+			hcur[j] = h;
+			ecur[j] = e;
+		}
+		// The column's maximum, its saturation and bail-out tests, as the
+		// general loop's
+		_mm256_store_si256(pvCol + TMP, colmax);
+		vm = _mm256_max_epu8(vm, colmax);
+		{
+			// The largest byte of colmax (as sse_max_score_u8): 255 less the
+			// smallest byte of its complement, taken by phminposuw over the
+			// minima of byte pairs
+			int score;
+			{
+				const __m128i m = _mm_max_epu8(_mm256_castsi256_si128(colmax),
+					_mm256_extracti128_si256(colmax, 1));
+				const __m128i n = _mm_xor_si128(m, _mm_set1_epi8((char)0xff));
+				const __m128i p = _mm_min_epu8(n, _mm_srli_epi16(n, 8));
+				score = 255 - (_mm_cvtsi128_si32(_mm_minpos_epu16(p)) & 0xffff);
+			}
+			if(score + bias >= 255) {
+				lastsolcol = ls;
+				vmax = vm;
+				return -2;
+			}
+			if(score < minsc) {
+				size_t ncolleft = rff - i - 1;
+				if(score + (TAlScore)ncolleft * matchsc < minsc) {
+					colstop = (i+1) - rfi;
+					break;
+				}
+			} else {
+				ls = i - rfi;
+			}
+		}
+		pvCol += colstride;
+		// H0 of the next column.  Its diagonal is row j - 1 of this column,
+		// or for j = 0 the last vector row shifted down a lane, with 0 in
+		// lane 0.  That is max(HL, c - vpen) shifted, taken from hlsh and csh
+		// so that the shift is not after c.
+		{
+			const __m256i d0 = _mm256_max_epu8(hlsh, _mm256_subs_epu8(csh, vpenSh));
+			h0[0] = _mm256_max_epu8(_mm256_subs_epu8(
+				_mm256_adds_epu8(d0, _mm256_load_si256(pvS)), vbias), ecur[0]);
+		}
+		for(size_t j = 1; j < ITER; j++) {
+			h0[j] = _mm256_max_epu8(_mm256_subs_epu8(
+				_mm256_adds_epu8(hcur[j-1], _mm256_load_si256(pvS + 2 * j)), vbias), ecur[j]);
+		}
+	}
+	lastsolcol = ls;
+	vmax = vm;
+	return 0;
+}
+#endif
+
 /**
  * Solve the current alignment problem using SSE instructions that operate on 16
  * unsigned 8-bit values packed into a single 128-bit register.
@@ -1049,6 +1408,60 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 
 	colstop_ = rff_ - rfi_;
 	lastsolcol_ = 0;
+#if NBYTES_PER_REG == 32
+	// 33 to 128 rows.  The loop below spends most of each column on the chain
+	// of dependent instructions from one column to the next and on the lazy-F
+	// loop; alignLoc8V256Short computes the same cells with a shorter chain.
+	// It needs every path cost through the diagonal to be non-negative (the
+	// largest match bonus at most rfgapo) and the costs it derives from rfgapo
+	// and rfgape not to saturate.
+	if(iter >= 2 && iter <= 4 &&
+	   d.maxBonus_ <= (size_t)sc_->refGapOpen() &&
+	   sc_->refGapExtend() <= sc_->refGapOpen() &&
+	   sc_->refGapOpen() + (int)(iter - 1) * sc_->refGapExtend() + d.bias_ <= 255)
+	{
+		size_t colstop = 0, lastsolcol = 0;
+		int ret;
+		if(iter == 2) {
+			ret = alignLoc8V256Short<2>(d.profbuf_.ptr(), d.mat_.ptr(), colstride,
+				rf_, (size_t)rfi_, (size_t)rff_, *sc_, d.bias_, minsc_, matchsc,
+				colstop, lastsolcol, vmax);
+		} else if(iter == 3) {
+			ret = alignLoc8V256Short<3>(d.profbuf_.ptr(), d.mat_.ptr(), colstride,
+				rf_, (size_t)rfi_, (size_t)rff_, *sc_, d.bias_, minsc_, matchsc,
+				colstop, lastsolcol, vmax);
+		} else {
+			ret = alignLoc8V256Short<4>(d.profbuf_.ptr(), d.mat_.ptr(), colstride,
+				rf_, (size_t)rfi_, (size_t)rff_, *sc_, d.bias_, minsc_, matchsc,
+				colstop, lastsolcol, vmax);
+		}
+		lastsolcol_ = lastsolcol;
+		if(ret == -2) {
+			flag = -2; // saturated
+			if(!debug) met.dpsat++;
+			return MIN_I64;
+		}
+		colstop_ = colstop;
+		// The scan does the work of one fix-up pass per column
+		nfixup += colstop_ * iter;
+#ifndef NDEBUG
+		for(size_t i = (size_t)rfi_; i < (size_t)rfi_ + colstop_; i++) {
+			if((rand() & 15) == 0) {
+				for(size_t k = 0; k < dpRows(); k++) {
+					assert(cellOkLocalU8(
+						d,
+						k,                   // row
+						i - rfi_,            // col
+						(int)rf_[i],         // reference mask
+						(int)(*rd_)[rdi_+k], // read char
+						(int)(*qu_)[rdi_+k], // read quality
+						*sc_));              // scoring scheme
+				}
+			}
+		}
+#endif
+	} else
+#endif
 	for(size_t i = (size_t)rfi_; i < (size_t)rff_; i++) {
 		assert(pvFStore == d.mat_.fvec(0, i - rfi_));
 		assert(pvHStore == d.mat_.hvec(0, i - rfi_));
@@ -1406,153 +1819,166 @@ bool SwAligner::gatherCellsNucleotidesLocalSseU8(TAlScore best) {
 	assert_geq(minsc_, 0);
 	assert_gt(bonus, 0);
 	size_t minrow = (size_t)(((minsc_ + bonus - 1) / bonus) - 1);
-	for(size_t j = 0; j < ncol; j++) {
-		// Establish the range of rows where a backtrace from the cell in this
-		// row/col is close enough to one of the core diagonals that it could
-		// conceivably count
-		size_t nrow_lo = MIN_SIZE_T;
-		size_t nrow_hi = nrow;
-		// First, check if there is a cell in this column with a score
-		// above the score threshold
-		int score = 0;
-		sse_max_score_u8(*d.mat_.tmpvec(0, j), score);
+	// A candidate is a cell in a row from minrow on whose H is at least
+	// minsc_, whose read character matches the reference character, and
+	// whose successor on the diagonal (down and to the right) does not match.
+	// No H byte can reach a minsc_ above 255, and no row can be a candidate
+	// when minrow is past the last one.  Otherwise the tests are done on a
+	// whole vector of H at a time, and only the lanes that pass all of them
+	// are visited, in the order of a scan by column, then vector row, then
+	// lane.
+	if(minsc_ <= 0xff && minrow < nrow) {
+		SSERegI vminsc;
+		SSERegI vzero = sse_setzero_siall();
+		sse_fill_u8((int)minsc_, vminsc);
+		// For each vector row i, two vectors with one byte per lane k, i.e.
+		// per row i + k*iter: the row's read character as a mask (1 << c),
+		// and the next row's.  Rows before minrow, and padding rows past the
+		// read, get 0 in both, which matches no reference character.  The
+		// last row has no successor and gets 0 in the second.
+		d.vecbuf_.resizeNoCopy(2 * iter);
+		uint8_t *rdmask = reinterpret_cast<uint8_t*>(d.vecbuf_.ptr());
+		for(size_t i = 0; i < iter; i++) {
+			uint8_t *rdc = rdmask + (2 * i) * NWORDS_PER_REG; // this row
+			uint8_t *rdn = rdc + NWORDS_PER_REG;              // next row
+			for(size_t k = 0; k < NWORDS_PER_REG; k++) {
+				const size_t rdoff = i + k * iter;
+				rdc[k] = rdn[k] = 0;
+				if(rdoff >= minrow && rdoff < nrow) {
+					assert_lt((int)(*rd_)[rdoff], 8);
+					rdc[k] = (uint8_t)(1 << (*rd_)[rdoff]);
+					if(rdoff < dpRows()-1) {
+						assert_lt((int)(*rd_)[rdoff+1], 8);
+						rdn[k] = (uint8_t)(1 << (*rd_)[rdoff+1]);
+					}
+				}
+			}
+		}
+		for(size_t j = 0; j < ncol; j++) {
+			// First, check if there is a cell in this column with a score
+			// above the score threshold: the column maxima are in the first
+			// TMP vector
+			SSERegI vcolmax = sse_load_siall(d.mat_.tmpvec(0, j));
+			int colpass = sse_movemask_epi8(
+				sse_cmpeq_epi8(sse_max_epu8(vcolmax, vminsc), vcolmax));
 #ifndef NDEBUG
-		{
+			{
+				int score = 0;
+				sse_max_score_u8(vcolmax, score);
+				// Start in upper vector row and move down
+				TAlScore max = 0;
+				SSERegI *pvH = d.mat_.hvec(0, j);
+				for(size_t i = 0; i < iter; i++) {
+					for(size_t k = 0; k < NWORDS_PER_REG; k++) {
+						TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
+						if(sc > max) {
+							max = sc;
+						}
+					}
+					pvH += ROWSTRIDE;
+				}
+				assert_eq(max, score);
+				assert_eq(colpass != 0, (TAlScore)score >= minsc_);
+			}
+#endif
+			if(colpass == 0) {
+				// Scores in column aren't good enough
+				continue;
+			}
+			// This column's reference character and the next one's (the
+			// reference has one character past the rectangle), as masks
+			assert_range(0, 16, (int)rf_[j + rfi_]);
+			assert_range(0, 16, (int)rf_[j + rfi_ + 1]);
+			SSERegI vref, vrefSucc;
+			sse_fill_u8((uint8_t)rf_[j + rfi_], vref);
+			sse_fill_u8((uint8_t)rf_[j + rfi_ + 1], vrefSucc);
+			// Get pointer to first cell in column to examine:
+			SSERegI *pvH = d.mat_.hvec(0, j);
+			const SSERegI *pvRd = d.vecbuf_.ptr();
 			// Start in upper vector row and move down
-			TAlScore max = 0;
+			for(size_t i = 0; i < iter; i++) {
+				SSERegI vh = sse_load_siall(pvH);
+				// Lanes whose H is at least minsc_ ...
+				uint32_t lanes = (uint32_t)sse_movemask_epi8(
+					sse_cmpeq_epi8(sse_max_epu8(vh, vminsc), vh));
+				// ... whose read character matches the reference character ...
+				lanes &= ~(uint32_t)sse_movemask_epi8(
+					sse_cmpeq_epi8(sse_and_siall(vref, pvRd[0]), vzero));
+				// ... and whose diagonal successor does not match
+				lanes &= (uint32_t)sse_movemask_epi8(
+					sse_cmpeq_epi8(sse_and_siall(vrefSucc, pvRd[1]), vzero));
+				while(lanes != 0) {
+					const size_t k = (size_t)__builtin_ctz(lanes);
+					lanes &= lanes - 1;
+					const size_t rdoff = i + k * iter;
+					assert_geq(rdoff, minrow);
+					assert_lt(rdoff, nrow);
+					TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
+					assert_leq(sc, best);
+					assert_geq(sc, minsc_);
+					// Yes, this is legit
+					met.gathsol++;
+					btncand_.expand();
+					btncand_.back().init(rdoff, j, sc);
+				}
+				pvH += ROWSTRIDE;
+				pvRd += 2;
+			}
+		}
+	}
+#ifndef NDEBUG
+	{
+		// The same candidates, in the same order, by a scalar scan of every
+		// cell
+		size_t n = 0;
+		for(size_t j = 0; j < ncol; j++) {
 			SSERegI *pvH = d.mat_.hvec(0, j);
 			for(size_t i = 0; i < iter; i++) {
 				for(size_t k = 0; k < NWORDS_PER_REG; k++) {
+					size_t rdoff = i + k * iter;
+					if(rdoff >= nrow) {
+						break;
+					}
 					TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
-					if(sc > max) {
-						max = sc;
+					if(rdoff < minrow || sc < minsc_) {
+						continue;
+					}
+					bool match = ((rf_[j + rfi_] & (1 << (*rd_)[rdoff])) != 0);
+					bool matchSucc = rdoff < dpRows()-1 &&
+						((rf_[j + rfi_ + 1] & (1 << (*rd_)[rdoff+1])) != 0);
+					if(match && !matchSucc) {
+						assert_lt(n, btncand_.size());
+						assert_eq(rdoff, btncand_[n].row);
+						assert_eq(j, btncand_[n].col);
+						assert_eq(sc, btncand_[n].score);
+						n++;
 					}
 				}
 				pvH += ROWSTRIDE;
 			}
-			assert_eq(max, score);
 		}
-#endif
-		if((TAlScore)score < minsc_) {
-			// Scores in column aren't good enough
-			continue;
-		}
-		// Get pointer to first cell in column to examine:
-		SSERegI *pvHorig = d.mat_.hvec(0, j);
-		SSERegI *pvH     = pvHorig;
-		// Get pointer to the vector in the following column that corresponds
-		// to the cells diagonally down and to the right from the cells in pvH
-		SSERegI *pvHSucc = (j < ncol-1) ? d.mat_.hvec(0, j+1) : NULL;
-		// Start in upper vector row and move down
-		for(size_t i = 0; i < iter; i++) {
-			if(pvHSucc != NULL) {
-				pvHSucc += ROWSTRIDE;
-				if(i == iter-1) {
-					pvHSucc = d.mat_.hvec(0, j+1);
-				}
-			}
-			// Which elements of this vector are exhaustively scored?
-			size_t rdoff = i;
-			for(size_t k = 0; k < NWORDS_PER_REG; k++) {
-				// Is this row, col one that we can potential backtrace from?
-				// I.e. are we close enough to a core diagonal?
-				if(rdoff >= nrow_lo && rdoff < nrow_hi) {
-					// This cell has been exhaustively scored
-					if(rdoff >= minrow) {
-						// ... and it could potentially score high enough
-						TAlScore sc = (TAlScore)((TCScore*)pvH)[k];
-						assert_leq(sc, best);
-						if(sc >= minsc_) {
-							// This is a potential solution
-							bool matchSucc = false;
-							int readc = (*rd_)[rdoff];
-							int refc = rf_[j + rfi_];
-							bool match = ((refc & (1 << readc)) != 0);
-							if(rdoff < dpRows()-1) {
-								int readcSucc = (*rd_)[rdoff+1];
-								int refcSucc = rf_[j + rfi_ + 1];
-								assert_range(0, 16, refcSucc);
-								matchSucc = ((refcSucc & (1 << readcSucc)) != 0);
-							}
-							if(match && !matchSucc) {
-								// Yes, this is legit
-								met.gathsol++;
-								btncand_.expand();
-								btncand_.back().init(rdoff, j, sc);
-							}
-						}
-					}
-				} else {
-					// Already saw every element in the vector that's been
-					// exhaustively scored
-					break;
-				}
-				rdoff += iter;
-			}
-			pvH += ROWSTRIDE;
-		}
+		assert_eq(n, btncand_.size());
 	}
+#endif
 	if(!btncand_.empty()) {
 		d.mat_.initMasks();
 	}
 	return !btncand_.empty();
 }
 
-#define MOVE_VEC_PTR_UP(vec, rowvec, rowelt) { \
-	if(rowvec == 0) { \
-		rowvec += d.mat_.nvecrow_; \
-		vec += d.mat_.colstride_; \
-		rowelt--; \
-	} \
-	rowvec--; \
-	vec -= ROWSTRIDE; \
-}
-
-#define MOVE_VEC_PTR_LEFT(vec, rowvec, rowelt) { vec -= d.mat_.colstride_; }
-
-#define MOVE_VEC_PTR_UPLEFT(vec, rowvec, rowelt) { \
- 	MOVE_VEC_PTR_UP(vec, rowvec, rowelt); \
- 	MOVE_VEC_PTR_LEFT(vec, rowvec, rowelt); \
-}
-
-#define MOVE_ALL_LEFT() { \
-	MOVE_VEC_PTR_LEFT(cur_vec, rowvec, rowelt); \
-	MOVE_VEC_PTR_LEFT(left_vec, left_rowvec, left_rowelt); \
-	MOVE_VEC_PTR_LEFT(up_vec, up_rowvec, up_rowelt); \
-	MOVE_VEC_PTR_LEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
-}
-
-#define MOVE_ALL_UP() { \
-	MOVE_VEC_PTR_UP(cur_vec, rowvec, rowelt); \
-	MOVE_VEC_PTR_UP(left_vec, left_rowvec, left_rowelt); \
-	MOVE_VEC_PTR_UP(up_vec, up_rowvec, up_rowelt); \
-	MOVE_VEC_PTR_UP(upleft_vec, upleft_rowvec, upleft_rowelt); \
-}
-
-#define MOVE_ALL_UPLEFT() { \
-	MOVE_VEC_PTR_UPLEFT(cur_vec, rowvec, rowelt); \
-	MOVE_VEC_PTR_UPLEFT(left_vec, left_rowvec, left_rowelt); \
-	MOVE_VEC_PTR_UPLEFT(up_vec, up_rowvec, up_rowelt); \
-	MOVE_VEC_PTR_UPLEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
-}
-
-#define NEW_ROW_COL(row, col) { \
-	rowelt = row / d.mat_.nvecrow_; \
-	rowvec = row % d.mat_.nvecrow_; \
-	eltvec = (col * d.mat_.colstride_) + (rowvec * ROWSTRIDE); \
-	cur_vec = d.mat_.matbuf_.ptr() + eltvec; \
-	left_vec = cur_vec; \
-	left_rowelt = rowelt; \
-	left_rowvec = rowvec; \
-	MOVE_VEC_PTR_LEFT(left_vec, left_rowvec, left_rowelt); \
-	up_vec = cur_vec; \
-	up_rowelt = rowelt; \
-	up_rowvec = rowvec; \
-	MOVE_VEC_PTR_UP(up_vec, up_rowvec, up_rowelt); \
-	upleft_vec = up_vec; \
-	upleft_rowelt = up_rowelt; \
-	upleft_rowvec = up_rowvec; \
-	MOVE_VEC_PTR_LEFT(upleft_vec, upleft_rowvec, upleft_rowelt); \
+/*
+ * The backtrace addresses the striped matrix by one byte pointer per cell:
+ * btcur points at the current cell's E byte, element row / nvecrow_ of the
+ * E vector in vector row btrowvec = row % nvecrow_ of its column.  The F and
+ * H bytes are one and two vectors further on (btF, btH), the cell to the
+ * left is one column (btLeft bytes) back, and the cell above is one vector
+ * row back (btUp bytes), or, from vector row 0, the previous element of the
+ * last vector row (btUpWrap bytes on).  These are the moves the parent's
+ * MOVE_VEC_PTR_UP and MOVE_VEC_PTR_LEFT made on each of its four pointers.
+ */
+#define BT_SET_ROW_COL(row, col) { \
+	btrowvec = (row) % btnvecrow; \
+	btcur = btmatbuf + ((col) * btcolstride + btrowvec * ROWSTRIDE) * NBYTES_PER_REG + (row) / btnvecrow; \
 }
 
 /**
@@ -1599,9 +2025,46 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	SSEData& d = fw_ ? sseU8fw_ : sseU8rc_;
 	SSEMetrics& met = extend_ ? sseU8ExtendMet_ : sseU8MateMet_;
 	met.bt++;
+	// Loop invariants, kept in locals (the build has -fno-strict-aliasing,
+	// so the compiler would otherwise reload them after every store): the
+	// vector matrix's geometry in bytes (BT_SET_ROW_COL), the scoring
+	// parameters, the read, quality and reference, and the mask, reset and
+	// dirty-interval arrays (resetRow changes a row's contents, not these)
+	const size_t btnvecrow = d.mat_.nvecrow_;
+	const size_t btcolstride = d.mat_.colstride_;
+	uint8_t * const btmatbuf = (uint8_t*)d.mat_.matbuf_.ptr();
+	const size_t btLeft = btcolstride * NBYTES_PER_REG;
+	const size_t btUp = ROWSTRIDE * NBYTES_PER_REG;
+	const size_t btUpWrap = (btcolstride - ROWSTRIDE) * NBYTES_PER_REG - 1;
+	const size_t btF = SSEMatrix::F * NBYTES_PER_REG;
+	const size_t btH = SSEMatrix::H * NBYTES_PER_REG;
+	assert_eq(0, SSEMatrix::E);
+	EList<uint16_t> * const btmasks = d.mat_.masks_.ptr();
+	const bool * const btreset = d.mat_.reset_.ptr();
+	size_t * const btdirtylo = d.mat_.dirtylo_.ptr();
+	size_t * const btdirtyhi = d.mat_.dirtyhi_.ptr();
+	const size_t btnrow = d.mat_.nrow();
+	const size_t gapbar = (size_t)sc_->gapbar;
+	const int rdgapo = sc_->readGapOpen();
+	const int rdgape = sc_->readGapExtend();
+	const int rfgapo = sc_->refGapOpen();
+	const int rfgape = sc_->refGapExtend();
+	const int64_t bonus = sc_->match(30);
+	const Scoring * const sc = sc_;
+	const char * const rdbuf = rd_->buf();
+	const char * const qubuf = qu_->buf();
+	const char * const rfbuf = rf_ + rfi_;
+	const size_t rdoff = rdi_;
+	size_t ncell = 0; // cells visited, added to met.btcell and nbts on return
+	// Branch points the parent code pushed on its backtrack stack (btnstack_).
+	// A frame's cell is marked reported through before the frame is pushed,
+	// so a popped frame re-enters a reported cell, which pops the next frame:
+	// once a walk reaches a cell it cannot move through, it fails after one
+	// more cell visit per frame, and no frame ever yields a second path.
+	// Only their number is kept.
+	size_t nframes = 0;
 	assert(!d.profbuf_.empty());
 	assert_lt(row, rd_->length());
-	btnstack_.clear(); // empty the backtrack stack
 	btcells_.clear();  // empty the cells-so-far list
 	AlnScore score; score.score_ = 0;
 	score.gaps_ = score.ns_ = 0;
@@ -1614,26 +2077,41 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 	size_t trimEnd = dpRows() - row - 1;
 	size_t trimBeg = 0;
 	size_t ct = SSEMatrix::H; // cell type
-	// Row and col in terms of where they fall in the SSE vector matrix
-	size_t rowelt, rowvec, eltvec;
-	size_t left_rowelt, up_rowelt, upleft_rowelt;
-	size_t left_rowvec, up_rowvec, upleft_rowvec;
-	SSERegI *cur_vec, *left_vec, *up_vec, *upleft_vec;
-	NEW_ROW_COL(row, col);
+	// The current cell in the SSE vector matrix (BT_SET_ROW_COL)
+	size_t btrowvec;
+	uint8_t *btcur;
+	BT_SET_ROW_COL(row, col);
 	while((int)row >= 0) {
-		met.btcell++;
-		nbts++;
-		int readc = (*rd_)[rdi_ + row];
-		int refm  = (int)rf_[rfi_ + col];
-		int readq = (*qu_)[row];
+		ncell++;
+		int readc = rdbuf[rdoff + row];
+		int refm  = (int)rfbuf[col];
+		int readq = qubuf[row];
+		assert_eq(readc, (*rd_)[rdi_ + row]);
+		assert_eq(refm, (int)rf_[rfi_ + col]);
+		assert_eq(readq, (*qu_)[row]);
 		assert_leq(col, origCol);
+		// The cell above; used only when row > 0
+		const bool btwrap = (btrowvec == 0);
+		uint8_t * const btup = btwrap ? btcur + (ptrdiff_t)btUpWrap : btcur - btUp; // (size_t)-1 when nvecrow_ is 1
+		assert_eq(btcur[0], ((TCScore*)(d.mat_.matbuf_.ptr() + col * btcolstride + btrowvec * ROWSTRIDE))[row / btnvecrow]);
+		assert(row == 0 || btup[btH] == d.mat_.helt(row - 1, col));
 		// Get score in this cell
-		bool empty = false, reportedThru, canMoveThru, branch = false;
+		bool empty = false;
+		bool reportedThru, canMoveThru, branch = false;
 		int cur = SSEMatrix::H;
-		if(!d.mat_.reset_[row]) {
+		if(!btreset[row]) {
 			d.mat_.resetRow(row);
 		}
-		reportedThru = d.mat_.reportedThrough(row, col);
+		// This cell's mask word (see SSEMatrix).  Bit 0, reported through,
+		// is the only bit any code reads.  This backtrace writes a word only
+		// when it enters a cell whose bit 0 is clear, and then writes 1, so
+		// a word is 0 or 1.  The parent code also stored the remaining H, E
+		// and F masks in bits 1-12 and read them back only when bit 0 was
+		// clear, where its words were 0 too.
+		uint16_t& mk = btmasks[row][col];
+		assert_eq(&mk, &d.mat_.masks_[row][col]);
+		reportedThru = (mk & (1 << 0)) != 0;
+		assert(reportedThru || mk == 0);
 		canMoveThru = true;
 		if(reportedThru) {
 			canMoveThru = false;
@@ -1641,10 +2119,10 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 			empty = false;
 			if(row > 0) {
 				assert_gt(row, 0);
-				size_t rowFromEnd = d.mat_.nrow() - row - 1;
+				size_t rowFromEnd = btnrow - row - 1;
 				bool gapsAllowed = true;
-				if(row < (size_t)sc_->gapbar ||
-				   rowFromEnd < (size_t)sc_->gapbar)
+				if(row < gapbar ||
+				   rowFromEnd < gapbar)
 				{
 					gapsAllowed = false;
 				}
@@ -1653,7 +2131,8 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				// Move to beginning of column/row
 				if(ct == SSEMatrix::E) { // AKA rdgap
 					assert_gt(col, 0);
-					TAlScore sc_cur = ((TCScore*)(cur_vec + SSEMatrix::E))[rowelt] + offsetsc;
+					const uint8_t *btleft = btcur - btLeft;
+					TAlScore sc_cur = ((TCScore)btcur[0]) + offsetsc;
 					assert(gapsAllowed);
 					// Currently in the E matrix; incoming transition must come from the
 					// left.  It's either a gap open from the H matrix or a gap extend from
@@ -1661,45 +2140,27 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					// TODO: save and restore origMask as well as mask
 					int origMask = 0, mask = 0;
 					// Get H score of cell to the left
-					TAlScore sc_h_left = ((TCScore*)(left_vec + SSEMatrix::H))[left_rowelt] + offsetsc;
-					if(sc_h_left > 0 && sc_h_left - sc_->readGapOpen() == sc_cur) {
+					TAlScore sc_h_left = ((TCScore)btleft[btH]) + offsetsc;
+					if(sc_h_left > 0 && sc_h_left - rdgapo == sc_cur) {
 						mask |= (1 << 0);
 					}
 					// Get E score of cell to the left
-					TAlScore sc_e_left = ((TCScore*)(left_vec + SSEMatrix::E))[left_rowelt] + offsetsc;
-					if(sc_e_left > 0 && sc_e_left - sc_->readGapExtend() == sc_cur) {
+					TAlScore sc_e_left = ((TCScore)btleft[0]) + offsetsc;
+					if(sc_e_left > 0 && sc_e_left - rdgape == sc_cur) {
 						mask |= (1 << 1);
 					}
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
-					if(d.mat_.isEMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row][col] >> 8) & 3;
-					}
 					if(mask == 3) {
-#if 1
 						// Pick H -> E cell
 						cur = SW_BT_OALL_READ_OPEN;
-						d.mat_.eMaskSet(row, col, 2); // might choose E later
-#else
-						if(rnd.nextU2()) {
-							// Pick H -> E cell
-							cur = SW_BT_OALL_READ_OPEN;
-							d.mat_.eMaskSet(row, col, 2); // might choose E later
-						} else {
-							// Pick E -> E cell
-							cur = SW_BT_RDGAP_EXTEND;
-							d.mat_.eMaskSet(row, col, 1); // might choose H later
-						}
-#endif
 						branch = true;
 					} else if(mask == 2) {
 						// I chose the E cell
 						cur = SW_BT_RDGAP_EXTEND;
-						d.mat_.eMaskSet(row, col, 0); // done
 					} else if(mask == 1) {
 						// I chose the H cell
 						cur = SW_BT_OALL_READ_OPEN;
-						d.mat_.eMaskSet(row, col, 0); // done
 					} else {
 						empty = true;
 						// It's empty, so the only question left is whether we should be
@@ -1712,52 +2173,34 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				} else if(ct == SSEMatrix::F) { // AKA rfgap
 					assert_gt(row, 0);
 					assert(gapsAllowed);
-					TAlScore sc_h_up = ((TCScore*)(up_vec  + SSEMatrix::H))[up_rowelt] + offsetsc;
-					TAlScore sc_f_up = ((TCScore*)(up_vec  + SSEMatrix::F))[up_rowelt] + offsetsc;
-					TAlScore sc_cur  = ((TCScore*)(cur_vec + SSEMatrix::F))[rowelt] + offsetsc;
+					TAlScore sc_h_up = ((TCScore)btup[btH]) + offsetsc;
+					TAlScore sc_f_up = ((TCScore)btup[btF]) + offsetsc;
+					TAlScore sc_cur  = ((TCScore)btcur[btF]) + offsetsc;
 					// Currently in the F matrix; incoming transition must come from above.
 					// It's either a gap open from the H matrix or a gap extend from the F
 					// matrix.
 					// TODO: save and restore origMask as well as mask
 					int origMask = 0, mask = 0;
 					// Get H score of cell above
-					if(sc_h_up > floorsc && sc_h_up - sc_->refGapOpen() == sc_cur) {
+					if(sc_h_up > floorsc && sc_h_up - rfgapo == sc_cur) {
 						mask |= (1 << 0);
 					}
 					// Get F score of cell above
-					if(sc_f_up > floorsc && sc_f_up - sc_->refGapExtend() == sc_cur) {
+					if(sc_f_up > floorsc && sc_f_up - rfgape == sc_cur) {
 						mask |= (1 << 1);
 					}
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
-					if(d.mat_.isFMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row][col] >> 11) & 3;
-					}
 					if(mask == 3) {
-#if 1
 						// I chose the H cell
 						cur = SW_BT_OALL_REF_OPEN;
-						d.mat_.fMaskSet(row, col, 2); // might choose E later
-#else
-						if(rnd.nextU2()) {
-							// I chose the H cell
-							cur = SW_BT_OALL_REF_OPEN;
-							d.mat_.fMaskSet(row, col, 2); // might choose E later
-						} else {
-							// I chose the F cell
-							cur = SW_BT_RFGAP_EXTEND;
-							d.mat_.fMaskSet(row, col, 1); // might choose E later
-						}
-#endif
 						branch = true;
 					} else if(mask == 2) {
 						// I chose the F cell
 						cur = SW_BT_RFGAP_EXTEND;
-						d.mat_.fMaskSet(row, col, 0); // done
 					} else if(mask == 1) {
 						// I chose the H cell
 						cur = SW_BT_OALL_REF_OPEN;
-						d.mat_.fMaskSet(row, col, 0); // done
 					} else {
 						empty = true;
 						// It's empty, so the only question left is whether we should be
@@ -1769,26 +2212,26 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					assert(!empty || !canMoveThru);
 				} else {
 					assert_eq(SSEMatrix::H, ct);
-					TAlScore sc_cur      = ((TCScore*)(cur_vec + SSEMatrix::H))[rowelt]    + offsetsc;
-					TAlScore sc_f_up     = ((TCScore*)(up_vec  + SSEMatrix::F))[up_rowelt] + offsetsc;
-					TAlScore sc_h_up     = ((TCScore*)(up_vec  + SSEMatrix::H))[up_rowelt] + offsetsc;
-					TAlScore sc_h_left   = col > 0 ? (((TCScore*)(left_vec   + SSEMatrix::H))[left_rowelt]   + offsetsc) : floorsc;
-					TAlScore sc_e_left   = col > 0 ? (((TCScore*)(left_vec   + SSEMatrix::E))[left_rowelt]   + offsetsc) : floorsc;
-					TAlScore sc_h_upleft = col > 0 ? (((TCScore*)(upleft_vec + SSEMatrix::H))[upleft_rowelt] + offsetsc) : floorsc;
-					TAlScore sc_diag     = sc_->score(readc, refm, readq - 33);
+					TAlScore sc_cur      = ((TCScore)btcur[btH]) + offsetsc;
+					TAlScore sc_f_up     = ((TCScore)btup[btF])  + offsetsc;
+					TAlScore sc_h_up     = ((TCScore)btup[btH])  + offsetsc;
+					TAlScore sc_h_left   = col > 0 ? (((TCScore)(btcur - btLeft)[btH]) + offsetsc) : floorsc;
+					TAlScore sc_e_left   = col > 0 ? (((TCScore)(btcur - btLeft)[0])   + offsetsc) : floorsc;
+					TAlScore sc_h_upleft = col > 0 ? (((TCScore)(btup  - btLeft)[btH]) + offsetsc) : floorsc;
+					TAlScore sc_diag     = sc->score(readc, refm, readq - 33);
 					// TODO: save and restore origMask as well as mask
 					int origMask = 0, mask = 0;
 					if(gapsAllowed) {
-						if(sc_h_up     > floorsc && sc_cur == sc_h_up   - sc_->refGapOpen()) {
+						if(sc_h_up     > floorsc && sc_cur == sc_h_up   - rfgapo) {
 							mask |= (1 << 0);
 						}
-						if(sc_h_left   > floorsc && sc_cur == sc_h_left - sc_->readGapOpen()) {
+						if(sc_h_left   > floorsc && sc_cur == sc_h_left - rdgapo) {
 							mask |= (1 << 1);
 						}
-						if(sc_f_up     > floorsc && sc_cur == sc_f_up   - sc_->refGapExtend()) {
+						if(sc_f_up     > floorsc && sc_cur == sc_f_up   - rfgape) {
 							mask |= (1 << 2);
 						}
-						if(sc_e_left   > floorsc && sc_cur == sc_e_left - sc_->readGapExtend()) {
+						if(sc_e_left   > floorsc && sc_cur == sc_e_left - rdgape) {
 							mask |= (1 << 3);
 						}
 					}
@@ -1797,50 +2240,22 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					}
 					origMask = mask;
 					assert(origMask > 0 || sc_cur <= sc_->match());
-					if(d.mat_.isHMaskSet(row, col)) {
-						mask = (d.mat_.masks_[row][col] >> 2) & 31;
-					}
 					assert(gapsAllowed || mask == (1 << 4) || mask == 0);
-					int opts = alts5[mask];
-					int select = -1;
-					if(opts == 1) {
-						select = firsts5[mask];
-						assert_geq(mask, 0);
-						d.mat_.hMaskSet(row, col, 0);
-					} else if(opts > 1) {
-#if 1
-						if(       (mask & 16) != 0) {
-							select = 4; // H diag
-						} else if((mask & 1) != 0) {
-							select = 0; // H up
-						} else if((mask & 4) != 0) {
-							select = 2; // F up
-						} else if((mask & 2) != 0) {
-							select = 1; // H left
-						} else if((mask & 8) != 0) {
-							select = 3; // E left
-						}
-#else
-						select = randFromMask(rnd, mask);
-#endif
-						assert_geq(mask, 0);
-						mask &= ~(1 << select);
-						assert(gapsAllowed || mask == (1 << 4) || mask == 0);
-						d.mat_.hMaskSet(row, col, mask);
-						branch = true;
-					} else { /* No way to backtrack! */ }
-					if(select != -1) {
-						if(select == 4) {
-							cur = SW_BT_OALL_DIAG;
-						} else if(select == 0) {
-							cur = SW_BT_OALL_REF_OPEN;
-						} else if(select == 1) {
-							cur = SW_BT_OALL_READ_OPEN;
-						} else if(select == 2) {
-							cur = SW_BT_RFGAP_EXTEND;
-						} else {
-							assert_eq(3, select)
-							cur = SW_BT_RDGAP_EXTEND;
+					if(mask != 0) {
+						// The move and the mask left behind, from the table
+						// (see btHSelect)
+						int sel = btHSelect[mask];
+						cur = sel & 7;
+						int rest = sel >> 3;
+						assert_eq(rest, mask & ~btHSelectBit(mask));
+						assert_eq(rest != 0, alts5[mask] > 1);
+						assert_eq(cur, btHSelectBit(mask) == 16 ? (int)SW_BT_OALL_DIAG :
+						               btHSelectBit(mask) ==  1 ? (int)SW_BT_OALL_REF_OPEN :
+						               btHSelectBit(mask) ==  2 ? (int)SW_BT_OALL_READ_OPEN :
+						               btHSelectBit(mask) ==  4 ? (int)SW_BT_RFGAP_EXTEND :
+						                                          (int)SW_BT_RDGAP_EXTEND);
+						if(rest != 0) {
+							branch = true;
 						}
 					} else {
 						empty = true;
@@ -1854,35 +2269,31 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert(!empty || !canMoveThru || ct == SSEMatrix::H);
 			}
 		}
-		d.mat_.setReportedThrough(row, col);
+		//cerr << "reportedThrough rejected (" << row << ", " << col << ")" << endl;
+		if(!reportedThru) {
+			// Mark the cell reported through, and record it in the row's
+			// dirty interval (SSEMatrix::markDirty).  A cell already
+			// reported through was marked in this fill, after its row was
+			// reset, so its word is 1 and its column is in the interval.
+			mk = (1 << 0);
+			btdirtylo[row] = (col < btdirtylo[row]) ? col : btdirtylo[row];
+			btdirtyhi[row] = (col >= btdirtyhi[row]) ? col + 1 : btdirtyhi[row];
+		}
+		assert(d.mat_.reportedThrough(row, col));
 		assert_eq(gaps, Edit::numGaps(ned));
 		assert_leq(gaps, rdgap_ + rfgap_);
 		// Cell was involved in a previously-reported alignment?
 		if(!canMoveThru) {
-			if(!btnstack_.empty()) {
-				// Remove all the cells from list back to and including the
-				// cell where the branch occurred
-				btcells_.resize(btnstack_.back().celsz);
-				// Pop record off the top of the stack
-				ned.resize(btnstack_.back().nedsz);
-				//aed.resize(btnstack_.back().aedsz);
-				row      = btnstack_.back().row;
-				col      = btnstack_.back().col;
-				gaps     = btnstack_.back().gaps;
-				readGaps = btnstack_.back().readGaps;
-				refGaps  = btnstack_.back().refGaps;
-				score    = btnstack_.back().score;
-				ct       = btnstack_.back().ct;
-				btnstack_.pop_back();
-				assert(!sc_->monotone || score.score() >= escore);
-				NEW_ROW_COL(row, col);
-				continue;
-			} else {
-				// No branch points to revisit; just give up
-				res.reset();
-				met.btfail++; // DP backtraces failed
-				return false;
-			}
+			// Give up.  The parent code first popped each frame of its
+			// backtrack stack and re-entered the frame's cell, which it had
+			// marked reported through before pushing the frame, so each pop
+			// counted one more cell and led to the next pop.
+			ncell += nframes;
+			met.btcell += ncell;
+			nbts += ncell;
+			res.reset();
+			met.btfail++; // DP backtraces failed
+			return false;
 		}
 		assert(!reportedThru);
 		assert(!sc_->monotone || score.score() >= minsc_);
@@ -1897,19 +2308,8 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 			break;
 		}
 		if(branch) {
-			// Add a frame to the backtrack stack
-			btnstack_.expand();
-			btnstack_.back().init(
-				ned.size(),
-				0,               // aed.size()
-				btcells_.size(),
-				row,
-				col,
-				gaps,
-				readGaps,
-				refGaps,
-				score,
-				(int)ct);
+			// The parent code added a frame to its backtrack stack here
+			nframes++;
 		}
 		btcells_.expand();
 		btcells_.back().first = row;
@@ -1920,8 +2320,9 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 			// it and add a nucleotide mismatch.
 			case SW_BT_OALL_DIAG: {
 				assert_gt(row, 0); assert_gt(col, 0);
-				int readC = (*rd_)[row];
-				int refNmask = (int)rf_[rfi_+col];
+				int readC = rdbuf[row];
+				int refNmask = (int)rfbuf[col];
+				assert_eq(readC, (*rd_)[row]);
 				assert_gt(refNmask, 0);
 				int m = matchesEx(readC, refNmask);
 				ct = SSEMatrix::H;
@@ -1939,7 +2340,6 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					assert(!sc_->monotone || score.score() >= escore);
 				} else {
 					// Reward a match
-					int64_t bonus = sc_->match(30);
 					score.score_ += bonus;
 					assert(!sc_->monotone || score.score() >= escore);
 				}
@@ -1947,7 +2347,8 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 					score.ns_++;
 				}
 				row--; col--;
-				MOVE_ALL_UPLEFT();
+				btcur = btup - btLeft;
+				btrowvec = btwrap ? btnvecrow - 1 : btrowvec - 1;
 				assert(VALID_AL_SCORE(score));
 				break;
 			}
@@ -1958,7 +2359,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				Edit e(
 					(int)row,
 					'-',
-					"ACGTN"[(int)(*rd_)[row]],
+					"ACGTN"[(int)rdbuf[row]],
 					EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				assert(ned.empty() || ned.back().pos >= row);
@@ -1967,13 +2368,14 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
 				ct = SSEMatrix::H;
-				int pen = sc_->refGapOpen();
+				int pen = rfgapo;
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; refGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
-				MOVE_ALL_UP();
+				btcur = btup;
+				btrowvec = btwrap ? btnvecrow - 1 : btrowvec - 1;
 				break;
 			}
 			// Move up.  Add an edit encoding the ref gap.
@@ -1983,7 +2385,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				Edit e(
 					(int)row,
 					'-',
-					"ACGTN"[(int)(*rd_)[row]],
+					"ACGTN"[(int)rdbuf[row]],
 					EDIT_TYPE_REF_GAP);
 				assert(e.repOk());
 				assert(ned.empty() || ned.back().pos >= row);
@@ -1992,13 +2394,14 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				row--;
 				ct = SSEMatrix::F;
-				int pen = sc_->refGapExtend();
+				int pen = rfgape;
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; refGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
-				MOVE_ALL_UP();
+				btcur = btup;
+				btrowvec = btwrap ? btnvecrow - 1 : btrowvec - 1;
 				break;
 			}
 			case SW_BT_OALL_READ_OPEN:
@@ -2006,7 +2409,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_gt(col, 0);
 				Edit e(
 					(int)row+1,
-					mask2dna[(int)rf_[rfi_+col]],
+					mask2dna[(int)rfbuf[col]],
 					'-',
 					EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
@@ -2016,13 +2419,13 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
 				ct = SSEMatrix::H;
-				int pen = sc_->readGapOpen();
+				int pen = rdgapo;
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; readGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
-				MOVE_ALL_LEFT();
+				btcur -= btLeft;
 				break;
 			}
 			case SW_BT_RDGAP_EXTEND:
@@ -2030,7 +2433,7 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_gt(col, 1);
 				Edit e(
 					(int)row+1,
-					mask2dna[(int)rf_[rfi_+col]],
+					mask2dna[(int)rfbuf[col]],
 					'-',
 					EDIT_TYPE_READ_GAP);
 				assert(e.repOk());
@@ -2040,18 +2443,20 @@ bool SwAligner::backtraceNucleotidesLocalSseU8(
 				assert_geq((int)(rdf_-rdi_-row-1), sc_->gapbar-1);
 				col--;
 				ct = SSEMatrix::E;
-				int pen = sc_->readGapExtend();
+				int pen = rdgape;
 				score.score_ -= pen;
 				assert(!sc_->monotone || score.score() >= minsc_);
 				gaps++; readGaps++;
 				assert_eq(gaps, Edit::numGaps(ned));
 				assert_leq(gaps, rdgap_ + rfgap_);
-				MOVE_ALL_LEFT();
+				btcur -= btLeft;
 				break;
 			}
 			default: throw 1;
 		}
 	} // while((int)row > 0)
+	met.btcell += ncell;
+	nbts += ncell;
 	assert_geq(col, 0);
 	assert_eq(SSEMatrix::H, ct);
 	// The number of cells in the backtracs should equal the number of read

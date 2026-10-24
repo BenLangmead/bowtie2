@@ -1650,29 +1650,34 @@ struct RedundantCell {
  * whether one alignment is redundant (has a DP cell in common with) with a set
  * of others.
  *
- * Adding cells to and checking cell against this data structure can get rather
- * slow when there are many alignments in play.  Dividing the burden over
- * read-position bins helps some.
+ * The cells of an alignment are stored as runs: maximal stretches of
+ * consecutive rows whose cells cover the same range of diagonals (diagonal =
+ * column - row).  A gapless alignment is one run; each gap adds a run or two.
+ * Two alignments share a cell iff they have the same reference id and
+ * orientation and some pair of their runs shares a row and a diagonal, so
+ * the database answers exactly what a set of RedundantCells per row would.
  */
 class RedundantAlns {
 
 public:
 
-	RedundantAlns(int cat = DP_CAT) : cells_(cat) { }
+	RedundantAlns(int cat = DP_CAT) : alns_(cat), runs_(cat), qruns_(cat) { }
 
 	/**
 	 * Empty the cell database.
 	 */
-	void reset() { cells_.clear(); }
+	void reset() {
+		alns_.clear();
+		runs_.clear();
+	}
 
 	/**
-	 * Initialize and set the list of sets to equal the read length.
+	 * Empty the cell database in preparation for a read of length npos.
 	 */
 	void init(size_t npos) {
-		cells_.resize(npos);
-		for(size_t i = 0; i < npos; i++) {
-			cells_[i].clear();
-		}
+		(void)npos;
+		alns_.clear();
+		runs_.clear();
 	}
 
 	/**
@@ -1688,7 +1693,46 @@ public:
 
 protected:
 
-	EList<ESet<RedundantCell> > cells_;
+	/**
+	 * Rows r0..r1 (inclusive), each with the cells of diagonals [dlo, dhi).
+	 */
+	struct Run {
+		int64_t dlo;
+		int64_t dhi;
+		size_t  r0;
+		size_t  r1;
+	};
+
+	/**
+	 * One stored alignment: its key, the bounding rows and diagonals of its
+	 * cells, and its runs, runs_[run0 .. run0+nrun).
+	 */
+	struct Aln {
+		TRefId  rfid;
+		int64_t dlo;
+		int64_t dhi;
+		size_t  r0;
+		size_t  r1;
+		size_t  run0;
+		size_t  nrun;
+		bool    fw;
+	};
+
+	/**
+	 * Append the runs of res's cells to runs and set a's key and bounds.
+	 * Returns false iff res covers no rows.
+	 */
+	static bool makeRuns(const AlnRes& res, EList<Run>& runs, Aln& a);
+
+	/**
+	 * Return true iff the two run lists, each in ascending row order, share
+	 * a cell.
+	 */
+	static bool runsOverlap(const Run* a, size_t na, const Run* b, size_t nb);
+
+	EList<Aln> alns_;  // stored alignments
+	EList<Run> runs_;  // their runs
+	EList<Run> qruns_; // runs of the alignment being queried
 };
 
 typedef uint64_t TNumAlns;

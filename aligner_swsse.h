@@ -268,13 +268,30 @@ struct SSEMatrix {
 	}
 
 	/**
-	 * Set the given cell's reportedThru bit.
+	 * Set the given cell's reportedThru bit.  Every backtrace calls this (or
+	 * markDirty) on each cell whose mask word it writes, so it also records
+	 * the cell in the row's dirty interval; see resetRow.
 	 */
 	inline void setReportedThrough(
 		size_t row,          // current row
 		size_t col)          // current column
 	{
 		masks_[row][col] |= (1 << 0);
+		markDirty(row, col);
+	}
+
+	/**
+	 * Record that the mask word of the given cell may be nonzero, by widening
+	 * the row's dirty interval [dirtylo_[row], dirtyhi_[row]) to include col.
+	 */
+	inline void markDirty(
+		size_t row,          // current row
+		size_t col)          // current column
+	{
+		size_t& lo = dirtylo_[row];
+		size_t& hi = dirtyhi_[row];
+		lo = (col < lo) ? col : lo;
+		hi = (col >= hi) ? col + 1 : hi;
 	}
 
 	/**
@@ -375,12 +392,36 @@ struct SSEMatrix {
 	}
 	
 	/**
-	 * Prepare a row so we can use it to store masks.
+	 * Prepare a row so we can use it to store masks: afterwards the row has
+	 * ncol_ elements, all zero.
+	 *
+	 * A row's buffer is zero everywhere outside its dirty interval, the
+	 * columns written since the row was last reset (markDirty), so only that
+	 * interval is cleared.  A buffer that is about to be allocated is
+	 * cleared in full.  A row with no dirty record yet has the interval
+	 * [0, SIZE_MAX), so it is cleared in full too (initMasks).
 	 */
 	void resetRow(size_t i) {
 		assert(!reset_[i]);
-		masks_[i].resizeNoCopy(ncol_);
-		masks_[i].fillZero();
+		EList<uint16_t>& m = masks_[i];
+		if(m.null() || m.capacity() < ncol_) {
+			m.resizeNoCopy(ncol_);
+			memset(m.ptr(), 0, sizeof(uint16_t) * m.capacity());
+		} else {
+			m.resizeNoCopy(ncol_);
+			size_t lo = dirtylo_[i];
+			size_t hi = dirtyhi_[i] < m.capacity() ? dirtyhi_[i] : m.capacity();
+			if(lo < hi) {
+				memset(m.ptr() + lo, 0, sizeof(uint16_t) * (hi - lo));
+			}
+		}
+		dirtylo_[i] = std::numeric_limits<size_t>::max();
+		dirtyhi_[i] = 0;
+#ifndef NDEBUG
+		for(size_t j = 0; j < m.capacity(); j++) {
+			assert_eq(0, m.ptr()[j]);
+		}
+#endif
 		reset_[i] = true;
 	}
 
@@ -398,6 +439,8 @@ struct SSEMatrix {
 	EList_sse        matbuf_;      // buffer for holding vectors
 	ELList<uint16_t> masks_;       // buffer for masks/backtracking flags
 	EList<bool>      reset_;       // true iff row in masks_ has been reset
+	EList<size_t>    dirtylo_;     // per row of masks_: first column that may be nonzero
+	EList<size_t>    dirtyhi_;     // per row of masks_: one past the last such column
 };
 
 /**
@@ -491,6 +534,28 @@ inline void SSEMatrix::fMaskSet(
 	assert_lt(mask, 4);
 	masks_[row][col] &= ~(7 << 10);
 	masks_[row][col] |=  (1 << 10 | mask << 11);
+}
+
+/**
+ * The move and remaining mask for each H-cell backtrace mask; see
+ * aligner_swsse.cpp.
+ */
+extern const uint8_t btHSelect[32];
+
+/**
+ * The bit of a nonzero H-cell backtrace mask that a backtrace takes, chosen
+ * as the parent code did: the only bit (firsts5) when one is set, otherwise
+ * the first of diagonal (16), H above (1), F above (4), H left (2) and E
+ * left (8).  For asserts.
+ */
+static inline int btHSelectBit(int mask) {
+	assert_gt(mask, 0);
+	if(alts5[mask] == 1) return 1 << firsts5[mask];
+	if((mask & 16) != 0) return 16;
+	if((mask & 1) != 0) return 1;
+	if((mask & 4) != 0) return 4;
+	if((mask & 2) != 0) return 2;
+	return 8;
 }
 
 #define ROWSTRIDE_2COL 4

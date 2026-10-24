@@ -66,13 +66,34 @@ struct Read {
 	 * Finish initializing a new read.
 	 */
 	void finalize() {
-		for(size_t i = 0; i < patFw.length(); i++) {
-			if((int)patFw[i] > 3) {
-				ns_++;
-			}
+		// The Ns count, constructRevComps() and constructReverses() in one
+		// pass over patFw, through local pointers: patRc[i] and patFwRev[i]
+		// come from patFw[n-1-i], patRcRev[i] from patFw[i].
+		const size_t n = patFw.length();
+		patRc.resize(n);
+		patFwRev.resize(n);
+		patRcRev.resize(n);
+		const char* fw = patFw.buf();
+		char* rc = patRc.wbuf();
+		char* fwrev = patFwRev.wbuf();
+		char* rcrev = patRcRev.wbuf();
+		size_t ns = 0;
+		for(size_t i = 0; i < n; i++) {
+			const char c = fw[i];
+			const char r = fw[n - i - 1];
+			ns += ((int)c > 3) ? 1 : 0;
+			rc[i] = (r == 4 ? 4 : r ^ 3);
+			fwrev[i] = r;
+			rcrev[i] = (c == 4 ? 4 : c ^ 3);
 		}
-		constructRevComps();
-		constructReverses();
+		ns_ += ns;
+		const size_t nq = qual.length();
+		qualRev.resize(nq);
+		const char* q = qual.buf();
+		char* qrev = qualRev.wbuf();
+		for(size_t i = 0; i < nq; i++) {
+			qrev[i] = q[nq - i - 1];
+		}
 	}
 
 	/**

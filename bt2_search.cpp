@@ -3231,6 +3231,19 @@ static void multiseedSearchWorker(void *vp) {
 
 		PerReadMetrics prm;
 
+		// Exact end-to-end sweeps of the reads of the current batch: two
+		// jobs (mates) per read, indexed by the read's place in the batch
+		std::vector<ExactSweepJob> sweepJobs(2 * readsPerBatch);
+		std::vector<uint8_t> sweepHave(2 * readsPerBatch, 0); // job swept?
+		std::vector<ExactSweepJob*> sweepList;
+		sweepList.reserve(2 * readsPerBatch);
+		// 1-mismatch end-to-end searches of the mates swept together,
+		// indexed as sweepJobs
+		std::vector<OneMmJob> mmJobs(2 * readsPerBatch);
+		std::vector<uint8_t> mmHave(2 * readsPerBatch, 0); // job searched?
+		std::vector<OneMmJob*> mmList;
+		mmList.reserve(2 * readsPerBatch);
+
 		// Used by thread with threadid == 1 to measure time elapsed
 		time_t iTime = time(0);
 
@@ -3257,6 +3270,8 @@ static void multiseedSearchWorker(void *vp) {
 		   PatternSourceReadAhead psrah(readahead_factory);
 		   PatternSourcePerThread* const ps = psrah.ptr();
 		   bool firstPS = true;
+		   std::fill(sweepHave.begin(), sweepHave.end(), (uint8_t)0);
+		   std::fill(mmHave.begin(), mmHave.end(), (uint8_t)0);
                    do {
 			pair<bool, bool> ret = firstPS ? 
 						psrah.readResult() : // nextReadPair was already called in the psrah constructor
@@ -3509,24 +3524,135 @@ static void multiseedSearchWorker(void *vp) {
 
 					// Find end-to-end exact alignments for each read
 					if(doExactUpFront) {
+						// The sweeps of this read's mates and of the reads
+						// after it in this batch run together, the first time
+						// one of them is needed (exactSweepBatch); each mate
+						// then gets the results its own exactSweep call gives,
+						// at the same point as before.  A sweep depends only on
+						// its read, its strands and the index, and the
+						// conditions for sweeping a mate are evaluated here
+						// for every read, as before.
+						bool sweep[2] = { false, false };
+						for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
+							sweep[mate] = !(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0));
+						}
+						const size_t slot = ps->bufIndex();
+						bool sweepNow = false;
+						for(size_t mate = 0; mate < 2; mate++) {
+							const ExactSweepJob& job = sweepJobs[2 * slot + mate];
+							if(sweep[mate] && !(sweepHave[2 * slot + mate] &&
+							   job.read == rds[mate] && job.nofw == nofw[mate] && job.norc == norc[mate]))
+							{
+								sweepNow = true;
+							}
+						}
+						if(sweepNow) {
+							const size_t nahead = ps->parseAhead(readsPerBatch);
+							if(sweepJobs.size() < 2 * (slot + nahead + 1)) {
+								sweepJobs.resize(2 * (slot + nahead + 1));
+								sweepHave.resize(2 * (slot + nahead + 1), 0);
+								mmJobs.resize(2 * (slot + nahead + 1));
+								mmHave.resize(2 * (slot + nahead + 1), 0);
+							}
+							sweepList.clear();
+							for(size_t mate = 0; mate < 2; mate++) {
+								if(sweep[mate]) {
+									ExactSweepJob& job = sweepJobs[2 * slot + mate];
+									job.init(rds[mate], nofw[mate], norc[mate]);
+									sweepList.push_back(&job);
+								}
+							}
+							// The reads after this one in the batch whose mates
+							// may be swept: in range of -s/-u, long enough, and
+							// not removed by --qc-filter.  A mate swept here
+							// that turns out not to be needed is never used.
+							for(size_t k = 1; k <= nahead; k++) {
+								const size_t aslot = slot + k;
+								if(!ps->aheadOk(k) || sweepHave[2 * aslot] || sweepHave[2 * aslot + 1]) {
+									continue;
+								}
+								const TReadId ardid = ps->rdid(k);
+								if(ardid < skipReads || ardid >= qUpto) {
+									continue;
+								}
+								const Read* ards[2] = { &ps->read_a(k), &ps->read_b(k) };
+								const bool apaired = !ards[1]->empty();
+								const bool anofw[2] = {
+									apaired ? (gMate1fw ? gNofw : gNorc) : gNofw,
+									apaired ? (gMate2fw ? gNofw : gNorc) : gNofw };
+								const bool anorc[2] = {
+									apaired ? (gMate1fw ? gNorc : gNofw) : gNorc,
+									apaired ? (gMate2fw ? gNorc : gNofw) : gNorc };
+								for(size_t mate = 0; mate < (apaired ? 2:1); mate++) {
+									const size_t alen = ards[mate]->length();
+									if(alen < 2 || alen <= (size_t)multiseedMms ||
+									   (qcFilter && ards[mate]->filter == '0'))
+									{
+										continue;
+									}
+									ExactSweepJob& job = sweepJobs[2 * aslot + mate];
+									job.init(ards[mate], anofw[mate], anorc[mate]);
+									sweepList.push_back(&job);
+									sweepHave[2 * aslot + mate] = 1;
+								}
+							}
+							al.exactSweepBatch(
+								ebwtFw,            // index
+								sc,                // scoring scheme
+								2,                 // max # edits we care about
+								true,              // report 0mm hits
+								sweepList.data(),  // reads to sweep
+								sweepList.size()); // # reads
+							// The offset walks of the rows of the exact hits found, together
+							sd.specBatch(ebwtFw, sweepList.data(), sweepList.size());
+							// The 1-mismatch searches of the mates just swept,
+							// together.  Whether a mate's search runs, and on
+							// which strands, depends on its edit bounds, known
+							// now, and on whether the mate is done by then,
+							// which is not; a search done here is used only if
+							// the 1-mismatch step below searches the same read
+							// on the same strands, and any other search runs
+							// there as before.  Mates with more than one exact
+							// hit row are left out: extending their exact hits
+							// usually finishes them (always for unpaired reads
+							// in the timed sets), and their searches are long.
+							if(do1mmUpFront && !seedSumm) {
+								mmList.clear();
+								for(size_t j = 0; j < sweepList.size(); j++) {
+									const ExactSweepJob& sj = *sweepList[j];
+									const bool yfw = sj.mine[0] <= 1 && !sj.nofw;
+									const bool yrc = sj.mine[1] <= 1 && !sj.norc;
+									const size_t mi = (size_t)(sweepList[j] - sweepJobs.data());
+									mmHave[mi] = 0;
+									if((!yfw && !yrc) || sj.nelt > 1) {
+										continue;
+									}
+									OneMmJob& mj = mmJobs[mi];
+									mj.init(sj.read, !yfw, !yrc);
+									mmList.push_back(&mj);
+									mmHave[mi] = 1;
+								}
+								al.oneMmSearchBatch(
+									&ebwtFw,          // BWT index
+									ebwtBw,           // BWT' index
+									sc,               // scoring scheme
+									false,            // do exact match
+									true,             // do 1mm
+									mmList.data(),    // reads to search
+									mmList.size());   // # reads
+							}
+						}
 						for(size_t matei = 0; matei < (paired ? 2:1); matei++) {
 							size_t mate = matemap[matei];
-							if(!filt[mate] || done[mate] || msinkwrap.state().doneWithMate(mate == 0)) {
+							if(!sweep[mate]) {
 								continue;
 							}
 							swmSeed.exatts++;
-							nelt[mate] = al.exactSweep(
-								ebwtFw,        // index
-								*rds[mate],    // read
-								sc,            // scoring scheme
-								nofw[mate],    // nofw?
-								norc[mate],    // norc?
-								2,             // max # edits we care about
+							nelt[mate] = al.exactSweepApply(
+								sweepJobs[2 * slot + mate],
 								minedfw[mate], // minimum # edits for fw mate
 								minedrc[mate], // minimum # edits for rc mate
-								true,          // report 0mm hits
-								shs[mate],     // put end-to-end results here
-								sdm);          // metrics
+								shs[mate]);    // put end-to-end results here
 							size_t bestmin = min(minedfw[mate], minedrc[mate]);
 							if(bestmin == 0) {
 								sdm.bestmin0++;
@@ -3537,6 +3663,7 @@ static void multiseedSearchWorker(void *vp) {
 								sdm.bestmin2++;
 							}
 						}
+						sweepHave[2 * slot] = sweepHave[2 * slot + 1] = 0;
 						matemap[0] = 0; matemap[1] = 1;
 						if(nelt[0] > 0 && nelt[1] > 0 && nelt[0] > nelt[1]) {
 							// Do the mate with fewer exact hits first
@@ -3710,21 +3837,40 @@ static void multiseedSearchWorker(void *vp) {
 							if(yfw || yrc) {
 								// Clear out the exact hits
 								swmSeed.mm1atts++;
-								al.oneMmSearch(
-									&ebwtFw,        // BWT index
-									ebwtBw,         // BWT' index
-									*rds[mate],     // read
-									sc,             // scoring scheme
-									minsc[mate],    // minimum score
-									!yfw,           // don't align forward read
-									!yrc,           // don't align revcomp read
-									localAlign,     // must be legal local alns?
-									false,          // do exact match
-									true,           // do 1mm
-									shs[mate],      // seed hits (hits installed here)
-									sdm);           // metrics
+								// The search may have run already, with the
+								// exact sweeps of this batch (above)
+								const size_t mi = 2 * ps->bufIndex() + mate;
+								if(mi < mmHave.size() && mmHave[mi] &&
+								   mmJobs[mi].read == rds[mate] &&
+								   mmJobs[mi].nofw == !yfw && mmJobs[mi].norc == !yrc)
+								{
+									al.oneMmSearchApply(
+										mmJobs[mi],     // the search
+										&ebwtFw,        // BWT index
+										sc,             // scoring scheme
+										minsc[mate],    // minimum score
+										localAlign,     // must be legal local alns?
+										shs[mate]);     // seed hits (hits installed here)
+								} else {
+									al.oneMmSearch(
+										&ebwtFw,        // BWT index
+										ebwtBw,         // BWT' index
+										*rds[mate],     // read
+										sc,             // scoring scheme
+										minsc[mate],    // minimum score
+										!yfw,           // don't align forward read
+										!yrc,           // don't align revcomp read
+										localAlign,     // must be legal local alns?
+										false,          // do exact match
+										true,           // do 1mm
+										shs[mate],      // seed hits (hits installed here)
+										sdm);           // metrics
+								}
 								nelt[mate] = shs[mate].num1mmE2eHits();
 							}
+						}
+						if(2 * ps->bufIndex() + 1 < mmHave.size()) {
+							mmHave[2 * ps->bufIndex()] = mmHave[2 * ps->bufIndex() + 1] = 0;
 						}
 						// Possibly reorder the mates
 						matemap[0] = 0; matemap[1] = 1;
@@ -4789,8 +4935,22 @@ static void multiseedSearch(
 	multiseed_ebwtBw = ebwtBw;
 	multiseed_sc     = &sc;
 	multiseed_metricsOfb      = metricsOfb;
+	// The bit-packed reference, the forward BWT and SA sample and the
+	// mirror BWT are read in 64 MB pieces on up to INDEX_LOAD_THREADS helper
+	// threads (no more than -p) while the rest of the files is read here in
+	// the usual order; loader.finish() below reads pieces here too, then
+	// waits for the helpers, before any worker starts.  Serial as before at
+	// -p 1, with --mm or --shmem, and when load messages or timings print.
+	const int INDEX_LOAD_THREADS = 4;
+	const bool loadInBackground = nthreads > 1 && !useMm && !useShmem &&
+		!gVerbose && !startVerbose && !timing && !sanityCheck;
+	unique_ptr<BitPairReference> refs;
+	// Declared after refs: if loading throws, the loader's destructor
+	// waits for the helpers before refs and the Ebwts are freed
+	IndexLoader loader(loadInBackground ? std::min(nthreads, INDEX_LOAD_THREADS) : 0);
+	IndexLoader* bgLoader = loadInBackground ? &loader : NULL;
 	Timer *_t = new Timer(cerr, "Time loading reference: ", timing);
-	unique_ptr<BitPairReference> refs(
+	refs.reset(
 		new BitPairReference(
 			adjIdxBase,
 			false,
@@ -4802,7 +4962,8 @@ static void multiseedSearch(
 			useShmem,
 			mmSweep,
 			gVerbose,
-			startVerbose)
+			startVerbose,
+			bgLoader)
 		);
 	delete _t;
 	if(!refs->loaded()) throw 1;
@@ -4840,7 +5001,8 @@ static void multiseedSearch(
 			true,         // load ftab (in forward index)
 			true,         // load rstarts (in forward index)
 			!noRefNames,  // load names?
-			startVerbose);
+			startVerbose,
+			bgLoader);    // BWT and SA sample in the background
 	}
 	if(multiseedMms > 0 || do1mmUpFront) {
 		// Load the other half of the index into memory
@@ -4855,8 +5017,12 @@ static void multiseedSearch(
 			true,         // yes, need ftab in reverse index
 			false,        // don't load rstarts in reverse index
 			!noRefNames,  // load names?
-			startVerbose);
+			startVerbose,
+			bgLoader);    // BWT in the background
 	}
+	// Every index array is in memory after this; a failed read prints the
+	// serial load's message and throws 1
+	loader.finish();
 
 
 	// Start the metrics thread

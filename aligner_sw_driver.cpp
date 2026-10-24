@@ -80,6 +80,7 @@ bool SwDriver::eeSaTups(
 	gws_.clear();
 	rands_.clear();
 	satpos_.clear();
+	lazy_.clear();
 	eehits_.clear();
 	// First, count up the total number of satpos_, rands_, eehits_, and gws_
 	// we're going to tuse
@@ -291,10 +292,115 @@ bool SwDriver::eeSaTups(
 }
 
 /**
+ * Set up the two chains of a seed hit's extension as extend() would before
+ * its loops: ch[0] extends to the left with the forward index, ch[1] to the
+ * right with the backward index.  A chain with nothing to do is not live.
+ */
+void SwDriver::extInit(
+	ExtChain* ch,         // out: ch[0] left, ch[1] right
+	const Read& rd,       // read
+	const Ebwt& ebwtFw,   // Forward Bowtie index
+	const Ebwt* ebwtBw,   // Backward Bowtie index
+	TIndexOffU topf,      // top in fw index
+	TIndexOffU botf,      // bot in fw index
+	TIndexOffU topb,      // top in bw index
+	TIndexOffU botb,      // bot in bw index
+	bool fw,              // seed orientation
+	size_t off,           // seed offset from 5' end
+	size_t len)           // seed length
+{
+	const size_t rdlen = rd.length();
+	const BTDnaString* seq = fw ? &rd.patFw : &rd.patRc;
+	ExtChain& l = ch[0];
+	l.n = l.ops = 0;
+	l.left = fw ? off : rdlen - len - off;
+	l.live = l.left > 0;
+	if(l.live) {
+		// Starting to left of seed (<off) and moving left
+		l.ebwt = &ebwtFw;
+		l.seq = seq;
+		l.top = topf;
+		l.bot = botf;
+		l.tp0 = topb;
+		l.i = fw ? off - 1 : rdlen - off - len - 1;
+		l.right = false;
+		INIT_LOCS(l.top, l.bot, l.tloc, l.bloc, ebwtFw);
+	}
+	ExtChain& r = ch[1];
+	r.n = r.ops = 0;
+	r.left = fw ? rdlen - len - off : off;
+	r.live = r.left > 0 && ebwtBw != NULL;
+	if(r.live) {
+		// Starting to right of seed and moving right
+		r.ebwt = ebwtBw;
+		r.seq = seq;
+		r.top = topb;
+		r.bot = botb;
+		r.tp0 = topf;
+		r.i = fw ? len + off : rdlen - off;
+		r.right = true;
+		INIT_LOCS(r.top, r.bot, r.tloc, r.bloc, *ebwtBw);
+	}
+}
+
+/**
+ * One iteration of extend()'s loop on chain c.  c.live turns false where
+ * extend() leaves the loop: the extension stops (mismatch, more than one
+ * character possible, range shrinks), reaches 255 positions, or reaches the
+ * end of the read.
+ */
+inline void SwDriver::extStep(ExtChain& c) {
+	assert(c.live);
+	// Get char from read
+	const int rdc = c.seq->get(c.i);
+	c.ops++;
+	if(c.bloc.valid()) {
+		TIndexOffU t[4] = { 0, 0, 0, 0 }, b[4] = { 0, 0, 0, 0 };
+		TIndexOffU tp[4], bp[4];
+		tp[0] = c.tp0; // the only element of tp/bp mapBiLFEx reads
+		c.ebwt->mapBiLFEx(c.tloc, c.bloc, t, b, tp, bp);
+		SANITY_CHECK_4TUP(t, b, tp, bp);
+		int nonz = -1;
+		bool abort = false;
+		size_t origSz = c.bot - c.top;
+		for(int j = 0; j < 4; j++) {
+			if(b[j] > t[j]) {
+				if(nonz >= 0) {
+					abort = true;
+					break;
+				}
+				nonz = j;
+				c.top = t[j]; c.bot = b[j];
+			}
+		}
+		assert_leq(c.bot - c.top, origSz);
+		if(abort || (nonz != rdc && rdc <= 3) || c.bot - c.top < origSz) {
+			c.live = false;
+			return;
+		}
+	} else {
+		assert_eq(c.bot, c.top+1);
+		int ch = c.ebwt->mapLF1(c.top, c.tloc);
+		if(ch != rdc && rdc <= 3) {
+			c.live = false;
+			return;
+		}
+		c.bot = c.top + 1;
+	}
+	if(++c.n == 255 || --c.left == 0) {
+		c.live = false;
+		return;
+	}
+	c.i = c.right ? c.i + 1 : c.i - 1;
+	INIT_LOCS(c.top, c.bot, c.tloc, c.bloc, *c.ebwt);
+}
+
+/**
  * Extend a seed hit out on either side.  Requires that we know the seed hit's
  * offset into the read and orientation.  Also requires that we know top/bot
  * for the seed hit in both the forward and (if we want to extend to the right)
- * reverse index.
+ * reverse index.  The left and right extensions are independent and are
+ * stepped in turn.
  */
 void SwDriver::extend(
 	const Read& rd,       // read
@@ -311,176 +417,19 @@ void SwDriver::extend(
 	size_t& nlex,         // # positions we can extend to left w/o edit
 	size_t& nrex)         // # positions we can extend to right w/o edit
 {
-	TIndexOffU t[4], b[4];
-	TIndexOffU tp[4], bp[4];
-	SideLocus tloc, bloc;
-	size_t rdlen = rd.length();
-	size_t lim = fw ? off : rdlen - len - off;
-	// We're about to add onto the beginning, so reverse it
-#ifndef NDEBUG
-	if(false) {
-		// TODO: This will sometimes fail even when the extension is legitimate
-		// This is because contains() comes in from one extreme or the other,
-		// whereas we started from the inside and worked outwards.  This
-		// affects which Ns are OK and which are not OK.
-
-		// Have to do both because whether we can get through an N depends on
-		// which direction we're coming in
-//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		assert(fwContains || bwContains);
+	ExtChain ch[2];
+	extInit(ch, rd, ebwtFw, ebwtBw, topf, botf, topb, botb, fw, off, len);
+	ch[0].n = nlex;
+	ch[1].n = nrex;
+	while(ch[0].live || ch[1].live) {
+		if(ch[0].live) extStep(ch[0]);
+		if(ch[1].live) extStep(ch[1]);
 	}
-#endif
-	ASSERT_ONLY(tmp_rdseq_.reverse());
-	if(lim > 0) {
-		const Ebwt *ebwt = &ebwtFw;
-		assert(ebwt != NULL);
-		// Extend left using forward index
-		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
-		// See what we get by extending 
-		TIndexOffU top = topf, bot = botf;
-		t[0] = t[1] = t[2] = t[3] = 0;
-		b[0] = b[1] = b[2] = b[3] = 0;
-		tp[0] = tp[1] = tp[2] = tp[3] = topb;
-		bp[0] = bp[1] = bp[2] = bp[3] = botb;
-		SideLocus tloc, bloc;
-		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = 0; ii < lim; ii++) {
-			// Starting to left of seed (<off) and moving left
-			size_t i = 0;
-			if(fw) {
-				i = off - ii - 1;
-			} else {
-				i = rdlen - off - len - 1 - ii;
-			}
-			// Get char from read
-			int rdc = seq.get(i);
-			// See what we get by extending 
-			if(bloc.valid()) {
-				prm.nSdFmops++;
-				t[0] = t[1] = t[2] = t[3] =
-				b[0] = b[1] = b[2] = b[3] = 0;
-				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-				SANITY_CHECK_4TUP(t, b, tp, bp);
-				int nonz = -1;
-				bool abort = false;
-				size_t origSz = bot - top;
-				for(int j = 0; j < 4; j++) {
-					if(b[j] > t[j]) {
-						if(nonz >= 0) {
-							abort = true;
-							break;
-						}
-						nonz = j;
-						top = t[j]; bot = b[j];
-					}
-				}
-				assert_leq(bot - top, origSz);
-				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
-					break;
-				}
-			} else {
-				assert_eq(bot, top+1);
-				prm.nSdFmops++;
-				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc && rdc <= 3) {
-					break;
-				}
-				bot = top + 1;
-			}
-			ASSERT_ONLY(tmp_rdseq_.append(rdc));
-			if(++nlex == 255) {
-				break;
-			}
-			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		}
-	}
-	// We're about to add onto the end, so re-reverse
-	ASSERT_ONLY(tmp_rdseq_.reverse());
-	lim = fw ? rdlen - len - off : off;
-	if(lim > 0 && ebwtBw != NULL) {
-		const Ebwt *ebwt = ebwtBw;
-		assert(ebwt != NULL);
-		// Extend right using backward index
-		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
-		// See what we get by extending 
-		TIndexOffU top = topb, bot = botb;
-		t[0] = t[1] = t[2] = t[3] = 0;
-		b[0] = b[1] = b[2] = b[3] = 0;
-		tp[0] = tp[1] = tp[2] = tp[3] = topf;
-		bp[0] = bp[1] = bp[2] = bp[3] = botf;
-		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = 0; ii < lim; ii++) {
-			// Starting to right of seed (<off) and moving right
-			size_t i;
-			if(fw) {
-				i = ii + len + off;
-			} else {
-				i = rdlen - off + ii;
-			}
-			// Get char from read
-			int rdc = seq.get(i);
-			// See what we get by extending 
-			if(bloc.valid()) {
-				prm.nSdFmops++;
-				t[0] = t[1] = t[2] = t[3] =
-				b[0] = b[1] = b[2] = b[3] = 0;
-				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-				SANITY_CHECK_4TUP(t, b, tp, bp);
-				int nonz = -1;
-				bool abort = false;
-				size_t origSz = bot - top;
-				for(int j = 0; j < 4; j++) {
-					if(b[j] > t[j]) {
-						if(nonz >= 0) {
-							abort = true;
-							break;
-						}
-						nonz = j;
-						top = t[j]; bot = b[j];
-					}
-				}
-				assert_leq(bot - top, origSz);
-				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
-					break;
-				}
-			} else {
-				assert_eq(bot, top+1);
-				prm.nSdFmops++;
-				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc && rdc <= 3) {
-					break;
-				}
-				bot = top + 1;
-			}
-			ASSERT_ONLY(tmp_rdseq_.append(rdc));
-			if(++nrex == 255) {
-				break;
-			}
-			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		}
-	}
-#ifndef NDEBUG
-	if(false) {
-		// TODO: This will sometimes fail even when the extension is legitimate
-		// This is because contains() comes in from one extreme or the other,
-		// whereas we started from the inside and worked outwards.  This
-		// affects which Ns are OK and which are not OK.
-	
-		// Have to do both because whether we can get through an N depends on
-		// which direction we're coming in
-//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		assert(fwContains || bwContains);
-	}
-#endif
-	assert_lt(nlex, rdlen);
-	assert_lt(nrex, rdlen);
-	return;
+	nlex = ch[0].n;
+	nrex = ch[1].n;
+	prm.nSdFmops += ch[0].ops + ch[1].ops;
+	assert_lt(nlex, rd.length());
+	assert_lt(nrex, rd.length());
 }
 
 /**
@@ -517,6 +466,7 @@ void SwDriver::prioritizeSATupsRands(
 	rands2_.clear();
 	satpos_.clear();
 	satpos2_.clear();
+	lazy_.clear();
 	size_t nrange = 0, nelt = 0, nsmall = 0, nsmall_elts = 0;
 	bool keepWhole = false;
 	EList<SATupleAndPos, 16>& satpos = keepWhole ? satpos_ : satpos2_;
@@ -690,7 +640,22 @@ void SwDriver::prioritizeSATupsRands(
 	for(size_t j = 0; j < satpos2_.size(); j++) {
 		rands2_[j].reset();
 	}
-	while(nelt_added < maxelt && nelt_added < nelt) {
+	// The loop adds one element per iteration until there are
+	// min(maxelt, nelt): make room for all of them at once (the lists
+	// already have the capacity, so no list moves)
+	const size_t neltEnd = min(maxelt, nelt);
+	const size_t nadd = nelt_added < neltEnd ? neltEnd - nelt_added : 0;
+	const size_t base = satpos_.size();
+	lazyBase_ = base;
+	lazyAll_ = all;
+	satpos_.resize(base + nadd);
+	gws_.resize(base + nadd);
+	rands_.resize(base + nadd);
+	lazy_.resize(nadd);
+	LazyElt* const lz = lazy_.ptr();
+	const TIndexOffU zOff = ebwtFw._zOff;
+	const TIndexOffU offMask = ebwtFw.eh()._offMask;
+	for(size_t k = 0; k < nadd; k++) {
 		// Pick a non-small range to sample from
 		size_t ri = rowsamp_.next(rnd) + nsmall;
 		assert_geq(ri, nsmall);
@@ -707,34 +672,68 @@ void SwDriver::prioritizeSATupsRands(
 			// Tell the row sampler this range is done
 			rowsamp_.finishedRange(ri - nsmall);
 		}
-		// Add the element to the satpos_ list
-		SATuple sat;
-		TSlice o;
-		o.init(satpos2_[ri].sat.offs, r, r+1);
-		sat.init(satpos2_[ri].sat.key, (TIndexOffU)(satpos2_[ri].sat.topf + r), OFF_MASK, o);
-		satpos_.expand();
-		satpos_.back().sat = sat;
-		satpos_.back().origSz = satpos2_[ri].origSz;
-		satpos_.back().pos = satpos2_[ri].pos;
-		// Initialize GroupWalk object
-		gws_.expand();
-		SARangeWithOffs<TSlice> sa;
-		sa.topf = sat.topf;
-		sa.len = sat.key.len;
-		sa.offs = sat.offs;
-		gws_.back().init(
-			ebwtFw, // forward Bowtie index
-			ref,    // reference sequences
-			sa,     // SA tuples: ref hit, salist range
-			wlm);   // metrics
-		assert(gws_.back().initialized());
-		// Initialize random selector
-		rands_.expand();
-		rands_.back().init(1, all);
-		nelt_added++;
+		// Add the element to the satpos_ list.  Its entries are built here
+		// only when building them resolves its offset (an SA-sampled or '$'
+		// row) or finds it resolved (its slot is shared with an element
+		// resolved before); otherwise they are built on first use
+		// (materialize()), as they would have been built here.
+		LazyElt& le = lz[k];
+		le.r = (TIndexOffU)r;
+		le.ri = (uint32_t)ri;
+		const TIndexOffU row = (TIndexOffU)(satpos2_[ri].sat.topf + r);
+		le.pending = !(row == zOff || (row & offMask) == row ||
+		               satpos2_[ri].sat.offs.get(r) != OFF_MASK);
+		if(!le.pending) {
+			SATuple sat;
+			TSlice o;
+			o.init(satpos2_[ri].sat.offs, r, r+1);
+			sat.init(satpos2_[ri].sat.key, row, OFF_MASK, o);
+			SATupleAndPos& sp = satpos_[base + k];
+			sp.sat = sat;
+			sp.origSz = satpos2_[ri].origSz;
+			sp.pos = satpos2_[ri].pos;
+			// Initialize GroupWalk object
+			SARangeWithOffs<TSlice> sa;
+			sa.topf = sat.topf;
+			sa.len = sat.key.len;
+			sa.offs = sat.offs;
+			gws_[base + k].init(
+				ebwtFw, // forward Bowtie index
+				ref,    // reference sequences
+				sa,     // SA tuples: ref hit, salist range
+				wlm);   // metrics
+			assert(gws_[base + k].initialized());
+			// Initialize random selector
+			rands_[base + k].init(1, all);
+		}
 	}
+	nelt_added += nadd;
 	nelt_out = nelt_added;
 	return;
+}
+
+void SwDriver::materializeSampled(size_t i, const Ebwt& ebwtFw) {
+	LazyElt& le = lazy_[i - lazyBase_];
+	assert(le.pending);
+	const SATupleAndPos& src = satpos2_[le.ri];
+	SATupleAndPos& dst = satpos_[i];
+	// What the sampling loop builds for the element
+	SATuple sat;
+	TSlice o;
+	o.init(src.sat.offs, le.r, le.r+1);
+	sat.init(src.sat.key, (TIndexOffU)(src.sat.topf + le.r), OFF_MASK, o);
+	dst.sat = sat;
+	dst.origSz = src.origSz;
+	dst.pos = src.pos;
+	SARangeWithOffs<TSlice> sa;
+	sa.topf = sat.topf;
+	sa.len = sat.key.len;
+	sa.offs = sat.offs;
+	// The walk as init() set it up at the draw, when the slot was unresolved
+	gws_[i].initFreshSingle(ebwtFw, sa);
+	assert(gws_[i].initialized());
+	rands_[i].init(1, lazyAll_);
+	le.pending = false;
 }
 
 // deterministic, use only a single gws element, will use just-in-time init later
@@ -758,6 +757,7 @@ void SwDriver::prioritizeSATupsIdxs(
 	gws_.resize(1);    // will use a single element in deterministic mode
 	useCurrIdx = true;
 	satpos_.clear();
+	lazy_.clear();
 
 	size_t nrange = 0, nelt = 0;
 	for(size_t i = 0; i < nonz; i++) {
@@ -902,6 +902,133 @@ void SwDriver::prioritizeSATups(
 	return;
 }
 
+// How many rows of the ranges after the current one resolveElement() starts
+// walks for, along with the current range's
+static const size_t SPEC_AHEAD = 8;
+// Ranges of up to this many rows are walked row by row by spec_ before
+// GroupWalk2S walks them, so that its range walk finds the index's sides in
+// the cache (it is not replaced: its counts depend on how the range splits)
+static const size_t SPEC_WARM_MAX = 32;
+// How many ranges after the current one resolveElement() looks at
+static const size_t SPEC_SCAN = 32;
+
+/**
+ * Start spec_'s walks for the rows of range j that a GroupWalk2S will walk
+ * (every row of a single-element range, or of a range of up to SPEC_WARM_MAX
+ * rows not yet walked, whose offset is not yet known); return their number.
+ */
+size_t SwDriver::specRange(size_t j, const Ebwt& ebwtFw) {
+	const size_t k = j - lazyBase_;
+	if(k < lazy_.size() && lazy_[k].pending) {
+		// A pending sampled element: one row, nothing reported, not
+		// SA-sampled nor '$'; walked unless its slot was resolved since
+		const LazyElt& le = lazy_[k];
+		const SATuple& src = satpos2_[le.ri].sat;
+		if(src.offs.get(le.r) != OFF_MASK) {
+			return 0;
+		}
+		const TIndexOffU row = (TIndexOffU)(src.topf + le.r);
+		if(!spec_.have(ebwtFw, row)) {
+			spec_.start(ebwtFw, row);
+		}
+		return 1;
+	}
+	const SATuple& sat = satpos_[j].sat;
+	const size_t sz = sat.size();
+	if(sz == 0 || sz > SPEC_WARM_MAX || gws_[j].numReported() > 0) {
+		return 0;
+	}
+	const EbwtParams& eh = ebwtFw.eh();
+	size_t n = 0;
+	for(size_t e = 0; e < sz; e++) {
+		const TIndexOffU row = sat.topf + (TIndexOffU)e;
+		if(sat.offs.get(e) != OFF_MASK || row == ebwtFw._zOff || (row & eh._offMask) == row) {
+			continue; // no walk
+		}
+		if(!spec_.have(ebwtFw, row)) {
+			spec_.start(ebwtFw, row);
+		}
+		n++;
+	}
+	return n;
+}
+
+void SwDriver::resolveElement(
+	size_t i,                        // range in satpos_ / gws_
+	size_t elt,                      // element of the range
+	GroupWalk2S<TSlice, 16>& gws,    // its GroupWalk
+	SARangeWithOffs<TSlice>& sa,     // SA range with offsets
+	const Ebwt& ebwtFw,              // forward index
+	const BitPairReference& ref,     // reference
+	WalkResult& wr,                  // out: result
+	WalkMetrics& wlm,                // group walk left metrics
+	PerReadMetrics& prm)             // per-read metrics
+{
+	if(!useCurrIdx && gws.numReported() == 0 && sa.size() <= SPEC_WARM_MAX) {
+		const bool single = gws.freshSingle(sa);
+		TIndexOffU k = 0, rowk = 0, rowkm1 = 0;
+		bool have = single && spec_.lookup(ebwtFw, sa.topf, k, rowk, rowkm1);
+		if(!have) {
+			// This range's walks, and those of the next ranges, which the
+			// loop reaches next unless it stops first
+			specRange(i, ebwtFw);
+			size_t ahead = 0;
+			const size_t jend = min(satpos_.size(), i + 1 + SPEC_SCAN);
+			for(size_t j = i + 1; j < jend && ahead < SPEC_AHEAD; j++) {
+				ahead += specRange(j, ebwtFw);
+			}
+			if(single) {
+				spec_.finish(ebwtFw, sa.topf);
+				have = spec_.lookup(ebwtFw, sa.topf, k, rowk, rowkm1);
+			} else {
+				for(size_t e = 0; e < sa.size(); e++) {
+					spec_.finish(ebwtFw, sa.topf + (TIndexOffU)e);
+				}
+			}
+		}
+		if(have) {
+			assert_eq(0, elt);
+			gws.commitSingle(ebwtFw, sa, k, rowk, rowkm1, wr, wlm, prm);
+			return;
+		}
+		// A range of several rows, or a single row whose finished walk was
+		// displaced by another's: GroupWalk2S walks it
+	}
+	if(!useCurrIdx) {
+		// The steps of the one-row states inside the walk are spec_'s
+		gws.advanceElementSpec((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm, spec_);
+		return;
+	}
+	gws.advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+}
+
+void SwDriver::specBatch(
+	const Ebwt& ebwtFw,              // forward index
+	ExactSweepJob* const* jobs,      // the batch's sweeps
+	size_t njobs)                    // # sweeps
+{
+	spec_.dropLive();
+	const EbwtParams& eh = ebwtFw.eh();
+	for(size_t j = 0; j < njobs; j++) {
+		const ExactSweepJob& job = *jobs[j];
+		for(int s = 0; s < 2; s++) {
+			// eeSaTups makes a range of the hit's rows
+			if(!job.hit[s] || job.bot[s] - job.top[s] > SPEC_WARM_MAX) {
+				continue;
+			}
+			for(TIndexOffU row = job.top[s]; row < job.bot[s]; row++) {
+				if(row == ebwtFw._zOff || (row & eh._offMask) == row) {
+					continue; // offset known without a walk
+				}
+				if(!spec_.have(ebwtFw, row)) {
+					spec_.start(ebwtFw, row);
+				}
+			}
+		}
+	}
+	spec_.finishAll(ebwtFw);
+}
+
 enum {
 	FOUND_NONE = 0,
 	FOUND_EE,
@@ -1005,6 +1132,7 @@ int SwDriver::extendSeeds(
                     maxIters,     // max # to report
 					all);         // report all hits?
 				assert_eq(satpos_.size(), rands_.size());
+				spec_.dropLive(); // walks of the previous ranges are not needed
 				assert_eq(gws_.size(), satpos_.size());
 			} else {
 				eeMode = false;
@@ -1044,6 +1172,7 @@ int SwDriver::extendSeeds(
 				}
 				neltLeft = nelt;
 				firstExtend = false;
+				spec_.dropLive(); // walks of the previous ranges are not needed
 			}
 			if(neltLeft == 0) {
 				// Finished examining gapped candidates
@@ -1055,6 +1184,8 @@ int SwDriver::extendSeeds(
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
+			// Entries the sampling loop left pending are built now
+			materialize(i, ebwtFw);
 			// In deterministic mode, we can reuse the same gws_ element
 			GroupWalk2S<TSlice, 16> &gws = gws_[useCurrIdx? 0 : i];
 
@@ -1123,7 +1254,7 @@ int SwDriver::extendSeeds(
 				sa.topf = satpos.sat.topf;
 				sa.len = satpos.sat.key.len;
 				sa.offs = satpos.sat.offs;
-				gws.advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				resolveElement(i, elt, gws, sa, ebwtFw, ref, wr, wlm, prm);
 				eltsDone++;
 				if(!eeMode) {
 					assert_gt(neltLeft, 0);
@@ -1717,6 +1848,7 @@ int SwDriver::extendSeedsPaired(
                     maxIters,     // max elts to report
 					all);         // report all hits
 				assert_eq(satpos_.size(), rands_.size());
+				spec_.dropLive(); // walks of the previous ranges are not needed
 				assert_eq(gws_.size(), satpos_.size());
 				neltLeft = nelt;
 				// Initialize list that contains the mate-finding failure
@@ -1763,6 +1895,7 @@ int SwDriver::extendSeedsPaired(
 				}
 				neltLeft = nelt;
 				firstExtend = false;
+				spec_.dropLive(); // walks of the previous ranges are not needed
 				mateStreaks_.resize(satpos_.size());
 				mateStreaks_.fill(0);
 			}
@@ -1776,6 +1909,8 @@ int SwDriver::extendSeedsPaired(
 			if(eeMode && eehits_[i].score < minsc) {
 				return EXTEND_PERFECT_SCORE;
 			}
+			// Entries the sampling loop left pending are built now
+			materialize(i, ebwtFw);
 			// In deterministic mode, we can reuse the same gws_ element
 			GroupWalk2S<TSlice, 16> &gws = gws_[useCurrIdx? 0 : i];
 
@@ -1861,7 +1996,7 @@ int SwDriver::extendSeedsPaired(
 				sa.topf = satpos.sat.topf;
 				sa.len = satpos.sat.key.len;
 				sa.offs = satpos.sat.offs;
-				gws.advanceElement((TIndexOffU)elt, ebwtFw, ref, sa, gwstate_, wr, wlm, prm);
+				resolveElement(i, elt, gws, sa, ebwtFw, ref, wr, wlm, prm);
 				eltsDone++;
 				assert_gt(neltLeft, 0);
 				neltLeft--;

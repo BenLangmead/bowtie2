@@ -38,8 +38,9 @@ BitPairReference::BitPairReference(
 	bool useShmem,
 	bool mmSweep,
 	bool verbose,
-	bool startVerbose) :
+	bool startVerbose, IndexLoader* loader) :
 	buf_(NULL),
+	bufBase_(NULL),
 	sanityBuf_(NULL),
 	loaded_(true),
 	sanity_(sanity),
@@ -200,7 +201,8 @@ BitPairReference::BitPairReference(
 		if(!useShmem_) {
 			// Allocate a buffer to hold the reference string
 			try {
-				buf_ = new uint8_t[cumsz >> 2];
+				bufBase_ = new uint8_t[(cumsz >> 2) + MM_INDEX_ALIGN];
+				buf_ = mmAlignUp(bufBase_);
 				if(buf_ == NULL) throw std::bad_alloc();
 			} catch(std::bad_alloc& e) {
 				cerr << "Error: Ran out of memory allocating space for the bitpacked reference.  Please" << endl
@@ -212,7 +214,12 @@ BitPairReference::BitPairReference(
 										  (s4 + "[ref]"), (cumsz >> 2), &buf_,
 										  "ref", (verbose_ || startVerbose));
 		}
-		if(shmemLeader) {
+		if(shmemLeader && !useShmem_ && !sanity_ && loader != NULL &&
+		   loader->tryDefer(IndexLoader::ONE_REF, s4, 0, buf_, cumsz >> 2))
+		{
+			// Read on a helper thread; the caller's loader->finish()
+			// waits for it before buf_ is used
+		} else if(shmemLeader) {
 			// Open the bitpair-encoded reference file
 			FILE *f4 = fopen(s4.c_str(), "rb");
 			if(f4 == NULL) {
@@ -261,6 +268,11 @@ BitPairReference::BitPairReference(
 			word |= ((i >> 6) & 3) << 24;
 		}
 		byteToU32_[i] = word;
+		uint32_t mword = 0;
+		for(int b = 0; b < 4; b++) {
+			mword |= (uint32_t)(1u << ((word >> (8 * b)) & 0xff)) << (8 * b);
+		}
+		byteToMask_[i] = mword;
 	}
 	
 #ifndef NDEBUG
@@ -314,7 +326,7 @@ BitPairReference::BitPairReference(
 }
 
 BitPairReference::~BitPairReference() {
-	if(buf_ != NULL && !useMm_ && !useShmem_) delete[] buf_;
+	if(bufBase_ != NULL) delete[] bufBase_;
 	if(sanityBuf_ != NULL) delete[] sanityBuf_;
 }
 
@@ -575,6 +587,210 @@ int BitPairReference::getStretch(
 		dest[cur++] = 4;
 	}
 	assert_eq(0, count);
+	return (int)offset;
+}
+
+#if defined(SSE_AVX2) && defined(__AVX2__)
+/**
+ * Expand 16 bytes of the 2-bit reference (64 bases, base k of a byte in
+ * bits 2k..2k+1) into 64 mask bytes (1 << base) at 'dst'.  The same bytes
+ * byteToMask_ gives for the 16 source bytes in turn.
+ */
+static inline void expandMasks64(const uint8_t *src, uint8_t *dst) {
+	// Nibble n holds two bases: n & 3 first, n >> 2 second
+	const __m256i lutFirst = _mm256_setr_epi8(
+		1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8,
+		1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8, 1, 2, 4, 8);
+	const __m256i lutSecond = _mm256_setr_epi8(
+		1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 8, 8, 8, 8,
+		1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 8, 8, 8, 8);
+	const __m256i lowNibble = _mm256_set1_epi8(0x0f);
+	__m128i s = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));
+	// Source bytes 0-7 in the low half of lane 0, 8-15 in the low half of lane 1
+	__m256i y = _mm256_permute4x64_epi64(_mm256_castsi128_si256(s), 0x50);
+	__m256i lo = _mm256_and_si256(y, lowNibble);
+	__m256i hi = _mm256_and_si256(_mm256_srli_epi16(y, 4), lowNibble);
+	// Per lane, the 16 nibbles of its 8 source bytes in base order
+	__m256i nib = _mm256_unpacklo_epi8(lo, hi);
+	__m256i m1 = _mm256_shuffle_epi8(lutFirst, nib);
+	__m256i m2 = _mm256_shuffle_epi8(lutSecond, nib);
+	// Lane 0: bases 0-15 and 16-31; lane 1: bases 32-47 and 48-63
+	__m256i a = _mm256_unpacklo_epi8(m1, m2);
+	__m256i b = _mm256_unpackhi_epi8(m1, m2);
+	_mm256_storeu_si256(reinterpret_cast<__m256i*>(dst),
+		_mm256_permute2x128_si256(a, b, 0x20));
+	_mm256_storeu_si256(reinterpret_cast<__m256i*>(dst + 32),
+		_mm256_permute2x128_si256(a, b, 0x31));
+}
+#endif
+
+/**
+ * Load a stretch of the reference string into memory at 'dest' as masks
+ * (see reference.h).  The same walk over the records as getStretch(), with
+ * every byte written as its mask instead of its code.
+ */
+int BitPairReference::getStretchMasks(
+	uint32_t *destU32,
+	size_t tidx,
+	size_t toff,
+	size_t count
+	ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32_2)) const
+{
+	ASSERT_ONLY(size_t origCount = count);
+	ASSERT_ONLY(size_t origToff = toff);
+	if(count == 0) return 0;
+	uint8_t *dest = (uint8_t*)destU32;
+#ifndef NDEBUG
+	// As in getStretch(): check one call in ten against getStretchNaive()
+	destU32_2.clear();
+	uint8_t *dest_2 = NULL;
+	int off2;
+	if((rand() % 10) == 0) {
+		destU32_2.resize((origCount >> 2) + 2);
+		off2 = getStretchNaive(destU32_2.wbuf(), tidx, origToff, origCount);
+		dest_2 = ((uint8_t*)destU32_2.wbuf()) + off2;
+	}
+#endif
+	destU32[0] = 0x10101010; // Add Ns, which we might end up using later
+	uint64_t reci = refRecOffs_[tidx];   // first record for target reference sequence
+	uint64_t recf = refRecOffs_[tidx+1]; // last record (exclusive) for target seq
+	assert_gt(recf, reci);
+	uint64_t cur = 4; // keep a cushion of 4 bases at the beginning
+	uint64_t bufOff = refOffs_[tidx];
+	uint64_t off = 0;
+	int64_t offset = 4;
+	bool firstStretch = true;
+	uint64_t left  = reci;
+	uint64_t right = recf;
+	uint64_t mid   = 0;
+	// For all records pertaining to the target reference sequence...
+	for(uint64_t i = reci; i < recf; i++) {
+		ASSERT_ONLY(uint64_t origBufOff = bufOff);
+		assert_geq(toff, off);
+		if (firstStretch && recf > reci + 16){
+			// binary search finds smallest i s.t. toff >= cumRefOff_[i]
+			while (left < right-1) {
+				mid = left + ((right - left) >> 1);
+				if (cumRefOff_[mid] <= toff)
+					left = mid;
+				else
+					right = mid;
+			}
+			off = cumRefOff_[left];
+			bufOff = cumUnambig_[left];
+			ASSERT_ONLY(origBufOff = bufOff);
+			i = left;
+			assert(cumRefOff_[i+1] == 0 || cumRefOff_[i+1] > toff);
+		}
+		off += recs_[i].off; // skip Ns at beginning of stretch
+		assert_gt(count, 0);
+		if(toff < off) {
+			size_t cpycnt = min((size_t)(off - toff), count);
+			memset(&dest[cur], 16, cpycnt);
+			count -= cpycnt;
+			toff += cpycnt;
+			cur += cpycnt;
+			if(count == 0) break;
+		}
+		assert_geq(toff, off);
+		if(toff < off + recs_[i].len) {
+			bufOff += toff - off; // move bufOff pointer forward
+		} else {
+			bufOff += recs_[i].len;
+		}
+		off += recs_[i].len;
+		assert(off == cumRefOff_[i+1] || cumRefOff_[i+1] == 0);
+		if(toff < off) {
+			if(firstStretch) {
+				if(toff + 8 < off && count > 8) {
+					// We already added some Ns, so we have to do
+					// a fixup at the beginning of the buffer so
+					// that we can start clobbering at cur >> 2
+					if(cur & 3) {
+						offset -= (cur & 3);
+					}
+					uint64_t curU32 = cur >> 2;
+					// Do the initial few bases
+					if(bufOff & 3) {
+						const uint64_t bufElt = (bufOff) >> 2;
+						const int64_t low2 = bufOff & 3;
+						destU32[curU32] = byteToMask_[buf_[bufElt]];
+						for(int j = 0; j < low2; j++) {
+							((char *)(&destU32[curU32]))[j] = 16;
+						}
+						curU32++;
+						offset += low2;
+						const int64_t chars = 4 - low2;
+						count -= chars;
+						bufOff += chars;
+						toff += chars;
+					}
+					assert_eq(0, bufOff & 3);
+					uint64_t bufOffU32 = bufOff >> 2;
+					uint64_t countLim = count >> 2;
+					uint64_t offLim = ((off - (toff + 4)) >> 2);
+					uint64_t lim = min(countLim, offLim);
+					uint64_t j = 0;
+#if defined(SSE_AVX2) && defined(__AVX2__)
+					// 64 bases at a time
+					for(; j + 16 <= lim; j += 16) {
+						expandMasks64(&buf_[bufOffU32], (uint8_t*)&destU32[curU32]);
+						bufOffU32 += 16;
+						curU32 += 16;
+					}
+#endif
+					// Do the fast thing for as far as possible
+					for(; j < lim; j++) {
+						destU32[curU32] = byteToMask_[buf_[bufOffU32++]];
+						curU32++;
+					}
+					toff += (lim << 2);
+					assert_leq(toff, off);
+					assert_leq((lim << 2), count);
+					count -= (lim << 2);
+					bufOff = bufOffU32 << 2;
+					cur = curU32 << 2;
+				}
+				// Do the slow thing for the rest
+				for(; toff < off && count > 0; toff++) {
+					assert_lt(bufOff, bufSz_);
+					const uint64_t bufElt = (bufOff) >> 2;
+					const uint64_t shift = (bufOff & 3) << 1;
+					dest[cur++] = (uint8_t)(1 << ((buf_[bufElt] >> shift) & 3));
+					bufOff++;
+					count--;
+				}
+				firstStretch = false;
+			} else {
+				// Do the slow thing
+				for(; toff < off && count > 0; toff++) {
+					assert_lt(bufOff, bufSz_);
+					const uint64_t bufElt = (bufOff) >> 2;
+					const uint64_t shift = (bufOff & 3) << 1;
+					dest[cur++] = (uint8_t)(1 << ((buf_[bufElt] >> shift) & 3));
+					bufOff++;
+					count--;
+				}
+			}
+		}
+		if(count == 0) break;
+		assert_eq(recs_[i].len, bufOff - origBufOff);
+		assert_geq(toff, off);
+	} // end for loop over records
+	// In any chars are left after scanning all the records,
+	// they must be ambiguous
+	while(count > 0) {
+		count--;
+		dest[cur++] = 16;
+	}
+	assert_eq(0, count);
+#ifndef NDEBUG
+	if(dest_2 != NULL) {
+		for(size_t k = 0; k < origCount; k++) {
+			assert_eq((int)dest[offset + k], 1 << dest_2[k]);
+		}
+	}
+#endif
 	return (int)offset;
 }
 

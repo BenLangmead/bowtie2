@@ -32,10 +32,14 @@
 #include "ref_read.h"
 #include "sequence_io.h"
 #include "mm.h"
+#include "index_load.h"
 #include "shmem.h"
 #include "timer.h"
 #include "sstring.h"
 #include "btypes.h"
+#if defined(SSE_AVX2) && defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 
 /**
@@ -73,7 +77,8 @@ public:
 		bool useShmem = false,
 		bool mmSweep = false,
 		bool verbose = false,
-		bool startVerbose = false);
+		bool startVerbose = false,
+		IndexLoader* loader = NULL);
 
 	~BitPairReference();
 
@@ -109,6 +114,20 @@ public:
 	 * there are many records, binary search would be more appropriate.
 	 */
 	int getStretch(
+		uint32_t *destU32,
+		size_t tidx,
+		size_t toff,
+		size_t count
+		ASSERT_ONLY(, SStringExpandable<uint32_t>& destU32_2)) const;
+
+	/**
+	 * Like getStretch(), but every byte it writes is a mask: 1 << c for a
+	 * base c (A=1, C=2, G=4, T=8) and 16 for an ambiguous position, i.e.
+	 * exactly the byte getStretch() writes after the conversion
+	 * b -> 1 << b, including the 4-byte cushion in front.  Returns the same
+	 * offset as getStretch() for the same arguments.
+	 */
+	int getStretchMasks(
 		uint32_t *destU32,
 		size_t tidx,
 		size_t toff,
@@ -165,6 +184,7 @@ public:
 protected:
 
 	uint32_t byteToU32_[256];
+	uint32_t byteToMask_[256]; // byteToU32_ with every byte b replaced by 1 << b
 
 	EList<RefRecord> recs_;       /// records describing unambiguous stretches
 	// following two lists are purely for the binary search in getStretch
@@ -174,6 +194,7 @@ protected:
 	EList<TIndexOffU> refOffs_;    /// buf_ begin offsets per ref seq
 	EList<TIndexOffU> refRecOffs_; /// record begin/end offsets per ref seq
 	uint8_t *buf_;      /// the whole reference as a big bitpacked byte array
+	uint8_t *bufBase_;  /// what new[] returned for buf_ (NULL when buf_ is mapped or shared)
 	uint8_t *sanityBuf_;/// for sanity-checking buf_
 	TIndexOffU bufSz_;    /// size of buf_
 	TIndexOffU bufAllocSz_;

@@ -31,6 +31,7 @@
 #include <ctype.h>
 #include <vector>
 #include <queue>
+#include <algorithm>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "random_source.h"
@@ -1164,10 +1165,39 @@ public:
 		buf_(pp.max_buf),
 		pp_(pp),
 		last_batch_(false),
-		last_batch_size_(0) { }
+		last_batch_size_(0),
+		ahead_(pp.max_buf, AHEAD_NONE) { }
 
 	// If it returns true, nextReadPair is non-blocking and should return success
 	bool nextReadPairReady() const {return !buf_.exhausted();}
+
+	/**
+	 * Fully parse, ahead of time, the reads that follow the current read
+	 * in this batch, at most n of them, so that they can be looked at
+	 * before nextReadPair reaches them; nextReadPair then hands each out
+	 * without parsing it again.  Parsing a read reads only its own
+	 * buffers, its read id and the pattern parameters, and writes only its
+	 * own buffers, so when it is parsed does not change the result.
+	 * Returns how many reads following the current one are parsed; the
+	 * k-th of them (k >= 1) is read_a(k)/read_b(k), and aheadOk(k) says
+	 * whether it parsed successfully.
+	 */
+	size_t parseAhead(size_t n);
+
+	/// True iff the read k places after the current one parsed successfully
+	bool aheadOk(size_t k) const {
+		return ahead_[buf_.cur_buf_ + k] == AHEAD_OK;
+	}
+
+	/// Index of the current read within this thread's batch
+	size_t bufIndex() const { return buf_.cur_buf_; }
+
+	/// The read (pair) k places after the current one in this batch
+	Read& read_a(size_t k) { return buf_.bufa_[buf_.cur_buf_ + k]; }
+	Read& read_b(size_t k) { return buf_.bufb_[buf_.cur_buf_ + k]; }
+
+	/// Read id of the read (pair) k places after the current one
+	TReadId rdid(size_t k) const { return buf_.rdid() + k; }
 
 	/**
 	 * Use objects in the PatternSource and/or PatternComposer
@@ -1190,6 +1220,7 @@ private:
 	 */
 	std::pair<bool, int> nextBatch() {
 		buf_.reset();
+		std::fill(ahead_.begin(), ahead_.end(), (uint8_t)AHEAD_NONE);
 		std::pair<bool, int> res = composer_.nextBatch(buf_);
 		buf_.init();
 		return res;
@@ -1200,22 +1231,20 @@ private:
 	 * unpaired read, set all the other key fields of the Read
 	 * struct.
 	 */
-	void finalize(Read& ra);
+	void finalize(Read& ra, TReadId rdid);
 
 	/**
 	 * Once name/sequence/qualities have been parsed for a
 	 * paired-end read, set all the other key fields of the Read
 	 * structs.
 	 */
-	void finalizePair(Read& ra, Read& rb);
+	void finalizePair(Read& ra, Read& rb, TReadId rdid);
 
 	/**
-	 * Call into composition layer (which in turn calls into
-	 * format layer) to parse the read.
+	 * Fully parse, trim and finalize the read (pair) at index i of the
+	 * batch.  Returns false iff parsing failed.
 	 */
-	bool parse(Read& ra, Read& rb) {
-		return composer_.parse(ra, rb, buf_.rdid());
-	}
+	bool parseRead(size_t i);
 
 	void trim(Read& r) {
 		if (pp_.trimTo.second > 0) {
@@ -1243,6 +1272,11 @@ private:
 	const PatternParams& pp_;	// pattern-related parameters
 	bool last_batch_;			// true if this is final batch
 	int last_batch_size_;		// # reads read in previous batch
+
+	// Per read of the batch: not parsed ahead, parsed ahead successfully,
+	// or parsed ahead and failed
+	enum { AHEAD_NONE = 0, AHEAD_OK, AHEAD_FAILED };
+	std::vector<uint8_t> ahead_;
 };
 
 /**
