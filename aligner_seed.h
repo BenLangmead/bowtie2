@@ -1457,21 +1457,36 @@ struct SeedSearchMetrics {
 
 /**
  * Wrap the search cache with all the relevant objects
+ *
+ * Reused across seeds and reads (see SeedSearchMultiCache): reset() points
+ * it at a new seed and empties it.
  */
 class SeedSearchCache {
 
 public:
-	SeedSearchCache(
-		const BTDnaString& _seq,  // sequence of current seed
-		const BTString& _qual     // quality string for current seed
-		)
+	SeedSearchCache()
 		: qv()
-		, seq(_seq)
-		, qual(_qual)
+		, seq(NULL)
+		, qual(NULL)
 		, cachedEls()
 		, cachep(NULL)
 	{
 		cachedEls.reserve(16); // do not expect I will need more
+	}
+
+	/**
+	 * Point this cache at a new seed and forget everything about the
+	 * previous one.
+	 */
+	void reset(
+		const BTDnaString* _seq,  // sequence of current seed
+		const BTString* _qual)    // quality string for current seed
+	{
+		qv.reset();
+		seq = _seq;
+		qual = _qual;
+		cachedEls.clear();
+		cachep = NULL;
 	}
 
 	/**
@@ -1482,7 +1497,7 @@ public:
 	 */
 	int beginAlign(AlignmentCacheIface& cache) 
 	{ 
-		int ret = cache.beginAlign(seq, qual, qv);
+		int ret = cache.beginAlign(*seq, *qual, qv);
 		if (ret>=0) {
 			cachep = &cache;
 		}
@@ -1502,7 +1517,7 @@ public:
 			AddEl &el = cachedEls[i];
 			success &= cachep->addOnTheFly(el.sak, el.topf, el.botf, el.topb, el.botb, getLock);
 		}
-		cachedEls.clear();
+		// cachedEls is emptied by the next reset()
 		return success;
 	}
 
@@ -1545,8 +1560,8 @@ public:
 	bool qvValid() const { return qv.valid();}
 
 	const QVal&          getQv() const {return qv;}
-	const BTDnaString&   getSeq() const {return seq;}
-	const BTString&      getQual() const {return qual;}
+	const BTDnaString&   getSeq() const {return *seq;}
+	const BTString&      getQual() const {return *qual;}
 
 protected:
 	class AddEl {
@@ -1572,39 +1587,47 @@ protected:
 	};
 
 	QVal                 qv;
-	const BTDnaString&   seq;   // sequence of current seed
-	const BTString&      qual;  // quality string for current seed
+	const BTDnaString*   seq;   // sequence of current seed
+	const BTString*      qual;  // quality string for current seed
 
 	std::vector<AddEl>    cachedEls; // tmp storage of values that will go in the cache
 	AlignmentCacheIface*  cachep; // local alignment cache for seed alignment, set at beginAliginings
 };
 
 /**
- * Wrap the search cache with all the relevant objects
+ * The SeedSearchCaches of one searchAllSeeds call, in search order.  The
+ * caches are kept, with their buffers, across calls: clear() only forgets
+ * how many are in use.
  */
 class SeedSearchMultiCache {
 
 public:
 	SeedSearchMultiCache(
 		) 
-		: cacheVec()
+		: cacheVec(), n_(0)
 	{}
 
-	void emplace_back( 
+	/**
+	 * Take the next cache and point it at the given seed.  May move the
+	 * caches in memory, so take every cache before holding references to
+	 * any of them.
+	 */
+	void add( 
 		const BTDnaString& seq,  // sequence of current seed
 		const BTString& qual,    // quality string for current seed
 		int seedoffidx,          // seed index
 		bool fw                  // is it fw?
 		)
 	{
-		cacheVec.emplace_back(seq, qual, seedoffidx, fw);
+		if(n_ == cacheVec.size()) cacheVec.emplace_back();
+		CacheEl& el = cacheVec[n_++];
+		el.srcache.reset(&seq, &qual);
+		el.seedoffidx = seedoffidx;
+		el.fw = fw;
 	}
 
-	// Same semantics as std::vector
-	void reserve(size_t new_cap) { cacheVec.reserve(new_cap); }
-	size_t size() const {return cacheVec.size(); }
-	void clear() { cacheVec.clear(); }
-	void pop_back() { cacheVec.pop_back(); }
+	size_t size() const {return n_; }
+	void clear() { n_ = 0; }
 
 	// Access one of the search caches
 	const SeedSearchCache& operator[](size_t idx) const { return cacheVec[idx].srcache; }
@@ -1616,16 +1639,7 @@ public:
 protected:
 	class CacheEl {
 	public:
-		CacheEl(
-			const BTDnaString& _seq,  // sequence of current seed
-			const BTString& _qual,    // quality string for current seed
-			int _seedoffidx,          // seed index
-			bool _fw                  // is it fw?
-			)
-			: srcache(_seq, _qual)
-			, seedoffidx(_seedoffidx)
-			, fw(_fw) {}
-		
+		CacheEl() : srcache(), seedoffidx(0), fw(false) {}
 
 		SeedSearchCache     srcache;   // search wrapper
 		int                 seedoffidx; // seed index
@@ -1633,7 +1647,12 @@ protected:
 	};
 
 	std::vector<CacheEl> cacheVec;
+	size_t n_; // caches in use
 };
+
+// How many seed offsets (both strands together) SeedAligner::searchAllSeeds
+// searches in one searchSeedBi batch
+static const size_t SEED_BATCH_CACHES = 32;
 
 // Per-parameter scratch space for SeedAligner::searchSeedBi.  Defined in
 // aligner_seed.cpp; the caller owns the storage so that neither the batched
@@ -1650,7 +1669,13 @@ public:
 	/**
 	 * Initialize with index.
 	 */
-	SeedAligner() : edits_(AL_CAT), offIdx2off_(AL_CAT) { }
+	SeedAligner() : edits_(AL_CAT), offIdx2off_(AL_CAT), sss_(NULL) { }
+
+	~SeedAligner();
+
+	// Owns its seed-search scratch (sss_)
+	SeedAligner(const SeedAligner&) = delete;
+	SeedAligner& operator=(const SeedAligner&) = delete;
 
 	/**
 	 * Given a read and a few coordinates that describe a substring of the
@@ -1853,6 +1878,11 @@ protected:
 	uint64_t bwops_;           // Burrows-Wheeler operations
 	uint64_t bwedits_;         // Burrows-Wheeler edits
 	BTDnaString tmprfdnastr_;  // used in reportHit
+
+	// searchAllSeeds scratch, kept across calls
+	struct SeedSearchScratch;     // its search params and states (aligner_seed.cpp)
+	SeedSearchMultiCache mcache_; // one SeedSearchCache per searched seed offset
+	SeedSearchScratch* sss_;      // allocated on first use
 	
 	ASSERT_ONLY(ESet<BTDnaString> hits_); // Ref hits so far for seed being aligned
 	BTDnaString tmpdnastr_;
