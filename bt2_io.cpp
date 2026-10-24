@@ -614,6 +614,7 @@ void Ebwt::readIntoMemory(
 	}
 
 	this->postReadInit(*eh); // Initialize fields of Ebwt not read from file
+	this->buildFragTab(this->_eh._len); // for joinedToTextOff()
 	if(_verbose || startVerbose) print(cerr, *eh);
 
 	// The fact that _ebwt and friends actually point to something
