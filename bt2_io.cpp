@@ -347,7 +347,7 @@ void Ebwt::readIntoMemory(
 			}
 		} else {
 			try {
-				_ebwt.init(new uint8_t[eh->_ebwtTotLen], eh->_ebwtTotLen, true);
+				_ebwt.initAligned(eh->_ebwtTotLen, MM_INDEX_ALIGN);
 			} catch(bad_alloc& e) {
 				cerr << "Out of memory allocating the ebwt[] array for the Bowtie index.  Please try" << endl
 				<< "again on a computer with more memory." << endl;
@@ -426,7 +426,7 @@ void Ebwt::readIntoMemory(
 				fseeko(_in1, eh->_ftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
-				_ftab.init(new TIndexOffU[eh->_ftabLen], eh->_ftabLen, true);
+				_ftab.initAligned(eh->_ftabLen, MM_INDEX_ALIGN);
 				if(_switchEndian) {
 					for(TIndexOffU i = 0; i < eh->_ftabLen; i++)
 						this->ftab()[i] = readU<TIndexOffU>(_in1, _switchEndian);
@@ -456,7 +456,7 @@ void Ebwt::readIntoMemory(
 				fseeko(_in1, eh->_eftabLen*OFF_SIZE, SEEK_CUR);
 #endif
 			} else {
-				_eftab.init(new TIndexOffU[eh->_eftabLen], eh->_eftabLen, true);
+				_eftab.initAligned(eh->_eftabLen, MM_INDEX_ALIGN);
 				if(_switchEndian) {
 					for(TIndexOffU i = 0; i < eh->_eftabLen; i++)
 						this->eftab()[i] = readU<TIndexOffU>(_in1, _switchEndian);
@@ -524,7 +524,7 @@ void Ebwt::readIntoMemory(
 			if(!useShmem_) {
 				// Allocate offs_
 				try {
-					_offs.init(new TIndexOffU[offsLenSampled], offsLenSampled, true);
+					_offs.initAligned(offsLenSampled, MM_INDEX_ALIGN);
 				} catch(bad_alloc& e) {
 					cerr << "Out of memory allocating the offs[] array  for the Bowtie index." << endl
 					<< "Please try again on a computer with more memory." << endl;

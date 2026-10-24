@@ -252,6 +252,7 @@ public:
 	void init(T* p, size_t sz, bool freeable = true) {
 		assert(p_ == NULL);
 		p_ = p;
+		base_ = p;
 		sz_ = sz;
 		freeable_ = freeable;
 #ifdef USE_MEM_TALLY
@@ -263,10 +264,25 @@ public:
 #endif
 	}
 
+	/**
+	 * Allocate sz elements with new[] and wrap them at an address that
+	 * is a multiple of 'align' bytes, a power of two that sizeof(T)
+	 * divides.  The block is over-allocated by 'align' bytes, and free()
+	 * deletes the block new[] returned.  Throws bad_alloc as new[] does.
+	 */
+	void initAligned(size_t sz, size_t align) {
+		assert_eq(0, align & (align - 1));
+		assert_eq(0, align % sizeof(T));
+		T* base = new T[sz + align / sizeof(T)];
+		const uintptr_t a = align;
+		init((T*)(((uintptr_t)base + a - 1) & ~(a - 1)), sz, true);
+		base_ = base;
+	}
+
 	void free() {
 		if(p_ != NULL) {
 			if(freeable_) {
-				delete[] p_;
+				delete[] base_;
 #ifdef USE_MEM_TALLY
 				gMemTally.del(cat_, sizeof(T) * sz_);
 #endif
@@ -281,6 +297,7 @@ public:
 private:
 	int cat_;
 	T *p_;
+	T *base_; // what new[] returned; p_ unless initAligned() moved p_ up
 	bool freeable_;
 	size_t sz_;
 };
