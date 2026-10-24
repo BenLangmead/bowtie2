@@ -820,7 +820,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	SSERegI vhdtmp   = sse_setzero_siall();
 #endif
 	SSERegI vtmp     = sse_setzero_siall();
-	SSERegI vzero    = sse_setzero_siall();
 	SSERegI vhilsw   = sse_setzero_siall();
 
 	SSERegI vs0     = sse_setzero_siall();
@@ -886,11 +885,51 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	SSERegI *pvELoad  = d.mat_.evec(0, 0);
 	SSERegI *pvEStore = d.mat_.evecUnsafe(0, 1);
 	SSERegI *pvFStore = d.mat_.fvec(0, 0);
-	SSERegI *pvFTmp   = NULL;
-	
+
 	assert_gt(sc_->gapbar, 0);
 	size_t nfixup = 0;
-	
+
+	// F (reference gap) values flow down a column, and in the striped layout
+	// the first pass over a column only carries them down within each lane.
+	// Rather than Farrar's lazy-F loop, which carries them one lane further
+	// per pass until nothing changes, the carries are propagated across all
+	// lanes at once with a prefix scan (max-plus, saturating).  A carry passes
+	// through a lane at the cost of iter gap extensions, unless a row in the
+	// lane is inside the gap barrier, which sets F to 0 and so blocks it.
+	// vpass1 holds that cost for the lane below each lane; vpass2, 4, ... are
+	// its sums over 2, 4, ... consecutive lanes, for the scan's steps.  The
+	// barrier vectors are the same for every reference character.
+	SSERegI vpass1, vpass2, vpass4, vpass8;
+#if NBYTES_PER_REG == 32
+	SSERegI vpass16;
+#endif
+	{
+		const SSERegI *pvBar = d.profbuf_.ptr() + 1;
+		SSERegI vbar = sse_setzero_siall();
+		for(size_t j = 0; j < iter; j++) {
+			vbar = sse_or_siall(vbar, pvBar[2 * j]);
+		}
+		size_t passPen = iter * (size_t)sc_->refGapExtend();
+		if(passPen > 0xff) {
+			passPen = 0xff;
+		}
+		SSERegI vpass;
+		sse_fill_u8((int)passPen, vpass);
+		vpass  = sse_or_siall(vpass, vbar);
+		vpass1 = sse_slli_siall(vpass, NBYTES_PER_WORD);
+		vpass2 = sse_adds_epu8(vpass1, sse_slli_siall(vpass1, 1 * NBYTES_PER_WORD));
+		vpass4 = sse_adds_epu8(vpass2, sse_slli_siall(vpass2, 2 * NBYTES_PER_WORD));
+		vpass8 = sse_adds_epu8(vpass4, sse_slli_siall(vpass4, 4 * NBYTES_PER_WORD));
+#if NBYTES_PER_REG == 32
+		vpass16 = sse_adds_epu8(vpass8, sse_slli_siall(vpass8, 8 * NBYTES_PER_WORD));
+#endif
+	}
+
+	// The final row of H vectors of the previous column, kept in a register
+	// from one column to the next; before the first column, the staged
+	// initial column (vlo).
+	SSERegI vhlast = vlo;
+
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
 	// pre-calculated gap vector parallel to the query profile.  The pre-
@@ -919,10 +958,9 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		// Set all cells to low value
 		vf = sse_xor_siall(vf, vf);
 
-		// Load H vector from the final row of the previous column
-		vh = sse_load_siall(pvHLoad + colstride - ROWSTRIDE);
+		// H vector from the final row of the previous column
 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
-		vh = sse_slli_siall(vh, NBYTES_PER_WORD);
+		vh = sse_slli_siall(vhlast, NBYTES_PER_WORD);
 		// Fill topmost (least sig) cell with high value
 		vh = sse_or_siall(vh, vhilsw);
 		
@@ -991,88 +1029,64 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epu8(vf, vtmp);
 		}
-		pvScore -= (iter*2) - 1; // reset veto vector
-	        vs1 = sse_load_siall(pvScore);
-
-		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
-		pvFTmp = pvFStore;
-		pvFStore -= colstride; // reset to start of column
-		vtmp = sse_load_siall(pvFStore);
-		
-		// vf from last row gets shifted down by one to overlay the first row
-		// rfgape has already been subtracted from it.
+		// vf holds, in each lane, the F value the first pass carries out of
+		// the lane's last row: max(F - rfgape, H - rfgapo).  Lane L's first
+		// row receives the carry of lane L-1, or of any lane above it less the
+		// cost of passing through the lanes in between.  vf becomes that
+		// carry for every lane: a prefix scan in log2(lanes) steps.
 		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
-		
-		vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
-		vf = sse_max_epu8(vtmp, vf);
-		vtmp = sse_subs_epu8(vf, vtmp);
-		vtmp = sse_cmpeq_epi8(vtmp, vzero);
-		int cmp = sse_movemask_epi8(vtmp);
-	
-		// Load after computing cmp, so the result is ready by the time it is tested in while
-		pvHStore -= colstride; // reset to start of column
-		vh = sse_load_siall(pvHStore);
-		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
-		
-#if 0
-#else
-		pvEStore -= colstride; // reset to start of column
-		ve = sse_load_siall(pvEStore);
+		vtmp = sse_subs_epu8(sse_slli_siall(vf, 1 * NBYTES_PER_WORD), vpass1);
+		vf = sse_max_epu8(vf, vtmp);
+		vtmp = sse_subs_epu8(sse_slli_siall(vf, 2 * NBYTES_PER_WORD), vpass2);
+		vf = sse_max_epu8(vf, vtmp);
+		vtmp = sse_subs_epu8(sse_slli_siall(vf, 4 * NBYTES_PER_WORD), vpass4);
+		vf = sse_max_epu8(vf, vtmp);
+		vtmp = sse_subs_epu8(sse_slli_siall(vf, 8 * NBYTES_PER_WORD), vpass8);
+		vf = sse_max_epu8(vf, vtmp);
+#if NBYTES_PER_REG == 32
+		vtmp = sse_subs_epu8(sse_slli_siall(vf, 16 * NBYTES_PER_WORD), vpass16);
+		vf = sse_max_epu8(vf, vtmp);
 #endif
-		
-		// If any element of vtmp is greater than H - gap-open...
-		j = 0;
-		while(cmp != SSE_MASK_ALL) {
-			// Store this vf
-			sse_store_siall(pvFStore, vf);
-			pvFStore += ROWSTRIDE;
-			
-			// Update vh w/r/t new vf
-			vh = sse_max_epu8(vh, vf);
-			
-			// Save vH values
-			sse_store_siall(pvHStore, vh);
-			pvHStore += ROWSTRIDE;
-			
-			// Update E in case it can be improved using our new vh
-#if 0
-#else
-			vh = sse_subs_epu8(vh, rdgapo);
-			vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
-			ve = sse_max_epu8(ve, vh);
-			sse_store_siall(pvEStore, ve);
-			pvEStore += ROWSTRIDE;
-#endif
-			pvScore += 2;
-			
-			assert_lt(j, iter);
-			if(++j == iter) {
-				pvScore -= iter*2;
-				j = 0;
-				pvFStore -= colstride;
-				pvHStore -= colstride;
-				pvEStore -= colstride;
-				vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+
+		// One more pass down the column extends each lane's carry through its
+		// rows and folds it into F, then H, then the next column's E: the
+		// values the lazy-F loop converges to, in exactly iter steps.  The
+		// carry reaching row j has lost j gap extensions, or everything if a
+		// row up to j is inside the gap barrier; vpen accumulates that
+		// penalty (saturating) apart from the carry, so that each row's value
+		// is one subtraction from the carry rather than a chain of them.
+		{
+			const SSERegI *pvBar = pvScore - (iter*2) + 1; // gap barrier, row 0
+			SSERegI *pvF = pvFStore - colstride;            // this column
+			SSERegI *pvE = pvELoad;                         // next column
+			// The first column's pvHLoad started in the staging vectors, so
+			// take this column's H from pvHStore instead.
+			pvHLoad = pvHStore - colstride;
+			SSERegI *pvH = pvHLoad;                         // this column
+			SSERegI vpen = sse_setzero_siall();
+			for(j = 0; j < iter; j++) {
+				vs1 = sse_load_siall(pvBar);
+				pvBar += 2;
+				vpen = sse_adds_epu8(vpen, vs1); // veto some ref gap extensions
+				vtmp = sse_load_siall(pvF);
+				vtmp = sse_max_epu8(vtmp, sse_subs_epu8(vf, vpen));
+				sse_store_siall(pvF, vtmp);
+				pvF += ROWSTRIDE;
+				vh = sse_load_siall(pvH);
+				vh = sse_max_epu8(vh, vtmp);
+				sse_store_siall(pvH, vh);
+				pvH += ROWSTRIDE;
+				vhlast = vh;
+				// Update E in case it can be improved using our new vh
+				ve = sse_load_siall(pvE);
+				vh = sse_subs_epu8(vh, rdgapo);
+				vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
+				ve = sse_max_epu8(ve, vh);
+				sse_store_siall(pvE, ve);
+				pvE += ROWSTRIDE;
+				vpen = sse_adds_epu8(vpen, rfgape);
 			}
-			vs1 = sse_load_siall(pvScore);
-			vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
-
-			// Update F with another gap extension
-			vf = sse_subs_epu8(vf, rfgape);
-			vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
-			vf = sse_max_epu8(vtmp, vf);
-			vtmp = sse_subs_epu8(vf, vtmp);
-			vtmp = sse_cmpeq_epi8(vtmp, vzero);
-			cmp = sse_movemask_epi8(vtmp);
-
-			// Load after computing cmp, so the result is afailable by the time it is tested
-			vh = sse_load_siall(pvHStore);     // load next vh 
-#if 0
-#else
-			ve = sse_load_siall(pvEStore);     // load next ve
-#endif
-			
-			nfixup++;
+			nfixup += iter;
 		}
 		
 #ifndef NDEBUG
@@ -1099,12 +1113,9 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			lrmax = lr;
 		}
 
-		// pvELoad and pvHLoad are already where they need to be
-		
-		// Adjust the load and store vectors here.  
-		pvHStore = pvHLoad + colstride;
-		pvEStore = pvELoad + colstride;
-		pvFStore = pvFTmp;
+		// pvHLoad (this column's H), pvELoad (next column's E), pvHStore and
+		// pvFStore (next column) and pvEStore (the column after) are already
+		// where the next column needs them.
 	}
 	
 	// Update metrics
