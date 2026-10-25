@@ -1217,8 +1217,12 @@ bool SeedAligner::oneMmSearch(
 					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
 					SANITY_CHECK_4TUP(t, b, tp, bp);
 					match = rdc < 4;
-					top = t[rdc]; bot = b[rdc];
-					topp = tp[rdc]; botp = bp[rdc];
+					// An N in the read has no range of its own; only the
+					// mismatch search below continues past it.
+					if(match) {
+						top = t[rdc]; bot = b[rdc];
+						topp = tp[rdc]; botp = bp[rdc];
+					}
 				} else {
 					assert_eq(bot, top+1);
 					assert(!rep1mm || botp == topp+1);

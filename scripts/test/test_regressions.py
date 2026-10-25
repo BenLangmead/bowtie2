@@ -116,3 +116,46 @@ def test_index_requires_x(bt2, lambda_index, example_reads, tmp_path):
 	assert proc.returncode != 0
 	bt2.run('bowtie2', ['-x', lambda_index] + reads)
 	assert sam_records(sam)
+
+
+def test_one_n_in_repeated_read(bt2, lambda_fasta, tmp_path):
+	"""A read with one N aligns, end to end, to every copy of a repeat.
+
+	Before seed search, bowtie2 looks for end-to-end hits with at most one
+	mismatch, extending from one half of the read into the other. When the
+	N lies in the half being extended and the range so far covers more than
+	one place in the genome, that search must not index its per-base range
+	arrays with the N (index 4 of a 4-element array). A reference made of two
+	identical copies of the lambda genome puts every read in that situation.
+	The sanitized aligner, when it was built, must run without reports."""
+	with open(lambda_fasta) as f:
+		lam = ''.join(l.strip() for l in f if not l.startswith('>'))
+	fasta = h.write_fasta(str(tmp_path / 'lambda2.fa'), [('copyA', lam), ('copyB', lam)])
+	prefix = str(tmp_path / 'lambda2')
+	bt2.build_index(fasta, prefix, extra=['--seed', '0'])
+	reads, expected = [], {}
+	for off, npos in ((1000, 10), (1000, 49), (20000, 30), (30000, 5)):
+		r = lam[off:off + 60]
+		r = r[:npos] + 'N' + r[npos + 1:]
+		for name, seq in (('fw%d_%d' % (off, npos), r), ('rc%d_%d' % (off, npos), h.revcomp(r))):
+			reads.append((name, seq, 'I' * 60))
+			expected[name] = (off + 1, '%d%s%d' % (npos, lam[off + npos], 59 - npos))
+	fq = h.write_fastq(str(tmp_path / 'reads.fq'), reads)
+	args = ['-x', prefix, '-U', fq]
+	_, recs, _ = bt2.align(['--quiet', '-k', '2'] + args)
+	groups = h.by_name(recs)
+	assert sorted(groups) == sorted(expected)
+	for name, rs in groups.items():
+		pos, md = expected[name]
+		assert sorted(r.rname for r in rs) == ['copyA', 'copyB'], name
+		for r in rs:
+			assert (r.pos, r.cigar, r.tags['NM'], r.tags['MD']) == (pos, '60M', 1, md), r.line
+			assert r.is_reverse == name.startswith('rc'), r.line
+	san = os.path.join(h.BIN_DIR, 'bowtie2-align-s-sanitized')
+	if os.access(san, os.X_OK):
+		env = dict(os.environ, ASAN_OPTIONS='detect_leaks=0',
+			UBSAN_OPTIONS='halt_on_error=1')
+		proc = bt2.run(san, args + ['-k', '2'], env=env, check=False)
+		assert proc.returncode == 0, proc.stderr
+		assert 'runtime error' not in proc.stderr and 'Sanitizer' not in proc.stderr, \
+			proc.stderr
