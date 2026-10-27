@@ -291,10 +291,115 @@ bool SwDriver::eeSaTups(
 }
 
 /**
+ * Set up the two chains of a seed hit's extension as extend() would before
+ * its loops: ch[0] extends to the left with the forward index, ch[1] to the
+ * right with the backward index.  A chain with nothing to do is not live.
+ */
+void SwDriver::extInit(
+	ExtChain* ch,         // out: ch[0] left, ch[1] right
+	const Read& rd,       // read
+	const Ebwt& ebwtFw,   // Forward Bowtie index
+	const Ebwt* ebwtBw,   // Backward Bowtie index
+	TIndexOffU topf,      // top in fw index
+	TIndexOffU botf,      // bot in fw index
+	TIndexOffU topb,      // top in bw index
+	TIndexOffU botb,      // bot in bw index
+	bool fw,              // seed orientation
+	size_t off,           // seed offset from 5' end
+	size_t len)           // seed length
+{
+	const size_t rdlen = rd.length();
+	const BTDnaString* seq = fw ? &rd.patFw : &rd.patRc;
+	ExtChain& l = ch[0];
+	l.n = l.ops = 0;
+	l.left = fw ? off : rdlen - len - off;
+	l.live = l.left > 0;
+	if(l.live) {
+		// Starting to left of seed (<off) and moving left
+		l.ebwt = &ebwtFw;
+		l.seq = seq;
+		l.top = topf;
+		l.bot = botf;
+		l.tp0 = topb;
+		l.i = fw ? off - 1 : rdlen - off - len - 1;
+		l.right = false;
+		INIT_LOCS(l.top, l.bot, l.tloc, l.bloc, ebwtFw);
+	}
+	ExtChain& r = ch[1];
+	r.n = r.ops = 0;
+	r.left = fw ? rdlen - len - off : off;
+	r.live = r.left > 0 && ebwtBw != NULL;
+	if(r.live) {
+		// Starting to right of seed and moving right
+		r.ebwt = ebwtBw;
+		r.seq = seq;
+		r.top = topb;
+		r.bot = botb;
+		r.tp0 = topf;
+		r.i = fw ? len + off : rdlen - off;
+		r.right = true;
+		INIT_LOCS(r.top, r.bot, r.tloc, r.bloc, *ebwtBw);
+	}
+}
+
+/**
+ * One iteration of extend()'s loop on chain c.  c.live turns false where
+ * extend() leaves the loop: the extension stops (mismatch, more than one
+ * character possible, range shrinks), reaches 255 positions, or reaches the
+ * end of the read.
+ */
+inline void SwDriver::extStep(ExtChain& c) {
+	assert(c.live);
+	// Get char from read
+	const int rdc = c.seq->get(c.i);
+	c.ops++;
+	if(c.bloc.valid()) {
+		TIndexOffU t[4] = { 0, 0, 0, 0 }, b[4] = { 0, 0, 0, 0 };
+		TIndexOffU tp[4], bp[4];
+		tp[0] = c.tp0; // the only element of tp/bp mapBiLFEx reads
+		c.ebwt->mapBiLFEx(c.tloc, c.bloc, t, b, tp, bp);
+		SANITY_CHECK_4TUP(t, b, tp, bp);
+		int nonz = -1;
+		bool abort = false;
+		size_t origSz = c.bot - c.top;
+		for(int j = 0; j < 4; j++) {
+			if(b[j] > t[j]) {
+				if(nonz >= 0) {
+					abort = true;
+					break;
+				}
+				nonz = j;
+				c.top = t[j]; c.bot = b[j];
+			}
+		}
+		assert_leq(c.bot - c.top, origSz);
+		if(abort || (nonz != rdc && rdc <= 3) || c.bot - c.top < origSz) {
+			c.live = false;
+			return;
+		}
+	} else {
+		assert_eq(c.bot, c.top+1);
+		int ch = c.ebwt->mapLF1(c.top, c.tloc);
+		if(ch != rdc && rdc <= 3) {
+			c.live = false;
+			return;
+		}
+		c.bot = c.top + 1;
+	}
+	if(++c.n == 255 || --c.left == 0) {
+		c.live = false;
+		return;
+	}
+	c.i = c.right ? c.i + 1 : c.i - 1;
+	INIT_LOCS(c.top, c.bot, c.tloc, c.bloc, *c.ebwt);
+}
+
+/**
  * Extend a seed hit out on either side.  Requires that we know the seed hit's
  * offset into the read and orientation.  Also requires that we know top/bot
  * for the seed hit in both the forward and (if we want to extend to the right)
- * reverse index.
+ * reverse index.  The left and right extensions are independent and are
+ * stepped in turn.
  */
 void SwDriver::extend(
 	const Read& rd,       // read
@@ -311,176 +416,19 @@ void SwDriver::extend(
 	size_t& nlex,         // # positions we can extend to left w/o edit
 	size_t& nrex)         // # positions we can extend to right w/o edit
 {
-	TIndexOffU t[4], b[4];
-	TIndexOffU tp[4], bp[4];
-	SideLocus tloc, bloc;
-	size_t rdlen = rd.length();
-	size_t lim = fw ? off : rdlen - len - off;
-	// We're about to add onto the beginning, so reverse it
-#ifndef NDEBUG
-	if(false) {
-		// TODO: This will sometimes fail even when the extension is legitimate
-		// This is because contains() comes in from one extreme or the other,
-		// whereas we started from the inside and worked outwards.  This
-		// affects which Ns are OK and which are not OK.
-
-		// Have to do both because whether we can get through an N depends on
-		// which direction we're coming in
-//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		assert(fwContains || bwContains);
+	ExtChain ch[2];
+	extInit(ch, rd, ebwtFw, ebwtBw, topf, botf, topb, botb, fw, off, len);
+	ch[0].n = nlex;
+	ch[1].n = nrex;
+	while(ch[0].live || ch[1].live) {
+		if(ch[0].live) extStep(ch[0]);
+		if(ch[1].live) extStep(ch[1]);
 	}
-#endif
-	ASSERT_ONLY(tmp_rdseq_.reverse());
-	if(lim > 0) {
-		const Ebwt *ebwt = &ebwtFw;
-		assert(ebwt != NULL);
-		// Extend left using forward index
-		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
-		// See what we get by extending 
-		TIndexOffU top = topf, bot = botf;
-		t[0] = t[1] = t[2] = t[3] = 0;
-		b[0] = b[1] = b[2] = b[3] = 0;
-		tp[0] = tp[1] = tp[2] = tp[3] = topb;
-		bp[0] = bp[1] = bp[2] = bp[3] = botb;
-		SideLocus tloc, bloc;
-		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = 0; ii < lim; ii++) {
-			// Starting to left of seed (<off) and moving left
-			size_t i = 0;
-			if(fw) {
-				i = off - ii - 1;
-			} else {
-				i = rdlen - off - len - 1 - ii;
-			}
-			// Get char from read
-			int rdc = seq.get(i);
-			// See what we get by extending 
-			if(bloc.valid()) {
-				prm.nSdFmops++;
-				t[0] = t[1] = t[2] = t[3] =
-				b[0] = b[1] = b[2] = b[3] = 0;
-				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-				SANITY_CHECK_4TUP(t, b, tp, bp);
-				int nonz = -1;
-				bool abort = false;
-				size_t origSz = bot - top;
-				for(int j = 0; j < 4; j++) {
-					if(b[j] > t[j]) {
-						if(nonz >= 0) {
-							abort = true;
-							break;
-						}
-						nonz = j;
-						top = t[j]; bot = b[j];
-					}
-				}
-				assert_leq(bot - top, origSz);
-				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
-					break;
-				}
-			} else {
-				assert_eq(bot, top+1);
-				prm.nSdFmops++;
-				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc && rdc <= 3) {
-					break;
-				}
-				bot = top + 1;
-			}
-			ASSERT_ONLY(tmp_rdseq_.append(rdc));
-			if(++nlex == 255) {
-				break;
-			}
-			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		}
-	}
-	// We're about to add onto the end, so re-reverse
-	ASSERT_ONLY(tmp_rdseq_.reverse());
-	lim = fw ? rdlen - len - off : off;
-	if(lim > 0 && ebwtBw != NULL) {
-		const Ebwt *ebwt = ebwtBw;
-		assert(ebwt != NULL);
-		// Extend right using backward index
-		const BTDnaString& seq = fw ? rd.patFw : rd.patRc;
-		// See what we get by extending 
-		TIndexOffU top = topb, bot = botb;
-		t[0] = t[1] = t[2] = t[3] = 0;
-		b[0] = b[1] = b[2] = b[3] = 0;
-		tp[0] = tp[1] = tp[2] = tp[3] = topf;
-		bp[0] = bp[1] = bp[2] = bp[3] = botf;
-		INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		for(size_t ii = 0; ii < lim; ii++) {
-			// Starting to right of seed (<off) and moving right
-			size_t i;
-			if(fw) {
-				i = ii + len + off;
-			} else {
-				i = rdlen - off + ii;
-			}
-			// Get char from read
-			int rdc = seq.get(i);
-			// See what we get by extending 
-			if(bloc.valid()) {
-				prm.nSdFmops++;
-				t[0] = t[1] = t[2] = t[3] =
-				b[0] = b[1] = b[2] = b[3] = 0;
-				ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
-				SANITY_CHECK_4TUP(t, b, tp, bp);
-				int nonz = -1;
-				bool abort = false;
-				size_t origSz = bot - top;
-				for(int j = 0; j < 4; j++) {
-					if(b[j] > t[j]) {
-						if(nonz >= 0) {
-							abort = true;
-							break;
-						}
-						nonz = j;
-						top = t[j]; bot = b[j];
-					}
-				}
-				assert_leq(bot - top, origSz);
-				if(abort || (nonz != rdc && rdc <= 3) || bot - top < origSz) {
-					break;
-				}
-			} else {
-				assert_eq(bot, top+1);
-				prm.nSdFmops++;
-				int c = ebwt->mapLF1(top, tloc);
-				if(c != rdc && rdc <= 3) {
-					break;
-				}
-				bot = top + 1;
-			}
-			ASSERT_ONLY(tmp_rdseq_.append(rdc));
-			if(++nrex == 255) {
-				break;
-			}
-			INIT_LOCS(top, bot, tloc, bloc, *ebwt);
-		}
-	}
-#ifndef NDEBUG
-	if(false) {
-		// TODO: This will sometimes fail even when the extension is legitimate
-		// This is because contains() comes in from one extreme or the other,
-		// whereas we started from the inside and worked outwards.  This
-		// affects which Ns are OK and which are not OK.
-	
-		// Have to do both because whether we can get through an N depends on
-		// which direction we're coming in
-//		bool fwContains = ebwtFw.contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		bool bwContains = ebwtBw != NULL && ebwtBw->contains(tmp_rdseq_);
-//		tmp_rdseq_.reverse();
-//		assert(fwContains || bwContains);
-	}
-#endif
-	assert_lt(nlex, rdlen);
-	assert_lt(nrex, rdlen);
-	return;
+	nlex = ch[0].n;
+	nrex = ch[1].n;
+	prm.nSdFmops += ch[0].ops + ch[1].ops;
+	assert_lt(nlex, rd.length());
+	assert_lt(nrex, rd.length());
 }
 
 /**

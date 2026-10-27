@@ -1107,8 +1107,20 @@ bool SwAligner::nextAlignment(
 					// get the same answer from both backtrackers because of
 					// differences in how they handle marking cells as
 					// reported-through.
+					// Both backtraces start from the same cell, so they agree
+					// on success, score and where the alignment ends.  They
+					// can break a tie differently where it starts, e.g. one
+					// soft-clips a prefix that adds nothing to the score
+					// (matches whose bonus a gap cancels) while the other
+					// keeps it, so the alignments themselves need not be
+					// equal.
 					assert(cural_ > 0 || !ret || ret == ret2);
-					assert(cural_ > 0 || !ret || res.alres == res2.alres);
+					assert(cural_ > 0 || !ret || res.alres.score() == res2.alres.score());
+					assert(cural_ > 0 || !ret ||
+					       res.alres.refoff() + res.alres.refExtent() ==
+					       res2.alres.refoff() + res2.alres.refExtent());
+					assert(cural_ > 0 || !ret ||
+					       res.alres.trimmedRight(true) == res2.alres.trimmedRight(true));
 				}
 #endif
 				rnd.init(reseed); // same b/t backtrace calls

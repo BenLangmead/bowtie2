@@ -40,6 +40,7 @@ BitPairReference::BitPairReference(
 	bool verbose,
 	bool startVerbose) :
 	buf_(NULL),
+	bufBase_(NULL),
 	sanityBuf_(NULL),
 	loaded_(true),
 	sanity_(sanity),
@@ -200,7 +201,8 @@ BitPairReference::BitPairReference(
 		if(!useShmem_) {
 			// Allocate a buffer to hold the reference string
 			try {
-				buf_ = new uint8_t[cumsz >> 2];
+				bufBase_ = new uint8_t[(cumsz >> 2) + MM_INDEX_ALIGN];
+				buf_ = mmAlignUp(bufBase_);
 				if(buf_ == NULL) throw std::bad_alloc();
 			} catch(std::bad_alloc& e) {
 				cerr << "Error: Ran out of memory allocating space for the bitpacked reference.  Please" << endl
@@ -314,7 +316,7 @@ BitPairReference::BitPairReference(
 }
 
 BitPairReference::~BitPairReference() {
-	if(buf_ != NULL && !useMm_ && !useShmem_) delete[] buf_;
+	if(bufBase_ != NULL) delete[] bufBase_;
 	if(sanityBuf_ != NULL) delete[] sanityBuf_;
 }
 
