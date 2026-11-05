@@ -4598,6 +4598,19 @@ static void multiseedSearchWorker_2p5(void *vp) {
 	return;
 }
 
+/**
+ * Thread entry point for a search worker.  An error it throws has already
+ * been reported on stderr; the other threads cannot be unwound, so end the
+ * process with the error's status instead of letting std::terminate abort it.
+ */
+static void searchWorkerThread(void (*worker)(void*), void *vp) {
+	try {
+		worker(vp);
+	} catch(int e) {
+		_Exit(e);
+	}
+}
+
 #ifndef _WIN32
 /**
  * Print friendly-ish message pertaining to failed system call.
@@ -4749,7 +4762,7 @@ static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<T*
 	if(in_use < ncpu) {
 		nthreads++;
 		tids.push_back(nthreads);
-		threads.push_back(new T(multiseedSearchWorker, (void*)&tids.back()));
+		threads.push_back(new T(searchWorkerThread, multiseedSearchWorker, (void*)&tids.back()));
 		cerr << "pid " << pid << " started new worker # " << nthreads << endl;
 	}
 }
@@ -4881,9 +4894,9 @@ static void multiseedSearch(
 			tps[i].done = &all_threads_done;
 
 			if(bowtie2p5) {
-				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*)&tps[i]));
+				threads.push_back(new std::thread(searchWorkerThread, multiseedSearchWorker_2p5, (void*)&tps[i]));
 			} else {
-				threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
+				threads.push_back(new std::thread(searchWorkerThread, multiseedSearchWorker, (void*)&tps[i]));
 			}
 			threads[i]->detach();
 			SLEEP(10);

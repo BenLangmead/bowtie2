@@ -991,7 +991,7 @@ private:
                         if (asyncData.cur != 0) {
                                 // std::cerr << "Error while flushing and closing output" << std::endl;
                                 perror("fwrite");
-				throw 1;
+				_Exit(1); // a throw would escape this thread and abort
                         }
 			abort = asyncData.writeComplete();
 		}
