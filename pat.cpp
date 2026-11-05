@@ -1189,20 +1189,8 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	if(nchar > 0) {
 		int nqual = 0;
 		if (pp_.intQuals) {
-			int cur_int = 0;
-			while(c != '\t' && c != '\n' && c != '\r') {
-				cur_int *= 10;
-				cur_int += (int)(c - '0');
-				c = r.readOrigBuf[cur++];
-				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, pp_.solexa64);
-					cur_int = 0;
-					assert_geq(cadd, 33);
-					if(++nqual > pp_.trim5) {
-						r.qual.append(cadd);
-					}
-				}
-			}
+			cur--; // c, the first quality character, was already read
+			parseIntQuals(r.readOrigBuf, cur, c, r.trimmed5, pp_.solexa64, r.qual);
 		} else {
 			c = charToPhred33(c, pp_.solexa64, pp_.phred64);
 			if(nqual++ >= r.trimmed5) {
@@ -1222,14 +1210,14 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 					r.qual.append(c);
 				}
 			}
-			r.qual.trimEnd(r.trimmed3);
-			if(r.qual.length() < r.patFw.length()) {
-				tooFewQualities(r.name);
-				return false;
-			} else if(r.qual.length() > r.patFw.length()) {
-				tooManyQualities(r.name);
-				return false;
-			}
+		}
+		r.qual.trimEnd(r.trimmed3);
+		if(r.qual.length() < r.patFw.length()) {
+			tooFewQualities(r.name);
+			return false;
+		} else if(r.qual.length() > r.patFw.length()) {
+			tooManyQualities(r.name);
+			return false;
 		}
 	}
 	// Set up a default name if one hasn't been set
@@ -1610,20 +1598,8 @@ bool TabbedPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		c = ra.readOrigBuf[cur++];
 		int nqual = 0;
 		if (pp_.intQuals) {
-			int cur_int = 0;
-			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
-				cur_int *= 10;
-				cur_int += (int)(c - '0');
-				c = ra.readOrigBuf[cur++];
-				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, pp_.solexa64);
-					cur_int = 0;
-					assert_geq(cadd, 33);
-					if(++nqual > pp_.trim5) {
-						r.qual.append(cadd);
-					}
-				}
-			}
+			cur--; // c, the first quality character, was already read
+			nqual = parseIntQuals(ra.readOrigBuf, cur, c, pp_.trim5, pp_.solexa64, r.qual);
 		} else {
 			while(c != '\t' && c != '\n' && c != '\r') {
 				if(c == ' ') {
@@ -1744,6 +1720,46 @@ void tooFewQualities(const BTString& read_name) {
 	cerr << "Error: Read " << read_name << " has more read characters than "
 		 << "quality values." << endl;
 	throw 1;
+}
+
+/**
+ * Parse --int-quals qualities: space-separated integers from buf[cur] up to
+ * the next tab or newline, or the end of buf. Each value after the first
+ * trim5 is appended to qual as a Phred+33 character. On return c is the
+ * character that ended the field (-1 at the end of buf) and cur is just past
+ * it. Returns the number of values seen.
+ */
+int parseIntQuals(
+	const Read::TBuf& buf,
+	size_t& cur,
+	int& c,
+	int trim5,
+	bool solexa64,
+	BTString& qual)
+{
+	int nqual = 0, q = 0;
+	bool inNum = false, neg = false;
+	while(true) {
+		c = cur < buf.length() ? buf[cur++] : -1;
+		if(c >= '0' && c <= '9') {
+			q = q * 10 + (c - '0');
+			inNum = true;
+		} else if(c == '-' && !inNum) {
+			neg = true; // Solexa qualities can be negative
+		} else {
+			if(inNum) {
+				char cadd = intToPhred33(neg ? -q : q, solexa64);
+				if(++nqual > trim5) {
+					qual.append(cadd);
+				}
+			}
+			q = 0;
+			inNum = neg = false;
+			if(c < 0 || c == '\t' || c == '\n' || c == '\r') {
+				return nqual;
+			}
+		}
+	}
 }
 
 void tooManyQualities(const BTString& read_name) {
@@ -1879,20 +1895,8 @@ bool SRAPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		c = ra.readOrigBuf[cur++];
 		int nqual = 0;
 		if (pp_.intQuals) {
-			int cur_int = 0;
-			while(c != '\t' && c != '\n' && c != '\r' && cur < buflen) {
-				cur_int *= 10;
-				cur_int += (int)(c - '0');
-				c = ra.readOrigBuf[cur++];
-				if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-					char cadd = intToPhred33(cur_int, pp_.solexa64);
-					cur_int = 0;
-					assert_geq(cadd, 33);
-					if(++nqual > pp_.trim5) {
-						r.qual.append(cadd);
-					}
-				}
-			}
+			cur--; // c, the first quality character, was already read
+			nqual = parseIntQuals(ra.readOrigBuf, cur, c, pp_.trim5, pp_.solexa64, r.qual);
 		} else {
 			while(c != '\t' && c != '\n' && c != '\r') {
 				if(c == ' ') {
