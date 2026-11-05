@@ -371,6 +371,7 @@ STRATEGY_VARIANTS = [
 	['--bmax', '500'],
 	['-a', '--bmaxdivn', '16'],
 	['--bmaxdivn', '1'],
+	['--bmaxmultsqrt', '4'],
 	['-a', '--dcv', '16'],
 	['-a', '--dcv', '4096'],
 	['--dcv', '64'],
@@ -414,6 +415,7 @@ def test_large_build_strategy_does_not_change_index(bt2, mixed_fasta,
 	(['--threads', '4', '--bmaxdivn', '5'], 'bmax according to bmaxDivN setting: {n5}'),
 	(['--bmaxdivn', '8', '--bmax', '300'], 'bmax according to bmax setting: 300'),
 	(['--bmax', '300', '--bmaxdivn', '8'], 'bmax according to bmaxDivN setting: {n8}'),
+	(['--bmaxmultsqrt', '4'], 'bmax according to bmaxSqrtMult setting: {sqrt4}'),
 	(['-a', '--dcv', '64'], '--dcv 64'),
 	(['-a', '-p'], 'Strings: packed'),
 	(['-a'], 'Strings: unpacked'),
@@ -424,7 +426,8 @@ def test_build_reports_block_settings(bt2, mixed_fasta, mixed_n, tmp_path, extra
 	# Default n / (4 * threads); an explicit --bmaxdivn is not multiplied by
 	# threads; of --bmax and --bmaxdivn the later one wins. n counts A/C/G/T only.
 	n = mixed_n
-	message = message.format(n4=n // 4, n16=n // 16, n5=n // 5, n8=n // 8)
+	message = message.format(n4=n // 4, n16=n // 16, n5=n // 5, n8=n // 8,
+		sqrt4=int(n ** 0.5) * 4)
 	prefix = str(tmp_path / 'idx')
 	proc = bt2.run('bowtie2-build', extra + [mixed_fasta, prefix])
 	assert message in proc.stdout
