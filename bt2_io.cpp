@@ -50,6 +50,7 @@ void Ebwt::readIntoMemory(
 {
 #ifdef BOWTIE_MM
 	char *mmFile[] = { NULL, NULL };
+	off_t mmSize[] = { -1, -1 }; // -1: size unknown, mapping reused from an earlier call
 #endif
 	if(_in1Str.length() > 0) {
 		if(_verbose || startVerbose) {
@@ -61,12 +62,14 @@ void Ebwt::readIntoMemory(
 		if(_verbose || startVerbose) cerr << "Opening \"" << _in1Str.c_str() << "\"" << endl;
 		if((_in1 = fopen(_in1Str.c_str(), "rb")) == NULL) {
 			cerr << "Could not open index file " << _in1Str.c_str() << endl;
+			throw 1;
 		}
 		if(loadSASamp) {
 			if(_in2 != NULL) fclose(_in2);
 			if(_verbose || startVerbose) cerr << "Opening \"" << _in2Str.c_str() << "\"" << endl;
 			if((_in2 = fopen(_in2Str.c_str(), "rb")) == NULL) {
 				cerr << "Could not open index file " << _in2Str.c_str() << endl;
+				throw 1;
 			}
 		}
 		if(_verbose || startVerbose) {
@@ -89,6 +92,7 @@ void Ebwt::readIntoMemory(
 					cerr << "Error: Could not stat index file " << names[i] << " prior to memory-mapping" << endl;
 					throw 1;
 				}
+				mmSize[i] = sbuf.st_size;
 				mmFile[i] = (char*)mmap((void *)0, (size_t)sbuf.st_size,
 										PROT_READ, MAP_SHARED, fds[(size_t)i], 0);
 				if(mmFile[i] == (void *)(-1)) {
@@ -491,6 +495,15 @@ void Ebwt::readIntoMemory(
 		throw 1;
 	}
 
+#ifdef BOWTIE_MM
+	// The arrays above point into the mapping; a short file would be read past its end
+	if(_useMm && mmSize[0] >= 0 && bytesRead > (uint64_t)mmSize[0]) {
+		cerr << "Error: index file " << _in1Str.c_str() << " is truncated: " << mmSize[0]
+		     << " bytes, expected at least " << bytesRead << endl;
+		throw 1;
+	}
+#endif
+
 	// Read reference sequence names from primary index file (or not,
 	// if --refidx is specified)
 	if(loadNames) {
@@ -577,6 +590,11 @@ void Ebwt::readIntoMemory(
 						_offs.init((TIndexOffU*)(mmFile[1] + bytesRead), offsLen, false);
 						bytesRead += offsSz;
 						fseeko(_in2, offsSz, SEEK_CUR);
+						if(mmSize[1] >= 0 && bytesRead > (uint64_t)mmSize[1]) {
+							cerr << "Error: index file " << _in2Str.c_str() << " is truncated: " << mmSize[1]
+							     << " bytes, expected at least " << bytesRead << endl;
+							throw 1;
+						}
 #endif
 					} else {
 						// Workaround for small-index mode where MM_READ may
@@ -708,6 +726,11 @@ readEbwtRefnames(FILE* fin, EList<string>& refnames) {
 			}
 			refnames.back().push_back(c);
 		}
+	}
+	if(refnames.empty()) {
+		// Hit EOF before any name: the file ends before the name section
+		cerr << "Error: index file is truncated or corrupt: no reference names found" << endl;
+		throw 1;
 	}
 	if(refnames.back().empty()) {
 		refnames.pop_back();
