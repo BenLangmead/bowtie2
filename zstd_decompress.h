@@ -7,7 +7,6 @@
 typedef struct zstd_stream zstdStrm;
 
 struct zstd_stream {
-        int           back;
         size_t        o_len;
         size_t        o_pos;
         size_t        i_len;
