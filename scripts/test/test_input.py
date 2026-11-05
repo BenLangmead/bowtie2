@@ -577,6 +577,15 @@ def test_bam_preserve_tags_paired(bt2, genome_dict, genome_index, tmp_path):
 	assert recs[1].line.endswith('\tYT:Z:CP\tQC:i:200')
 
 
+def test_bam_reads_every_file(bt2, genome_dict, genome_index, tmp_path):
+	"""-b a.bam,b.bam aligns the reads of both files, in order."""
+	reads = unpaired_reads(genome_dict)
+	a = write_bam(str(tmp_path / 'a.bam'), [(n, 4, s, q, []) for n, s, q in reads[:2]])
+	b = write_bam(str(tmp_path / 'b.bam'), [(n, 4, s, q, []) for n, s, q in reads[2:]])
+	recs, _ = run_align(bt2, genome_index, ['-b', a + ',' + b])
+	assert [r.qname for r in recs] == ['u1', 'u2', 'u3', 'u4']
+
+
 @pytest.mark.parametrize('option', ['--preserve-tags', '--align-paired-reads'])
 def test_bam_options_require_bam_input(bt2, genome_dict, genome_index, tmp_path, option):
 	"""--preserve-tags and --align-paired-reads are errors without -b."""

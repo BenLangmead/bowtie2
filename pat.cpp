@@ -1333,6 +1333,13 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			BGZF block;
 			cdata_len = nextBGZFBlockFromFile(block);
 			if (cdata_len == 0) {
+				if (filecur_ < infiles_.size()) {
+					// end of this file: go on with the next one
+					open();
+					resetForNextFile();
+					filecur_++;
+					continue;
+				}
 				done = nread == 0;
 				break;
 			}
