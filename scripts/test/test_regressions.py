@@ -11,6 +11,8 @@ Run from the repository root after `make`:
 
 import os
 
+import pytest
+
 import bt2_helpers as h
 
 
@@ -159,3 +161,27 @@ def test_one_n_in_repeated_read(bt2, lambda_fasta, tmp_path):
 		assert proc.returncode == 0, proc.stderr
 		assert 'runtime error' not in proc.stderr and 'Sanitizer' not in proc.stderr, \
 			proc.stderr
+
+
+@pytest.mark.parametrize('prog,args,message', [
+	('bowtie2', ['-X', '5OO'], '-X arg'),
+	('bowtie2', ['-p', '2x'], '-p/--threads arg'),
+	('bowtie2', ['-M', '5x'], "could not parse option argument '5x'"),
+	('bowtie2', ['-I', '600'], '-I/--minins (600) must not exceed -X/--maxins (500)'),
+	('bowtie2', ['--trim-to', '5:'], "expected two values separated by ':'"),
+	('bowtie2-build', ['--threads', '0'], '--threads arg must be at least 1'),
+	('bowtie2-build', ['--threads', '2x'], '--threads arg must be at least 1'),
+])
+def test_bad_option_values_are_errors(bt2, lambda_index, lambda_fasta, example_reads,
+		tmp_path, prog, args, message):
+	"""A malformed or out-of-range option value is an error, not silently
+	truncated (-X 5OO used to mean -X 5) or accepted (-I above -X;
+	bowtie2-build --threads 0, which divided by zero)."""
+	if prog == 'bowtie2':
+		args = ['-x', lambda_index, '-U', example_reads['longreads'], '-S',
+			str(tmp_path / 'out.sam')] + args
+	else:
+		args = args + ['--quiet', lambda_fasta, str(tmp_path / 'idx')]
+	proc = bt2.run(prog, args, check=False, timeout=60)
+	assert proc.returncode != 0
+	assert message in proc.stderr

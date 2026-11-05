@@ -956,7 +956,7 @@ static int parseInt(int lower, int upper, const char *errmsg, const char *arg) {
 	long l;
 	char *endPtr= NULL;
 	l = strtol(arg, &endPtr, 10);
-	if (endPtr != NULL) {
+	if (endPtr != arg && *endPtr == '\0') {
 		if (l < lower || l > upper) {
 			cerr << errmsg << endl;
 			printUsage(cerr);
@@ -985,6 +985,10 @@ T parse(const char *s) {
 	T tmp;
 	stringstream ss(s);
 	ss >> tmp;
+	if(ss.fail() || !ss.eof()) {
+		cerr << "Error: could not parse option argument '" << s << "'" << endl;
+		throw 1;
+	}
 	return tmp;
 }
 
@@ -1010,6 +1014,10 @@ pair<T, T> parsePair(const char *str, char delim) {
 	EList<string> ss;
 	tokenize(s, delim, ss);
 	pair<T, T> ret;
+	if(ss.size() != 2) {
+		cerr << "Error: expected two values separated by '" << delim << "', got '" << str << "'" << endl;
+		throw 1;
+	}
 	ret.first = parse<T>(ss[0].c_str());
 	ret.second = parse<T>(ss[1].c_str());
 	return ret;
@@ -1236,7 +1244,7 @@ static void parseOption(int next_option, const char *arg) {
 	case '3': gTrim3 = parseInt(0, "-3/--trim3 arg must be at least 0", arg); break;
 	case '5': gTrim5 = parseInt(0, "-5/--trim5 arg must be at least 0", arg); break;
 	case ARG_TRIM_TO: {
-		if (strlen(arg) > 1 && arg[1] != ':') {
+		if (strchr(arg, ':') == NULL) {
 			trimTo.first = 3;
 			trimTo.second = parseInt(0, "--trim-to: the number of bases to trim must be at least 0", arg);
 			break;
@@ -1719,6 +1727,12 @@ static void parseOptions(int argc, const char **argv) {
 	if (!saw_bam && saw_align_paired_reads) {
 		cerr << "--align-paired-reads can only be used when aligning BAM reads." << endl;
 		exit(1);
+	}
+
+	if (gMinInsert > gMaxInsert) {
+		cerr << "Error: -I/--minins (" << gMinInsert << ") must not exceed -X/--maxins ("
+		     << gMaxInsert << ")" << endl;
+		throw 1;
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.

@@ -221,7 +221,7 @@ template<typename T>
 static T parseNumber(T lower, const char *errmsg) {
 	char *endPtr= NULL;
 	T t = (T)strtoll(optarg, &endPtr, 10);
-	if (endPtr != NULL) {
+	if (endPtr != optarg && *endPtr == '\0') {
 		if (t < lower) {
 			cerr << errmsg << endl;
 			printUsage(cerr);
@@ -312,7 +312,7 @@ static bool parseOptions(int argc, const char **argv) {
 				break;
 			case ARG_NTOA: nsToAs = true; break;
 			case ARG_THREADS:
-				nthreads = parseNumber<int>(0, "--threads arg must be at least 1");
+				nthreads = parseNumber<int>(1, "--threads arg must be at least 1");
 				break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
