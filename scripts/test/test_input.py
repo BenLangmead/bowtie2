@@ -866,6 +866,56 @@ def test_compressed_mates(bt2, genome_dict, genome_index, tmp_path):
 		assert_pair(recs[2 * k], recs[2 * k + 1], genome_dict, pair)
 
 
+@pytest.mark.parametrize('pipes', [[], ['--no-named-pipes']])
+@pytest.mark.parametrize('layout', [
+	['-U', '{a}', '{c}'],
+	['-U', '{a},{c}'],
+	['-U', '{a},{b},{c}'],
+])
+def test_several_bzip2_files(bt2, genome_dict, genome_index, tmp_path, layout, pipes):
+	"""Every .bz2 file is read, whether listed after one -U or in a comma list,
+	in the order given (with and without named pipes)."""
+	if h.which('bzip2') is None:
+		pytest.skip('the wrapper decompresses .bz2 with the bzip2 program, not found')
+	reads = unpaired_reads(genome_dict)
+	paths = {'a': h.write_fastq(str(tmp_path / 'a.fq.bz2'), reads[:2], compress='bz2'),
+		'b': h.write_fastq(str(tmp_path / 'b.fq'), reads[2:3]),
+		'c': h.write_fastq(str(tmp_path / 'c.fq.bz2'), reads[3:], compress='bz2')}
+	names = {'a': ['u1', 'u2'], 'b': ['u3'], 'c': ['u4']}
+	recs, _ = run_align(bt2, genome_index,
+		pipes + [a.format(**paths) for a in layout])
+	used = [k for k in 'abc' if '{%s}' % k in ''.join(layout)]
+	assert [r.qname for r in recs] == sum((names[k] for k in used), [])
+
+
+@pytest.mark.parametrize('pipes', [[], ['--no-named-pipes']])
+def test_several_bzip2_mate_files(bt2, genome_dict, genome_index, tmp_path, pipes):
+	"""-1/-2 with two .bz2 files each read every pair, mates kept together."""
+	if h.which('bzip2') is None:
+		pytest.skip('the wrapper decompresses .bz2 with the bzip2 program, not found')
+	seqs = [pair_seqs(genome_dict, p) for p in PAIRS]
+	m1s, m2s = [], []
+	for k, (p, s) in enumerate(zip(PAIRS, seqs)):
+		m1s.append(h.write_fastq(str(tmp_path / ('m%d_1.fq.bz2' % k)), [(p[0], s[0])], compress='bz2'))
+		m2s.append(h.write_fastq(str(tmp_path / ('m%d_2.fq.bz2' % k)), [(p[0], s[1])], compress='bz2'))
+	recs, _ = run_align(bt2, genome_index, pipes + ['-1'] + m1s + ['-2'] + m2s)
+	assert [r.qname for r in recs] == ['p1', 'p1', 'p2', 'p2']
+	for k, pair in enumerate(PAIRS):
+		assert_pair(recs[2 * k], recs[2 * k + 1], genome_dict, pair)
+
+
+@pytest.mark.parametrize('pipes', [[], ['--no-named-pipes']])
+def test_corrupt_bzip2_file_fails(bt2, genome_index, tmp_path, pipes):
+	"""A .bz2 file bzip2 cannot decompress makes the run fail instead of
+	aligning 0 reads with exit 0."""
+	if h.which('bzip2') is None:
+		pytest.skip('the wrapper decompresses .bz2 with the bzip2 program, not found')
+	path = write_text(str(tmp_path / 'bad.fq.bz2'), 'not bzip2 data\n')
+	_, proc = run_align(bt2, genome_index, pipes + ['-U', path], check=False)
+	assert proc.returncode != 0
+	assert 'Could not read file' in proc.stderr
+
+
 @pytest.mark.parametrize('fmt', ['fastq', 'fastq-gz', 'fasta', 'tab5', 'bam'])
 def test_reads_from_stdin(bt2, genome_dict, genome_index, tmp_path, fmt):
 	"""'-' reads from standard input (FASTQ, gzipped FASTQ, FASTA, --tab5, BAM)."""
