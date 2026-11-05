@@ -1146,12 +1146,15 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 	// Parse read name
 	assert(r.name.empty());
 	while(true) {
-		assert_lt(cur, buflen);
+		if(cur >= buflen) {
+			truncatedFastqRecord(r.name);
+			return false;
+		}
 		c = r.readOrigBuf[cur++];
 		if(c == '\n' || c == '\r') {
-			do {
+			while(cur < buflen && (c == '\n' || c == '\r')) {
 				c = r.readOrigBuf[cur++];
-			} while(c == '\n' || c == '\r');
+			}
 			break;
 		}
 		r.name.append(c);
@@ -1170,7 +1173,10 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 				r.patFw.append(asc2dna[c]);
 			}
 		}
-		assert(cur < r.readOrigBuf.length());
+		if(cur >= buflen) {
+			truncatedFastqRecord(r.name);
+			return false;
+		}
 		c = r.readOrigBuf[cur++];
 	}
 	r.trimmed5 = (int)(nchar - r.patFw.length());
@@ -1178,7 +1184,10 @@ bool FastqPatternSource::parse(Read &r, Read& rb, TReadId rdid) const {
 
 	assert_eq('+', c);
 	do {
-		assert(cur < r.readOrigBuf.length());
+		if(cur >= buflen) {
+			truncatedFastqRecord(r.name);
+			return false;
+		}
 		c = r.readOrigBuf[cur++];
 	} while(c != '\n' && c != '\r');
 	while(cur < buflen && (c == '\n' || c == '\r')) {
@@ -1743,6 +1752,12 @@ void wrongQualityFormat(const BTString& read_name) {
 void tooFewQualities(const BTString& read_name) {
 	cerr << "Error: Read " << read_name << " has more read characters than "
 		 << "quality values." << endl;
+	throw 1;
+}
+
+void truncatedFastqRecord(const BTString& read_name) {
+	cerr << "Error: Read " << read_name << " is a truncated FASTQ record "
+		 << "(its '+' line or quality line is missing)." << endl;
 	throw 1;
 }
 
