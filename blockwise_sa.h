@@ -201,22 +201,35 @@ public:
 	SAISBlockwiseSA(TStr& __text, TIndexOffU __bucketSz, int __nthreads) :
 		InorderBlockwiseSA<TStr>(__text, __bucketSz, false, false, false, cout), _i(0), _nthreads(__nthreads)
 		{
+#ifndef BOWTIE_64BIT_INDEX
+			// The 32-bit libsais takes the text length (with the sentinel) as int32_t
+			if((uint64_t)__text.length() + 1 > (uint64_t)INT32_MAX) {
+				cerr << "Error: the reference (" << __text.length() << " bases) is too long for a small index built" << endl
+				     << "with SAIS; please use --large-index." << endl;
+				throw 1;
+			}
+#endif
 			__text.wbuf()[__text.length()] = (char)127; // $ is larger than any character in the suffix array
 			_suffixes.resize(__text.length() + 1);
+			int64_t ret;
 #ifdef BOWTIE_64BIT_INDEX
 #ifdef _OPENMP
-			libsais64_omp((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL, _nthreads);
+			ret = libsais64_omp((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL, _nthreads);
 #else
-			libsais64((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL);
+			ret = libsais64((const uint8_t *)__text.buf(), (int64_t *)(_suffixes.ptr()), (int64_t)_suffixes.size(), 0, NULL);
 #endif
 
 #else
 #ifdef _OPENMP
-			libsais_omp((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL, _nthreads);
+			ret = libsais_omp((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL, _nthreads);
 #else
-			libsais((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL);
+			ret = libsais((const uint8_t *)__text.buf(), (int32_t *)(_suffixes.ptr()), (int32_t)_suffixes.size(), 0, NULL);
 #endif
 #endif
+			if(ret != 0) {
+				cerr << "Error: libsais failed to construct the suffix array (return code " << ret << ")" << endl;
+				throw 1;
+			}
 			_suffixes[__text.length()] = __text.length();
 		}
 
