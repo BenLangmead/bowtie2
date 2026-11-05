@@ -228,7 +228,9 @@ def bam_record(name, flag, seq, qual, tags):
 	read_name = name.encode() + b'\0'
 	body = struct.pack('<iiBBHHHiiii', -1, -1, len(read_name), 0, 4680, 0, flag,
 		len(seq), -1, -1, 0)
-	body += read_name + bytes(packed) + bytes(ord(c) - 33 for c in qual)
+	# qual None: no qualities, stored as 0xFF per base
+	body += read_name + bytes(packed) + (b'\xff' * len(seq) if qual is None
+		else bytes(ord(c) - 33 for c in qual))
 	body += b''.join(bam_tag(*t) for t in tags)
 	return struct.pack('<i', len(body)) + body
 
@@ -599,6 +601,14 @@ def test_bam_header_spans_several_blocks(bt2, genome_dict, genome_index, tmp_pat
 	assert [r.qname for r in recs] == ['u1', 'u2', 'u3', 'u4']
 	for rec, spec, (_, _, q) in zip(recs, UNPAIRED, reads):
 		assert_placed(rec, genome_dict, spec, q)
+
+
+def test_bam_missing_quality(bt2, genome_dict, genome_index, tmp_path):
+	"""A BAM record without qualities (0xFF) gets Phred 40 ('I'), as FASTA reads do."""
+	n, s, _ = unpaired_reads(genome_dict)[0]
+	path = write_bam(str(tmp_path / 'r.bam'), [(n, 4, s, None, [])])
+	recs, _ = run_align(bt2, genome_index, ['-b', path])
+	assert_placed(recs[0], genome_dict, UNPAIRED[0], 'I' * len(s))
 
 
 @pytest.mark.parametrize('option', ['--preserve-tags', '--align-paired-reads'])

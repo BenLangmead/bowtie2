@@ -1518,7 +1518,8 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		if (i < pp_.trim5) {
 			ra.trimmed5 += 1;
 		} else {
-			ra.qual.append(qual[i] + 33);
+			// 0xFF: the record has no qualities; use 'I' like FASTA input
+			ra.qual.append(static_cast<uint8_t>(qual[i]) == 0xff ? 'I' : qual[i] + 33);
 			int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
 			ra.patFw.append(asc2dna[base]);
 		}
