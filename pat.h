@@ -454,17 +454,33 @@ protected:
 		int c;
 
 		do {
-			if (compressionType_ == CompressionType::GZIP)
+			if (compressionType_ == CompressionType::GZIP) {
 				c = gzgetc(zfp_);
+				int errnum = Z_OK;
+				// a corrupt or truncated stream also returns EOF; only gzerror tells them apart
+				const char *msg = c == EOF ? gzerror(zfp_, &errnum) : NULL;
+				if (errnum != Z_OK)
+					compressedReadError(msg);
+			}
 #ifdef WITH_ZSTD
-			else if (compressionType_ == CompressionType::ZSTD)
+			else if (compressionType_ == CompressionType::ZSTD) {
 				c = zstdGetc(zstdfp_);
+				if (c == EOF && ZSTD_isError(zstdfp_->err))
+					compressedReadError(ZSTD_getErrorName(zstdfp_->err));
+			}
 #endif
 			else
 				c = getc_unlocked(fp_);
 		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
 
 		return c;
+	}
+
+	void compressedReadError(const char *msg) {
+		// open() has already advanced filecur_ past the file being read
+		std::cerr << "Error reading compressed file " << infiles_[filecur_ - 1]
+		          << ": " << msg << std::endl;
+		throw 1;
 	}
 
 	int ungetc_wrapper(int c) {

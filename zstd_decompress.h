@@ -8,6 +8,7 @@ typedef struct zstd_stream zstdStrm;
 
 struct zstd_stream {
         int           back;
+        size_t        err;      // last ZSTD error code, 0 if none
         size_t        o_len;
         size_t        o_pos;
         size_t        i_len;

@@ -824,6 +824,39 @@ def test_compressed_reads(bt2, genome_dict, genome_index, tmp_path, kind):
 		assert_placed(rec, genome_dict, spec, q)
 
 
+@pytest.mark.parametrize('kind', ['gz-flip', 'gz-truncated', 'zst-flip', 'bam-flip'])
+def test_damaged_compressed_reads(bt2, genome_dict, genome_index, tmp_path, kind):
+	"""A corrupt or truncated compressed read file is an error, not a shorter
+	file (#547 item 4)."""
+	reads = unpaired_reads(genome_dict)
+	if kind.startswith('zst') and not zstd_input_supported(bt2):
+		pytest.skip('bowtie2 built without WITH_ZSTD, or zstd program not found')
+	if kind.startswith('gz'):
+		path = h.write_fastq(str(tmp_path / 'r.fq.gz'), reads, compress='gz')
+		args = ['-U', path]
+	elif kind.startswith('zst'):
+		plain = h.write_fastq(str(tmp_path / 'r.fq'), reads)
+		path = str(tmp_path / 'r.fq.zst')
+		subprocess.run(['zstd', '-q', '-f', '-o', path, plain], check=True)
+		args = ['-U', path]
+	else:
+		path = write_bam(str(tmp_path / 'r.bam'), [(n, 0x4, s, q, []) for n, s, q in reads])
+		args = ['-b', path]
+	with open(path, 'rb') as f:
+		data = bytearray(f.read())
+	if kind == 'gz-truncated':
+		data = data[:len(data) // 2]
+	elif kind == 'bam-flip':
+		data[18] = 0x07  # first deflate byte after the BGZF header: reserved block type
+	else:
+		data[len(data) // 2] ^= 0xff
+	with open(path, 'wb') as f:
+		f.write(data)
+	_, proc = run_align(bt2, genome_index, args, check=False)
+	assert proc.returncode != 0
+	assert 'Error reading compressed file ' + path in proc.stderr
+
+
 @pytest.mark.parametrize('layout', [
 	['-U', '{a},{b}', '-U', '{c}'],
 	['-U', '{a}', '-U', '{b},{c}'],
