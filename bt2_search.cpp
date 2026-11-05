@@ -1110,9 +1110,19 @@ static void parseOption(int next_option, const char *arg) {
 			format = UNKNOWN;
 		}
 		set_format(format, FASTA_CONT);
-		pair<uint32_t, uint32_t> p = parsePair<uint32_t>(arg, ',');
+		// Accept the documented k:<int>,i:<int> as well as <int>,<int>
+		string karg(arg);
+		if(karg.compare(0, 2, "k:") == 0) karg.erase(0, 2);
+		size_t icolon = karg.find(",i:");
+		if(icolon != string::npos) karg.erase(icolon + 1, 2);
+		pair<uint32_t, uint32_t> p = parsePair<uint32_t>(karg.c_str(), ',');
 		fastaContLen = p.first;
 		fastaContFreq = p.second;
+		// FastaContinuousPatternSource keeps the last k bases in a 1024-base window
+		if(fastaContLen < 1 || fastaContLen > 1024 || fastaContFreq < 1) {
+			cerr << "Error: -F k:<int>,i:<int> needs 1 <= k <= 1024 and i >= 1" << endl;
+			throw 1;
+		}
 		break;
 	}
 	case ARG_BWA_SW_LIKE: {
