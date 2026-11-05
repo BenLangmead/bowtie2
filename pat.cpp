@@ -806,6 +806,11 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 			c = getc_wrapper();
 			if(c < 0 || c == '>') {
 				done = c < 0;
+				// parse() expects the record to end with a newline, as the
+				// FASTQ light parser also ensures at EOF
+				if(done && buf.length() > 1 && buf[buf.length()-1] != '\n') {
+					buf.append('\n');
+				}
 				break;
 			}
 			buf.append(c);

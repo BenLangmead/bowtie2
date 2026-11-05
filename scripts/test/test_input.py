@@ -292,6 +292,21 @@ def test_format_parses_reads(bt2, genome_dict, genome_index, tmp_path, fmt):
 		assert_placed(rec, genome_dict, spec, q if has_qual else 'I' * len(s))
 
 
+@pytest.mark.parametrize('fmt', ['fastq', 'fasta', 'tab5', 'tab6', 'qseq', 'raw'])
+def test_no_final_newline(bt2, genome_dict, genome_index, tmp_path, fmt):
+	"""A reads file without its final newline gives the same SAM as with it."""
+	reads = unpaired_reads(genome_dict)
+	args, _, _ = write_input(fmt, tmp_path, reads)
+	_, with_nl = run_align(bt2, genome_index, args)
+	with open(args[-1]) as f:
+		text = f.read()
+	assert text.endswith('\n')
+	write_text(args[-1], text[:-1])
+	_, without_nl = run_align(bt2, genome_index, args)
+	assert len(sam_body(with_nl)) == len(UNPAIRED)
+	assert sam_body(without_nl) == sam_body(with_nl)
+
+
 def test_q_is_the_default(bt2, genome_dict, genome_index, tmp_path):
 	"""-q (FASTQ) gives the same SAM as giving no format option."""
 	args, _, _ = write_input('fastq', tmp_path, unpaired_reads(genome_dict))
