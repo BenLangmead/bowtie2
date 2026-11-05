@@ -790,8 +790,14 @@ public:
 		if(cur_ > 0) flush();
 		asyncData_.waitIdle();
 		closed_ = true;
-		if(out_ != NULL && out_ != stdout) {
-			fclose(out_);
+		if(out_ != NULL) {
+			// stdio may only write the data (and see e.g. a full disk) here
+			int ret = (out_ == stdout) ? fflush(out_) : fclose(out_);
+			if(ret != 0 && errno != EPIPE) {
+				std::cerr << "Error: Could not write output file " << name_
+				          << ": " << strerror(errno) << std::endl;
+				throw 1;
+			}
 		}
 	}
 

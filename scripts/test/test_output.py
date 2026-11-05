@@ -1356,3 +1356,41 @@ def test_bam_output(bt2, genome_index, unp, tmp_path):
 		assert f.read(2) == b'\x1f\x8b'
 	view = subprocess.run(['samtools', 'view', out], capture_output=True, text=True, check=True)
 	assert body(view.stdout) == body(bt2.run('bowtie2', unp_args(genome_index, unp)).stdout)
+
+
+def test_bam_output_fails_when_samtools_fails(bt2, genome_index, unp, tmp_path):
+	"""--bam exits non-zero when samtools fails instead of reporting success."""
+	fake = tmp_path / 'bin'
+	fake.mkdir()
+	samtools = fake / 'samtools'
+	samtools.write_text('#!/bin/sh\ncat >/dev/null\nexit 1\n')
+	samtools.chmod(0o755)
+	env = dict(os.environ, PATH=str(fake) + os.pathsep + os.environ.get('PATH', ''))
+	proc = bt2.run('bowtie2', unp_args(genome_index, unp) + ['--bam', '-S', str(tmp_path / 'o.bam')],
+		env=env, check=False)
+	assert proc.returncode != 0
+	assert 'Could not write' in proc.stderr
+
+
+@pytest.mark.parametrize('wrapper', [False, True])
+def test_write_error_exits_non_zero(bt2, genome_index, unp, tmp_path, wrapper):
+	"""A failed write of the -S file (here: /dev/full, or a file-size limit)
+	makes the aligner, and the wrapper writing the SAM itself, exit non-zero."""
+	if os.path.exists('/dev/full'):
+		out, preexec = '/dev/full', None
+	else:
+		resource = pytest.importorskip('resource')
+		import signal
+		out = str(tmp_path / 'o.sam')
+
+		def preexec():
+			# Writes past the limit then fail with EFBIG instead of killing the process
+			signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+			resource.setrlimit(resource.RLIMIT_FSIZE, (64, 64))
+	if wrapper:
+		cmd = [bt2.bowtie2] + unp_args(genome_index, unp) + ['--no-unal', '-S', out]
+	else:
+		cmd = [align_bin(bt2)] + unp_args(genome_index, unp) + ['-S', out]
+	proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, preexec_fn=preexec)
+	assert proc.returncode != 0, proc.stderr
+	assert 'Could not write' in proc.stderr
