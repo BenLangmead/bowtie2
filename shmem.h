@@ -23,10 +23,15 @@
 #ifdef BOWTIE_SHARED_MEM
 
 #include <string>
+#include <sstream>
 #include <sys/shm.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <sys/shm.h>
 #include <errno.h>
+#include <signal.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdexcept>
 #include "str_util.h"
@@ -34,20 +39,20 @@
 
 extern void notifySharedMem(void *mem, size_t len);
 
-extern void waitSharedMem(void *mem, size_t len);
-
 #define ALLOC_SHARED_U allocSharedMem<TIndexOffU>
 #define ALLOC_SHARED_U8 allocSharedMem<uint8_t>
 #define ALLOC_SHARED_U32 allocSharedMem<uint32_t>
 #define FREE_SHARED shmdt
 #define NOTIFY_SHARED notifySharedMem
-#define WAIT_SHARED waitSharedMem
 
 #define SHMEM_UNINIT  0xafba4242
 #define SHMEM_INIT    0xffaa6161
 
 /**
  * Tries to allocate a shared-memory chunk for a given file of a given size.
+ * The chunk is keyed on the file's real path, size and modification time,
+ * so another index opened under the same name, or a rebuilt one, gets its
+ * own chunk.
  */
 template <typename T>
 bool allocSharedMem(std::string fname,
@@ -58,8 +63,16 @@ bool allocSharedMem(std::string fname,
 {
 	using namespace std;
 	int shmid = -1;
-	// Calculate key given string
-	key_t key = (key_t)hash_string(fname);
+	struct stat st;
+	char path[PATH_MAX];
+	if(realpath(fname.c_str(), path) == NULL || stat(path, &st) != 0) {
+		cerr << "Could not stat " << fname << " for shared memory" << endl;
+		throw 1;
+	}
+	// shortcut: a 32-bit hash with 1 s mtime; a rewrite of the same size in the same second still matches
+	ostringstream id;
+	id << path << ':' << st.st_size << ':' << st.st_mtime << ':' << memName;
+	key_t key = (key_t)hash_string(id.str());
 	shmid_ds ds;
 	int ret;
 	// Reserve 4 bytes at the end for silly synchronization
@@ -123,7 +136,24 @@ bool allocSharedMem(std::string fname,
 				throw 1;
 			}
 		} else {
-			break;
+			// Unless I created it, wait until its creator has loaded it
+			volatile uint32_t *sync = (volatile uint32_t*)((char*)ptr + len);
+			while(ds.shm_cpid != getpid() && *sync != SHMEM_INIT &&
+			      !(kill(ds.shm_cpid, 0) < 0 && errno == ESRCH)) {
+				sleep(1);
+			}
+			if(ds.shm_cpid == getpid() || *sync == SHMEM_INIT) {
+				break;
+			}
+			cerr << "Warning: process " << ds.shm_cpid << " exited before it finished loading "
+			     << memName << " into shared memory" << endl
+			     << "Deleting its shared memory block and trying again." << endl;
+			shmdt(ptr);
+			// EINVAL/EIDRM: another waiting process deleted it first
+			if((ret = shmctl(shmid, IPC_RMID, &ds)) < 0 && errno != EINVAL && errno != EIDRM) {
+				cerr << "shmctl returned " << ret << " for IPC_RMID and errno is " << errno << endl;
+				throw 1;
+			}
 		}
 	} // while(true)
 	*dst = ptr;
@@ -154,7 +184,6 @@ bool allocSharedMem(std::string fname,
 #define ALLOC_SHARED_U32(...) 0
 #define FREE_SHARED(...)
 #define NOTIFY_SHARED(...)
-#define WAIT_SHARED(...)
 
 #endif /*BOWTIE_SHARED_MEM*/
 

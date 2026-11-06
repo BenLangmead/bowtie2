@@ -338,7 +338,7 @@ void Ebwt::readIntoMemory(
 		if(useShmem_) {
 			uint8_t *tmp = NULL;
 			shmemLeader = ALLOC_SHARED_U8(
-				(_in1Str + "[ebwt]"), eh->_ebwtTotLen, &tmp,
+				_in1Str, eh->_ebwtTotLen, &tmp,
 				"ebwt[]", (_verbose || startVerbose));
 			assert(tmp != NULL);
 			_ebwt.init(tmp, eh->_ebwtTotLen, false);
@@ -376,11 +376,8 @@ void Ebwt::readIntoMemory(
 			if(useShmem_) NOTIFY_SHARED(ebwt(), eh->_ebwtTotLen);
 #endif
 		} else {
-			// Seek past the data and wait until master is finished
+			// Seek past the data (allocSharedMem waited until the leader loaded it)
 			fseeko(_in1, eh->_ebwtTotLen, SEEK_CUR);
-#ifdef BOWTIE_SHARED_MEM
-			if(useShmem_) WAIT_SHARED(ebwt(), eh->_ebwtTotLen);
-#endif
 		}
 	}
 
@@ -533,7 +530,7 @@ void Ebwt::readIntoMemory(
 			} else {
 				TIndexOffU *tmp = NULL;
 				shmemLeader = ALLOC_SHARED_U(
-					(_in2Str + "[offs]"), offsLenSampled*OFF_SIZE, &tmp,
+					_in2Str, offsLenSampled*OFF_SIZE, &tmp,
 					"offs", (_verbose || startVerbose));
 				_offs.init((TIndexOffU*)tmp, offsLenSampled, false);
 			}
@@ -606,9 +603,6 @@ void Ebwt::readIntoMemory(
 			} else {
 				// Not the shmem leader
 				fseeko(_in2, offsLenSampled*OFF_SIZE, SEEK_CUR);
-#ifdef BOWTIE_SHARED_MEM
-				if(useShmem_) WAIT_SHARED(offs(), offsLenSampled*OFF_SIZE);
-#endif
 			}
 		}
 	}

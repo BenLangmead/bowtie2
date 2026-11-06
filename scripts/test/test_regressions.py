@@ -10,6 +10,11 @@ Run from the repository root after `make`:
 """
 
 import os
+import random
+import shutil
+import subprocess
+
+import pytest
 
 import bt2_helpers as h
 
@@ -159,3 +164,99 @@ def test_one_n_in_repeated_read(bt2, lambda_fasta, tmp_path):
 		assert proc.returncode == 0, proc.stderr
 		assert 'runtime error' not in proc.stderr and 'Sanitizer' not in proc.stderr, \
 			proc.stderr
+
+
+def shm_segments():
+	"""(shmid, creator pid) of each SysV shared-memory segment, read from
+	`ipcs -m -p`, whose columns differ between macOS and Linux."""
+	cols, segs = None, []
+	out = subprocess.run(['ipcs', '-m', '-p'], capture_output=True, text=True).stdout
+	for line in out.splitlines():
+		toks = line.split()
+		low = [t.lower() for t in toks]
+		if 'cpid' in low:
+			cols = low
+		elif cols and len(toks) == len(cols) and toks[cols.index('cpid')].isdigit():
+			shmid = toks[cols.index('shmid' if 'shmid' in cols else 'id')]
+			segs.append((shmid, int(toks[cols.index('cpid')])))
+	return segs
+
+
+@pytest.fixture
+def shmem_align():
+	"""Runs bowtie2-align-s --shmem directly (so the pid that creates the
+	segments is known) and removes every segment those runs created.
+	Skips unless the binary was built with BOWTIE_SHARED_MEM."""
+	exe = os.path.join(h.BIN_DIR, 'bowtie2-align-s')
+	version = subprocess.run([exe, '--version'], capture_output=True, text=True).stdout
+	if '-DBOWTIE_SHARED_MEM' not in version:
+		pytest.skip('bowtie2-align-s was built without BOWTIE_SHARED_MEM')
+	pids = []
+
+	def run(args, cwd, timeout=60):
+		proc = subprocess.Popen([exe, '--shmem'] + [str(a) for a in args], cwd=cwd,
+			stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+		pids.append(proc.pid)
+		try:
+			out, err = proc.communicate(timeout=timeout)
+		except subprocess.TimeoutExpired:
+			proc.kill()
+			proc.communicate()
+			pytest.fail('bowtie2-align-s --shmem hung for %d s' % timeout)
+		return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
+
+	yield run
+	for shmid, cpid in shm_segments():
+		if cpid in pids:
+			subprocess.run(['ipcrm', '-m', shmid])
+
+
+def test_shmem_does_not_share_another_index(bt2, shmem_align, tmp_path):
+	"""--shmem must not attach to the segments of another index that was
+	opened under the same relative name (-x idx) from another directory.
+	Both genomes have the same length, so the segments have the same sizes."""
+	rng = random.Random(26)
+	refs = [h.random_dna(3000, rng), h.random_dna(3000, rng)]
+	dirs = []
+	for i, seq in enumerate(refs):
+		d = tmp_path / ('d%d' % i)
+		d.mkdir()
+		bt2.build_index(h.write_fasta(str(d / 'ref.fa'), [('ref', seq)]),
+			str(d / 'idx'), extra=['--seed', '0'])
+		dirs.append(str(d))
+	starts = range(0, 2900, 100)
+	reads = h.write_fastq(str(tmp_path / 'reads.fq'),
+		[('r%d' % p, refs[1][p:p + 50]) for p in starts])
+	first = shmem_align(['-x', 'idx', '-U', reads], cwd=dirs[0])
+	assert first.returncode == 0, first.stderr
+	second = shmem_align(['-x', 'idx', '-U', reads], cwd=dirs[1])
+	assert second.returncode == 0, second.stderr
+	records = h.parse_sam(second.stdout)[1]
+	assert [(r.qname, r.pos) for r in records] == [('r%d' % p, p + 1) for p in starts]
+
+
+def test_shmem_failed_load_does_not_hang(bt2, shmem_align, lambda_index,
+		example_reads, tmp_path):
+	"""A --shmem run that dies while loading the index must not leave a
+	segment that makes every later run wait for it forever."""
+	for ext in ('1', '2', '3', '4', 'rev.1', 'rev.2'):
+		shutil.copy('%s.%s.bt2' % (lambda_index, ext), str(tmp_path))
+	ref = str(tmp_path / 'lambda_virus.4.bt2')
+	with open(ref, 'r+b') as f:
+		f.truncate(os.path.getsize(ref) // 2)
+	for _ in range(2):
+		proc = shmem_align(['-x', 'lambda_virus', '-U', example_reads['reads_1']],
+			cwd=str(tmp_path), timeout=20)
+		assert proc.returncode != 0
+		assert 'Only read' in proc.stderr
+
+
+def test_shmem_rejected_without_support(bt2, lambda_index, example_reads):
+	"""A build without BOWTIE_SHARED_MEM rejects --shmem instead of crashing."""
+	version = bt2.run(os.path.join(h.BIN_DIR, 'bowtie2-align-s'), ['--version']).stdout
+	if '-DBOWTIE_SHARED_MEM' in version:
+		pytest.skip('bowtie2-align-s was built with BOWTIE_SHARED_MEM')
+	proc = bt2.run('bowtie2', ['--shmem', '-x', lambda_index, '-U',
+		example_reads['reads_1']], check=False)
+	assert proc.returncode == 1
+	assert 'BOWTIE_SHARED_MEM' in proc.stderr
