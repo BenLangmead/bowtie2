@@ -159,7 +159,7 @@ ifeq (1, $(USE_SRA))
     $(error "SRA binaries cannot be built on MINGW")
   else
     LDFLAGS += -L$(CURDIR)/.tmp/lib64
-    ifndef ($(STATIC_BUILD))
+    ifndef STATIC_BUILD
       CPPFLAGS += -I$(CURDIR)/.tmp/include
     endif
     ALIGN_LDLIBS += -lncbi-ngs-static
