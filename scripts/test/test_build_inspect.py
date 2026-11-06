@@ -375,6 +375,7 @@ STRATEGY_VARIANTS = [
 	['-a', '--dcv', '4096'],
 	['--dcv', '64'],
 	['--threads', '4'],
+	['--threads', '2', '--bmax', '64'],
 	['--threads', '3', '-a', '--bmaxdivn', '9', '--dcv', '32'],
 	['--seed', '7'],
 	['--seed', '123456'],
