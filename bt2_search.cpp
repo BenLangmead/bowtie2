@@ -1619,7 +1619,7 @@ static void parseOption(int next_option, const char *arg) {
 		tokenize(arg, ",", args);
 		if(args.size() > 3 || args.size() == 0) {
 			cerr << "Error: expected 3 or fewer comma-separated "
-			     << "arguments to --n-ceil option, got "
+			     << "arguments to --score-min option, got "
 			     << args.size() << endl;
 			throw 1;
 		}
@@ -1876,7 +1876,7 @@ static void parseOptions(int argc, const char **argv) {
 	if(multiseedMms >= multiseedLen) {
 		assert_gt(multiseedLen, 0);
 		cerr << "Warning: seed mismatches (" << multiseedMms
-		     << ") is less than seed length (" << multiseedLen
+		     << ") is not less than seed length (" << multiseedLen
 		     << "); setting mismatches to " << (multiseedMms-1)
 		     << " instead" << endl;
 		multiseedMms = multiseedLen-1;
