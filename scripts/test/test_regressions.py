@@ -182,6 +182,24 @@ def shm_segments():
 	return segs
 
 
+def shm_modes():
+	"""shmid -> permission bits of each SysV shared-memory segment, read from
+	`ipcs -m` (macOS prints MODE as --rw-r--r--, Linux prints perms as 644)."""
+	cols, modes = None, {}
+	out = subprocess.run(['ipcs', '-m'], capture_output=True, text=True).stdout
+	for line in out.splitlines():
+		toks = line.split()
+		low = [t.lower() for t in toks]
+		if 'mode' in low or 'perms' in low:
+			cols = low
+		elif cols and len(toks) >= len(cols) - 1:  # Linux may leave status empty
+			mode = toks[cols.index('mode' if 'mode' in cols else 'perms')]
+			shmid = toks[cols.index('shmid' if 'shmid' in cols else 'id')]
+			modes[shmid] = int(mode, 8) if mode.isdigit() else \
+				sum(1 << (8 - i) for i, c in enumerate(mode[-9:]) if c != '-')
+	return modes
+
+
 @pytest.fixture
 def shmem_align():
 	"""Runs bowtie2-align-s --shmem directly (so the pid that creates the
@@ -205,6 +223,7 @@ def shmem_align():
 			pytest.fail('bowtie2-align-s --shmem hung for %d s' % timeout)
 		return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
 
+	run.pids = pids
 	yield run
 	for shmid, cpid in shm_segments():
 		if cpid in pids:
@@ -260,3 +279,21 @@ def test_shmem_rejected_without_support(bt2, lambda_index, example_reads):
 		example_reads['reads_1']], check=False)
 	assert proc.returncode == 1
 	assert 'BOWTIE_SHARED_MEM' in proc.stderr
+
+
+def test_shmem_segments_not_world_writable(bt2, shmem_align, lambda_index,
+		example_reads, tmp_path):
+	"""--shmem segments are writable only by their owner (they were 0666),
+	and a second run, which attaches to them read-only, aligns the same."""
+	args = ['-x', lambda_index, '-U', example_reads['reads_1']]
+	first = shmem_align(args, cwd=str(tmp_path))
+	assert first.returncode == 0, first.stderr
+	second = shmem_align(args, cwd=str(tmp_path))
+	assert second.returncode == 0, second.stderr
+	assert second.stdout == first.stdout
+	segs = shm_segments()
+	assert not [shmid for shmid, cpid in segs if cpid == shmem_align.pids[1]]
+	created = [shmid for shmid, cpid in segs if cpid == shmem_align.pids[0]]
+	assert created
+	modes = shm_modes()
+	assert [oct(modes[shmid]) for shmid in created] == [oct(0o644)] * len(created)
