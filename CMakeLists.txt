@@ -17,6 +17,7 @@ ProcessorCount(NUM_CORES)
 
 option(BOWTIE_MM "enable bowtie2 memory mapping" ON)
 option(BOWTIE_SHARED_MEM "enable shared memory mapping" OFF)
+option(SSE_AVX2 "on x86_64, also build the AVX2 (x86-64-v3) aligners, used when the CPU supports them" ON)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -149,9 +150,10 @@ endif()
  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH)
 if (${ARCH} MATCHES aarch64|arm64|390x|ppc64|ppc64le)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp-simd")
-elseif (${ARCH} MATCHES amd64|x64_64)
+elseif (${ARCH} MATCHES amd64|x86_64)
   add_definitions(-DPOPCNT_CAPABILITY)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse2")
+  set(ENABLE_V256 ${SSE_AVX2})
 endif()
 
 if (WITH_THREAD_PROFILING)
@@ -295,6 +297,22 @@ add_executable(bowtie2-inspect-l ${INSPECT_CPPS} ${SHARED_CPPS})
 set_target_properties(bowtie2-align-l bowtie2-build-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX")
 set_target_properties(bowtie2-inspect-l PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX -DBOWTIE_INSPECT_MAIN")
 set_target_properties(bowtie2-inspect-s PROPERTIES COMPILE_FLAGS "-DBOWTIE_INSPECT_MAIN")
+
+# Same as the Makefile: bowtie2-align-{s,l} check the CPU at startup and exec
+# bowtie2-align-{s,l}-v256 when it supports x86-64-v3.
+if (ENABLE_V256)
+  add_executable(bowtie2-align-s-v256 ${SEARCH_CPPS} ${SHARED_CPPS})
+  add_executable(bowtie2-align-l-v256 ${SEARCH_CPPS} ${SHARED_CPPS})
+  set_target_properties(bowtie2-align-l-v256 PROPERTIES COMPILE_FLAGS "-DBOWTIE_64BIT_INDEX")
+  foreach(t bowtie2-align-s-v256 bowtie2-align-l-v256)
+    target_compile_options(${t} PRIVATE -march=x86-64-v3 -mtune=znver3 -faligned-new)
+    target_compile_definitions(${t} PRIVATE SSE_AVX2)
+  endforeach()
+  foreach(t bowtie2-align-s bowtie2-align-l)
+    target_compile_definitions(${t} PRIVATE ENABLE_x86_64_v3)
+  endforeach()
+  list(APPEND BOWTIE2_BIN_LIST bowtie2-align-s-v256 bowtie2-align-l-v256)
+endif()
 
 install(TARGETS ${BOWTIE2_BIN_LIST} DESTINATION bin)
 install(FILES ${BOWTIE2_WRAPPER_SCRIPTS}
