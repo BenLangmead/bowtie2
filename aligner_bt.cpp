@@ -94,21 +94,24 @@ void BtBranchTracer::triangleFill(
 	if(!upperleft) {
 		// Read-only pointer to cells in diagonal -2.  Start one row above the
 		// target row.
-		prev2 = prob_.cper_->qdiag1sPtr() + (off * prob_.cper_->nrow() + row_lo - 1);
+		int64_t cpoff = off * prob_.cper_->nrow() + row_lo - 1;
+		prob_.cper_->decode(prob_.cper_->qdiag1s_, cpoff, breadth + 1, cpq1_);
+		prev2 = cpq1_.ptr();
 		// Read-only pointer to cells in diagonal -1.  Start one row above the
 		// target row
-		prev1 = prob_.cper_->qdiag2sPtr() + (off * prob_.cper_->nrow() + row_lo - 1);
+		prob_.cper_->decode(prob_.cper_->qdiag2s_, cpoff, breadth + 1, cpq2_);
+		prev1 = cpq2_.ptr();
 #ifndef NDEBUG
 		if(row >= (int64_t)mod) {
 			size_t rowc = row - mod, colc = col;
 			if(rowc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc)) {
 				TAlScore al = prev1[0].sc[0];
-				if(al == MIN_I16) al = MIN_I64;
+				if(al == MIN_I32) al = MIN_I64;
 				assert_eq(prob_.cper_->scoreTriangle(rowc-1, colc, 0), al);
 			}
 			if(rowc > 0 && colc > 0 && prob_.cper_->isCheckpointed(rowc-1, colc-1)) {
 				TAlScore al = prev2[0].sc[0];
-				if(al == MIN_I16) al = MIN_I64;
+				if(al == MIN_I32) al = MIN_I64;
 				assert_eq(prob_.cper_->scoreTriangle(rowc-1, colc-1, 0), al);
 			}
 		}
@@ -145,30 +148,30 @@ void BtBranchTracer::triangleFill(
 				// Get character from reference
 				int rc = prob_.ref_[colc];
 				assert_range(0, 16, rc);
-				int16_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
-				int16_t sc_h_up = MIN_I16;
-				int16_t sc_f_up = MIN_I16;
-				int16_t sc_h_lf = MIN_I16;
-				int16_t sc_e_lf = MIN_I16;
+				int32_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
+				int32_t sc_h_up = MIN_I32;
+				int32_t sc_f_up = MIN_I32;
+				int32_t sc_h_lf = MIN_I32;
+				int32_t sc_e_lf = MIN_I32;
 				if(allowGaps) {
 					if(rowc > 0) {
 						assert(local || prev1[j+0].sc[2] < 0);
-						if(prev1[j+0].sc[0] > MIN_I16) {
+						if(prev1[j+0].sc[0] > MIN_I32) {
 							sc_h_up = prev1[j+0].sc[0] - sc_rfo;
-							if(local) sc_h_up = max<int16_t>(sc_h_up, 0);
+							if(local) sc_h_up = max<int32_t>(sc_h_up, 0);
 						}
-						if(prev1[j+0].sc[2] > MIN_I16) {
+						if(prev1[j+0].sc[2] > MIN_I32) {
 							sc_f_up = prev1[j+0].sc[2] - sc_rfe;
-							if(local) sc_f_up = max<int16_t>(sc_f_up, 0);
+							if(local) sc_f_up = max<int32_t>(sc_f_up, 0);
 						}
 #ifndef NDEBUG
 						TAlScore hup = prev1[j+0].sc[0];
 						TAlScore fup = prev1[j+0].sc[2];
-						if(hup == MIN_I16) hup = MIN_I64;
-						if(fup == MIN_I16) fup = MIN_I64;
+						if(hup == MIN_I32) hup = MIN_I64;
+						if(fup == MIN_I32) fup = MIN_I64;
 						if(local) {
-							hup = max<int16_t>(hup, 0);
-							fup = max<int16_t>(fup, 0);
+							hup = max<int32_t>(hup, 0);
+							fup = max<int32_t>(fup, 0);
 						}
 						if(prob_.cper_->isCheckpointed(rowc-1, colc)) {
 							assert_eq(hup, prob_.cper_->scoreTriangle(rowc-1, colc, 0));
@@ -178,22 +181,22 @@ void BtBranchTracer::triangleFill(
 					}
 					if(colc > 0) {
 						assert(local || prev1[j+1].sc[1] < 0);
-						if(prev1[j+1].sc[0] > MIN_I16) {
+						if(prev1[j+1].sc[0] > MIN_I32) {
 							sc_h_lf = prev1[j+1].sc[0] - sc_rdo;
-							if(local) sc_h_lf = max<int16_t>(sc_h_lf, 0);
+							if(local) sc_h_lf = max<int32_t>(sc_h_lf, 0);
 						}
-						if(prev1[j+1].sc[1] > MIN_I16) {
+						if(prev1[j+1].sc[1] > MIN_I32) {
 							sc_e_lf = prev1[j+1].sc[1] - sc_rde;
-							if(local) sc_e_lf = max<int16_t>(sc_e_lf, 0);
+							if(local) sc_e_lf = max<int32_t>(sc_e_lf, 0);
 						}
 #ifndef NDEBUG
 						TAlScore hlf = prev1[j+1].sc[0];
 						TAlScore elf = prev1[j+1].sc[1];
-						if(hlf == MIN_I16) hlf = MIN_I64;
-						if(elf == MIN_I16) elf = MIN_I64;
+						if(hlf == MIN_I32) hlf = MIN_I64;
+						if(elf == MIN_I32) elf = MIN_I64;
 						if(local) {
-							hlf = max<int16_t>(hlf, 0);
-							elf = max<int16_t>(elf, 0);
+							hlf = max<int32_t>(hlf, 0);
+							elf = max<int32_t>(elf, 0);
 						}
 						if(prob_.cper_->isCheckpointed(rowc, colc-1)) {
 							assert_eq(hlf, prob_.cper_->scoreTriangle(rowc, colc-1, 0));
@@ -203,14 +206,14 @@ void BtBranchTracer::triangleFill(
 					}
 				}
 				assert(rowc <= 1 || colc <= 0 || prev2 != NULL);
-				int16_t sc_h_dg = ((rowc > 0 && colc > 0) ? prev2[j+0].sc[0] : 0);
+				int32_t sc_h_dg = ((rowc > 0 && colc > 0) ? prev2[j+0].sc[0] : 0);
 				if(colc == 0 && rowc > 0 && !local) {
-					sc_h_dg = MIN_I16;
+					sc_h_dg = MIN_I32;
 				}
-				if(sc_h_dg > MIN_I16) {
+				if(sc_h_dg > MIN_I32) {
 					sc_h_dg += sc_diag;
 				}
-				if(local) sc_h_dg = max<int16_t>(sc_h_dg, 0);
+				if(local) sc_h_dg = max<int32_t>(sc_h_dg, 0);
 				// cerr << sc_diag << " " << sc_h_dg << " " << sc_h_up << " " << sc_f_up << " " << sc_h_lf << " " << sc_e_lf << endl;
 				int mask = 0;
 				// Calculate best ways into H, E, F cells starting with H.
@@ -218,7 +221,7 @@ void BtBranchTracer::triangleFill(
 				// H: 1=diag, 2=hhoriz, 4=ehoriz, 8=hvert, 16=fvert
 				// E: 32=hhoriz, 64=ehoriz
 				// F: 128=hvert, 256=fvert
-				int16_t sc_best = sc_h_dg;
+				int32_t sc_best = sc_h_dg;
 				if(sc_h_dg > MIN_I64) {
 					mask = 1;
 				}
@@ -243,7 +246,7 @@ void BtBranchTracer::triangleFill(
 					sc_best = sc_f_up;
 				}
 				// Calculate best way into E cell
-				int16_t sc_e_best = sc_h_lf;
+				int32_t sc_e_best = sc_h_lf;
 				if(colc > 0) {
 					if(sc_h_lf >= sc_e_lf && sc_h_lf > MIN_I64) {
 						if(sc_h_lf == sc_e_lf) {
@@ -260,7 +263,7 @@ void BtBranchTracer::triangleFill(
 					mask &= ~31; // don't go diagonal
 				}
 				// Calculate best way into F cell
-				int16_t sc_f_best = sc_h_up;
+				int32_t sc_f_best = sc_h_up;
 				if(rowc > 0) {
 					if(sc_h_up >= sc_f_up && sc_h_up > MIN_I64) {
 						if(sc_h_up == sc_f_up) {
@@ -283,8 +286,8 @@ void BtBranchTracer::triangleFill(
 				curc->sc[0] = sc_best;
 				assert( local || sc_e_best < 0);
 				assert( local || sc_f_best < 0);
-				assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I16);
-				assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I16);
+				assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I32);
+				assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I32);
 				curc->sc[1] = sc_e_best;
 				curc->sc[2] = sc_f_best;
 				curc->sc[3] = mask;
@@ -293,12 +296,12 @@ void BtBranchTracer::triangleFill(
 #ifndef NDEBUG
 				if(prob_.cper_->isCheckpointed(rowc, colc)) {
 					if(local) {
-						sc_e_best = max<int16_t>(sc_e_best, 0);
-						sc_f_best = max<int16_t>(sc_f_best, 0);
+						sc_e_best = max<int32_t>(sc_e_best, 0);
+						sc_f_best = max<int32_t>(sc_f_best, 0);
 					}
-					TAlScore sc_best64   = sc_best;   if(sc_best   == MIN_I16) sc_best64   = MIN_I64;
-					TAlScore sc_e_best64 = sc_e_best; if(sc_e_best == MIN_I16) sc_e_best64 = MIN_I64;
-					TAlScore sc_f_best64 = sc_f_best; if(sc_f_best == MIN_I16) sc_f_best64 = MIN_I64;
+					TAlScore sc_best64   = sc_best;   if(sc_best   == MIN_I32) sc_best64   = MIN_I64;
+					TAlScore sc_e_best64 = sc_e_best; if(sc_e_best == MIN_I32) sc_e_best64 = MIN_I64;
+					TAlScore sc_f_best64 = sc_f_best; if(sc_f_best == MIN_I32) sc_f_best64 = MIN_I64;
 					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 0), sc_best64);
 					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 1), sc_e_best64);
 					assert_eq(prob_.cper_->scoreTriangle(rowc, colc, 2), sc_f_best64);
@@ -571,7 +574,7 @@ void BtBranchTracer::triangleFill(
 #define DEBUG_CHECK(ss, row, col, hef) { \
 	if(prob_.cper_->debug() && row >= 0 && col >= 0) { \
 		TAlScore s = ss; \
-		if(s == MIN_I16) s = MIN_I64; \
+		if(s == MIN_I32) s = MIN_I64; \
 		if(local && s < 0) s = 0; \
 		TAlScore deb = prob_.cper_->debugCell(row, col, hef); \
 		if(local && deb < 0) deb = 0; \
@@ -635,7 +638,10 @@ void BtBranchTracer::squareFill(
 	assert_eq(prob_.reflen_, (TRefOff)ncol);
 	size_t niter = prob_.cper_->niter_;
 	if(!upper) {
-		qup = prob_.cper_->qrows_.ptr() + (ncol * (ydiv-1)) + xdiv * per;
+		// Decode the checkpointed row above, from one cell left of the square
+		int64_t cpoff = (int64_t)(ncol * (ydiv-1) + xdiv * per) - 1;
+		prob_.cper_->decode(prob_.cper_->qrows_, cpoff, xmod + 2, cpq1_);
+		qup = cpq1_.ptr() + 1;
 	}
 	if(!left) {
 		// Set up the column pointers to point to the first SSERegI word in the
@@ -650,7 +656,7 @@ void BtBranchTracer::squareFill(
 	// Iterate over rows, then over columns
 	size_t regmod = yi % prob_.cper_->niter_;
 	size_t regdiv = yi / prob_.cper_->niter_;
-	int16_t sc_h_dg_lastrow = MIN_I16;
+	int32_t sc_h_dg_lastrow = MIN_I32;
 	for(size_t i = 0; i <= ymod; i++, yi++) {
 		assert_lt(yi, nrow);
  		xi = xedge;
@@ -660,20 +666,20 @@ void BtBranchTracer::squareFill(
 		// Get character, quality from read
 		int qc = prob_.qry_[yi], qq = prob_.qual_[yi];
 		assert_geq(qq, 33);
-		int16_t sc_h_lf_last = MIN_I16;
-		int16_t sc_e_lf_last = MIN_I16;
+		int32_t sc_h_lf_last = MIN_I32;
+		int32_t sc_e_lf_last = MIN_I32;
 		for(size_t j = 0; j <= xmod; j++, xi++) {
 			assert_lt(xi, ncol);
 			// Get character from reference
 			int rc = prob_.ref_[xi];
 			assert_range(0, 16, rc);
-			int16_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
-			int16_t sc_h_up = MIN_I16, sc_f_up = MIN_I16,
-			        sc_h_lf = MIN_I16, sc_e_lf = MIN_I16,
-					sc_h_dg = MIN_I16;
-			int16_t sc_h_up_c = MIN_I16, sc_f_up_c = MIN_I16,
-			        sc_h_lf_c = MIN_I16, sc_e_lf_c = MIN_I16,
-					sc_h_dg_c = MIN_I16;
+			int32_t sc_diag = prob_.sc_->score(qc, rc, qq - 33);
+			int32_t sc_h_up = MIN_I32, sc_f_up = MIN_I32,
+			        sc_h_lf = MIN_I32, sc_e_lf = MIN_I32,
+					sc_h_dg = MIN_I32;
+			int32_t sc_h_up_c = MIN_I32, sc_f_up_c = MIN_I32,
+			        sc_h_lf_c = MIN_I32, sc_e_lf_c = MIN_I32,
+					sc_h_dg_c = MIN_I32;
 			if(yi == 0) {
 				// If I'm in the first first row or column set it to 0
 				sc_h_dg = 0;
@@ -707,9 +713,9 @@ void BtBranchTracer::squareFill(
 					if(local) {
 						// No adjustment
 					} else {
-						if(sc_h_lf == 0) sc_h_lf = MIN_I16;
+						if(sc_h_lf == 0) sc_h_lf = MIN_I32;
 						else sc_h_lf -= 0xff;
-						if(sc_e_lf == 0) sc_e_lf = MIN_I16;
+						if(sc_e_lf == 0) sc_e_lf = MIN_I32;
 						else sc_e_lf -= 0xff;
 					}
 				} else {
@@ -720,8 +726,8 @@ void BtBranchTracer::squareFill(
 						sc_h_lf += 0x8000; assert_geq(sc_h_lf, 0);
 						sc_e_lf += 0x8000; assert_geq(sc_e_lf, 0);
 					} else {
-						if(sc_h_lf != MIN_I16) sc_h_lf -= 0x7fff;
-						if(sc_e_lf != MIN_I16) sc_e_lf -= 0x7fff;
+						sc_h_lf = (sc_h_lf == MIN_I16) ? MIN_I32 : sc_h_lf - 0x7fff;
+						sc_e_lf = (sc_e_lf == MIN_I16) ? MIN_I32 : sc_e_lf - 0x7fff;
 					}
 				}
 				DEBUG_CHECK(sc_e_lf, yi, xi-1, 0);
@@ -733,17 +739,17 @@ void BtBranchTracer::squareFill(
 				if(j == 0 /* at left edge */ && xi > 0 /* not extreme */) {
 					sc_h_lf_c = sc_h_lf;
 					sc_e_lf_c = sc_e_lf;
-					if(sc_h_lf_c != MIN_I16) sc_h_lf_c -= sc_rdo;
-					if(sc_e_lf_c != MIN_I16) sc_e_lf_c -= sc_rde;
+					if(sc_h_lf_c != MIN_I32) sc_h_lf_c -= sc_rdo;
+					if(sc_e_lf_c != MIN_I32) sc_e_lf_c -= sc_rde;
 					assert_leq(sc_h_lf_c, prob_.cper_->perf_);
 					assert_leq(sc_e_lf_c, prob_.cper_->perf_);
 				} else if(xi > 0) {
 					// Get values for left neighbors from the previous iteration
-					if(sc_h_lf_last != MIN_I16) {
+					if(sc_h_lf_last != MIN_I32) {
 						sc_h_lf = sc_h_lf_last;
 						sc_h_lf_c = sc_h_lf - sc_rdo;
 					}
-					if(sc_e_lf_last != MIN_I16) {
+					if(sc_e_lf_last != MIN_I32) {
 						sc_e_lf = sc_e_lf_last;
 						sc_e_lf_c = sc_e_lf - sc_rde;
 					}
@@ -752,29 +758,29 @@ void BtBranchTracer::squareFill(
 					// Get column values
 					assert(qup != NULL);
 					assert(local || qup[j].sc[2] < 0);
-					if(qup[j].sc[0] > MIN_I16) {
+					if(qup[j].sc[0] > MIN_I32) {
 						DEBUG_CHECK(qup[j].sc[0], yi-1, xi, 2);
 						sc_h_up = qup[j].sc[0];
 						sc_h_up_c = sc_h_up - sc_rfo;
 					}
-					if(qup[j].sc[2] > MIN_I16) {
+					if(qup[j].sc[2] > MIN_I32) {
 						DEBUG_CHECK(qup[j].sc[2], yi-1, xi, 1);
 						sc_f_up = qup[j].sc[2];
 						sc_f_up_c = sc_f_up - sc_rfe;
 					}
 				}
 				if(local) {
-					sc_h_up_c = max<int16_t>(sc_h_up_c, 0);
-					sc_f_up_c = max<int16_t>(sc_f_up_c, 0);
-					sc_h_lf_c = max<int16_t>(sc_h_lf_c, 0);
-					sc_e_lf_c = max<int16_t>(sc_e_lf_c, 0);
+					sc_h_up_c = max<int32_t>(sc_h_up_c, 0);
+					sc_f_up_c = max<int32_t>(sc_f_up_c, 0);
+					sc_h_lf_c = max<int32_t>(sc_h_lf_c, 0);
+					sc_e_lf_c = max<int32_t>(sc_e_lf_c, 0);
 				}
 			}
 			
-			if(sc_h_dg > MIN_I16) {
+			if(sc_h_dg > MIN_I32) {
 				sc_h_dg_c = sc_h_dg + sc_diag;
 			}
-			if(local) sc_h_dg_c = max<int16_t>(sc_h_dg_c, 0);
+			if(local) sc_h_dg_c = max<int32_t>(sc_h_dg_c, 0);
 			
 			int mask = 0;
 			// Calculate best ways into H, E, F cells starting with H.
@@ -782,7 +788,7 @@ void BtBranchTracer::squareFill(
 			// H: 1=diag, 2=hhoriz, 4=ehoriz, 8=hvert, 16=fvert
 			// E: 32=hhoriz, 64=ehoriz
 			// F: 128=hvert, 256=fvert
-			int16_t sc_best = sc_h_dg_c;
+			int32_t sc_best = sc_h_dg_c;
 			if(sc_h_dg_c > MIN_I64) {
 				mask = 1;
 			}
@@ -807,7 +813,7 @@ void BtBranchTracer::squareFill(
 				sc_best = sc_f_up_c;
 			}
 			// Calculate best way into E cell
-			int16_t sc_e_best = sc_h_lf_c;
+			int32_t sc_e_best = sc_h_lf_c;
 			if(xi > 0) {
 				if(sc_h_lf_c >= sc_e_lf_c && sc_h_lf_c > MIN_I64) {
 					if(sc_h_lf_c == sc_e_lf_c) {
@@ -824,7 +830,7 @@ void BtBranchTracer::squareFill(
 				mask &= ~31; // don't go diagonal
 			}
 			// Calculate best way into F cell
-			int16_t sc_f_best = sc_h_up_c;
+			int32_t sc_f_best = sc_h_up_c;
 			if(yi > 0) {
 				if(sc_h_up_c >= sc_f_up_c && sc_h_up_c > MIN_I64) {
 					if(sc_h_up_c == sc_f_up_c) {
@@ -845,8 +851,8 @@ void BtBranchTracer::squareFill(
 			sq_[ii+j].sc[0] = sc_best;
 			assert( local || sc_e_best < 0);
 			assert( local || sc_f_best < 0);
-			assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I16);
-			assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I16);
+			assert(!local || sc_e_best >= 0 || sc_e_best == MIN_I32);
+			assert(!local || sc_f_best >= 0 || sc_f_best == MIN_I32);
 			sq_[ii+j].sc[1] = sc_e_best;
 			sq_[ii+j].sc[2] = sc_f_best;
 			sq_[ii+j].sc[3] = mask;
@@ -1186,7 +1192,7 @@ void BtBranch::init(
 			   prob.cper_->isCheckpointed(rowc - 1, colc - 1))
 			{
 				// Possibly prune
-				int16_t cpsc;
+				int32_t cpsc;
 				cpsc = prob.cper_->scoreTriangle(rowc - 1, colc - 1, hef);
 				if(cpsc + score_st_ < prob.targ_) {
 					curtailed_ = true;
@@ -1263,7 +1269,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rdgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row, col - 1)) {
 					// Possibly prune
-					int16_t cpsc = (int16_t)prob_.cper_->scoreTriangle(row, col - 1, 0);
+					int32_t cpsc = (int32_t)prob_.cper_->scoreTriangle(row, col - 1, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->readGapOpen(), prob_.sc_->readGapExtend());
 					TAlScore bonus = prob_.sc_->readGapOpen() - prob_.sc_->readGapExtend();
@@ -1291,7 +1297,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 				assert_gt(rfgapPen, 0);
 				if(cp && prob_.cper_->isCheckpointed(row - 1, col)) {
 					// Possibly prune
-					int16_t cpsc = (int16_t)prob_.cper_->scoreTriangle(row - 1, col, 0);
+					int32_t cpsc = (int32_t)prob_.cper_->scoreTriangle(row - 1, col, 0);
 					assert_leq(cpsc, perfectScore);
 					assert_geq(prob_.sc_->refGapOpen(), prob_.sc_->refGapExtend());
 					TAlScore bonus = prob_.sc_->refGapOpen() - prob_.sc_->refGapExtend();
@@ -1323,7 +1329,7 @@ void BtBranchTracer::addOffshoots(size_t bid) {
 			bool prune = false;
 			if(cp && row > 0 && col > 0 && prob_.cper_->isCheckpointed(row - 1, col - 1)) {
 				// Possibly prune
-				int16_t cpsc = prob_.cper_->scoreTriangle(row - 1, col - 1, 0);
+				int32_t cpsc = prob_.cper_->scoreTriangle(row - 1, col - 1, 0);
 				assert_leq(cpsc, perfectScore);
 				assert_leq(cpsc + scdiff + sc, perfectScore);
 				if(cpsc + scdiff + sc < prob_.targ_) {

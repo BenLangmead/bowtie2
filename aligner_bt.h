@@ -960,6 +960,7 @@ protected:
 	bool           doTri_;      // true -> fill in triangles; false -> squares
 	EList<CpQuad>  sq_;         // square to fill when doing mini-fills
 	ELList<CpQuad> tri_;        // triangle to fill when doing mini-fills
+	EList<CpQuad>  cpq1_, cpq2_; // checkpointed cells decoded for mini-fills
 	EList<size_t>  ndep_;       // # triangles mini-filled at various depths
 
 	bool           resetPending_; // seenPaths_/sawcell_ reset owed by initRef

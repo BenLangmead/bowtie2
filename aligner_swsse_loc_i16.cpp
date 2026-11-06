@@ -734,19 +734,19 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 							size_t delt = idxrow + row;
 							size_t vecoff = (row_mod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG-1)) + row_div;
 							assert_lt(row_div, (NBYTES_PER_REG/2));
-							int16_t h_sc = ((int16_t*)pvH)[vecoff];
-							int16_t e_sc = ((int16_t*)pvE)[vecoff];
-							int16_t f_sc = ((int16_t*)pvF)[vecoff];
+							int32_t h_sc = ((int16_t*)pvH)[vecoff];
+							int32_t e_sc = ((int16_t*)pvE)[vecoff];
+							int32_t f_sc = ((int16_t*)pvF)[vecoff];
 							h_sc += 0x8000; assert_geq(h_sc, 0);
 							e_sc += 0x8000; assert_geq(e_sc, 0);
 							f_sc += 0x8000; assert_geq(f_sc, 0);
 							assert_leq(h_sc, cper_.perf_);
 							assert_leq(e_sc, cper_.perf_);
 							assert_leq(f_sc, cper_.perf_);
-							CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
-							qdiags[delt].sc[0] = h_sc;
-							qdiags[delt].sc[1] = e_sc;
-							qdiags[delt].sc[2] = f_sc;
+							CpQuad16 *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
+							qdiags[delt].sc[0] = cper_.enc(h_sc);
+							qdiags[delt].sc[1] = cper_.enc(e_sc);
+							qdiags[delt].sc[2] = cper_.enc(f_sc);
 						} // if(row >= 0 && row < nrow_)
 						else if(row >= 0 && (size_t)row >= cper_.nrow_) {
 							done = true;
@@ -784,19 +784,19 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 				size_t sz = cper_.commitMap_.size();
 				for(size_t i = 0; i < sz; i++, rowoff += cper_.ncol_) {
 					size_t vecoff = cper_.commitMap_[i];
-					int16_t h_sc = ((int16_t*)pvH)[vecoff];
+					int32_t h_sc = ((int16_t*)pvH)[vecoff];
 					//int16_t e_sc = ((int16_t*)pvE)[vecoff];
-					int16_t f_sc = ((int16_t*)pvF)[vecoff];
+					int32_t f_sc = ((int16_t*)pvF)[vecoff];
 					h_sc += 0x8000; assert_geq(h_sc, 0);
 					//e_sc += 0x8000; assert_geq(e_sc, 0);
 					f_sc += 0x8000; assert_geq(f_sc, 0);
 					assert_leq(h_sc, cper_.perf_);
 					//assert_leq(e_sc, cper_.perf_);
 					assert_leq(f_sc, cper_.perf_);
-					CpQuad& dst = cper_.qrows_[rowoff + coli];
-					dst.sc[0] = h_sc;
+					CpQuad16& dst = cper_.qrows_[rowoff + coli];
+					dst.sc[0] = cper_.enc(h_sc);
 					//dst.sc[1] = e_sc;
-					dst.sc[2] = f_sc;
+					dst.sc[2] = cper_.enc(f_sc);
 				}
 				// Is this a column we'd like to checkpoint?
 				if((coli & cper_.lomask_) == cper_.lomask_) {

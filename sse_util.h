@@ -339,6 +339,19 @@ struct  CpQuad {
 			   sc[3] == o.sc[3];
 	}
 
+	// A mini-fill cell (H, E, F, mask) or a decoded checkpoint.  16-bit SSE
+	// cells hold local scores 0..65535 and end-to-end scores -65534..0, so
+	// int16 would wrap; MIN_I32 marks an unreachable cell.
+	int32_t sc[4];
+};
+
+/**
+ * A checkpointed cell as the 16-bit SSE fill encodes it (see
+ * Checkpointer::enc), so it takes no more space than an int16 score.
+ */
+struct CpQuad16 {
+	CpQuad16() { sc[0] = sc[1] = sc[2] = sc[3] = 0; }
+
 	int16_t sc[4];
 };
 
@@ -455,18 +468,39 @@ public:
 		assert(isCheckpointed(row, col));
 		bool diag1 = ((row + col) & lomask_) == per_ - 2;
 		size_t off = (row + col) >> perpow2_;
-		if(diag1) {
-			if(qdiag1s_[off * nrow_ + row].sc[hef] == MIN_I16) {
-				return MIN_I64;
-			} else {
-				return qdiag1s_[off * nrow_ + row].sc[hef];
+		const EList<CpQuad16>& q = diag1 ? qdiag1s_ : qdiag2s_;
+		int32_t sc = dec(q[off * nrow_ + row].sc[hef]);
+		return sc == MIN_I32 ? MIN_I64 : sc;
+	}
+
+	/**
+	 * Encode a score for qdiag1s_/qdiag2s_/qrows_ the way the 16-bit fill
+	 * stores it: local 0..65535 as sc - 0x8000; end-to-end -65534..0 as
+	 * sc + 0x7fff, with MIN_I16 for MIN_I32 (unreachable).
+	 */
+	int16_t enc(int32_t sc) const {
+		if(local_) return (int16_t)(sc - 0x8000);
+		return sc == MIN_I32 ? MIN_I16 : (int16_t)(sc + 0x7fff);
+	}
+
+	int32_t dec(int16_t sc) const {
+		if(local_) return sc + 0x8000;
+		return sc == MIN_I16 ? MIN_I32 : sc - 0x7fff;
+	}
+
+	/**
+	 * Decode the n cells of src starting at off into dst.  Cells outside src
+	 * (reached only by guarded reads) become unreachable.
+	 */
+	void decode(const EList<CpQuad16>& src, int64_t off, size_t n, EList<CpQuad>& dst) const {
+		dst.resize(n);
+		for(size_t i = 0; i < n; i++) {
+			int64_t k = off + (int64_t)i;
+			bool in = k >= 0 && k < (int64_t)src.size();
+			for(int j = 0; j < 3; j++) {
+				dst[i].sc[j] = in ? dec(src[k].sc[j]) : MIN_I32;
 			}
-		} else {
-			if(qdiag2s_[off * nrow_ + row].sc[hef] == MIN_I16) {
-				return MIN_I64;
-			} else {
-				return qdiag2s_[off * nrow_ + row].sc[hef];
-			}
+			dst[i].sc[3] = 0;
 		}
 	}
 
@@ -478,8 +512,8 @@ public:
 		// necessarily have the horizontal contributions calculated, so we want
 		// to use the column info in that case.
 		if((row & lomask_) == lomask_ && hef != 1) {
-			int64_t sc = qrows_[(row >> perpow2_) * ncol_ + col].sc[hef];
-			if(sc == MIN_I16) return MIN_I64;
+			int32_t sc = dec(qrows_[(row >> perpow2_) * ncol_ + col].sc[hef]);
+			if(sc == MIN_I32) return MIN_I64;
 			return sc;
 		}
 		hef--;
@@ -546,9 +580,6 @@ public:
 	size_t nrow()    const { return nrow_;    }
 	size_t ncol()    const { return ncol_;    }
 	
-	const CpQuad* qdiag1sPtr() const { return qdiag1s_.ptr(); }
-	const CpQuad* qdiag2sPtr() const { return qdiag2s_.ptr(); }
-
 	size_t   perpow2_;   // 1 << perpow2_ - 2 is the # of uncheckpointed
 	                     // anti-diags between checkpointed anti-diag pairs
 	size_t   per_;       // 1 << perpow2_
@@ -567,10 +598,10 @@ public:
 	EList<size_t> commitMap_;
 	bool          firstCommit_;
 	
-	EList<CpQuad> qdiag1s_; // checkpoint H/E/F values for diagonal 1
-	EList<CpQuad> qdiag2s_; // checkpoint H/E/F values for diagonal 2
+	EList<CpQuad16> qdiag1s_; // checkpoint H/E/F values for diagonal 1
+	EList<CpQuad16> qdiag2s_; // checkpoint H/E/F values for diagonal 2
 
-	EList<CpQuad> qrows_;   // checkpoint H/E/F values for rows
+	EList<CpQuad16> qrows_;   // checkpoint H/E/F values for rows
 	
 	// We store columns in this way to reduce overhead of populating them
 	bool          is8_;     // true -> fill used 8-bit cells
