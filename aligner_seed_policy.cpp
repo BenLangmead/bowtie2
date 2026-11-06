@@ -44,32 +44,46 @@ static int parseFuncType(const std::string& otype) {
 	throw 1;
 }
 
+/**
+ * Parse all of s as a number into v; reject junk like "-O.6" instead of
+ * silently using 0.  A fraction given for an integer setting is truncated,
+ * as it always was (scripts/sim passes e.g. --ma 31.9).
+ */
+template<typename T>
+static void parseNum(const std::string& s, T& v) {
+	istringstream tmpss(s);
+	double d;
+	tmpss >> d;
+	if(tmpss.fail() || !tmpss.eof()) {
+		std::cerr << "Error: could not parse '" << s.c_str()
+		          << "' as a number in alignment policy setting." << std::endl;
+		throw 1;
+	}
+	v = (T)d;
+}
+
 #define PARSE_FUNC(fv) { \
 	if(ctoks.size() >= 1) { \
 		fv.setType(parseFuncType(ctoks[0])); \
 	} \
 	if(ctoks.size() >= 2) { \
 		double co; \
-		istringstream tmpss(ctoks[1]); \
-		tmpss >> co; \
+		parseNum(ctoks[1], co); \
 		fv.setConst(co); \
 	} \
 	if(ctoks.size() >= 3) { \
 		double ce; \
-		istringstream tmpss(ctoks[2]); \
-		tmpss >> ce; \
+		parseNum(ctoks[2], ce); \
 		fv.setCoeff(ce); \
 	} \
 	if(ctoks.size() >= 4) { \
 		double mn; \
-		istringstream tmpss(ctoks[3]); \
-		tmpss >> mn; \
+		parseNum(ctoks[3], mn); \
 		fv.setMin(mn); \
 	} \
 	if(ctoks.size() >= 5) { \
 		double mx; \
-		istringstream tmpss(ctoks[4]); \
-		tmpss >> mx; \
+		parseNum(ctoks[4], mx); \
 		fv.setMin(mx); \
 	} \
 }
@@ -361,8 +375,7 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			string tmp = ctoks[0];
-			istringstream tmpss(tmp);
-			tmpss >> bonusMatch;
+			parseNum(tmp, bonusMatch);
 		}
 		// Scoring for mismatches
 		// MMP={Cxx|Q|RQ}
@@ -381,23 +394,20 @@ void SeedAlignmentPolicy::parseString(
 			if(ctoks[0][0] == 'C') {
 				string tmp = ctoks[0].substr(1);
 				// Parse constant penalty
-				istringstream tmpss(tmp);
-				tmpss >> penMmcMax;
+				parseNum(tmp, penMmcMax);
 				penMmcMin = penMmcMax;
 				// Parse constant penalty
 				penMmcType = COST_MODEL_CONSTANT;
 			} else if(ctoks[0][0] == 'Q') {
 				if(ctoks.size() >= 2) {
 					string tmp = ctoks[1];
-					istringstream tmpss(tmp);
-					tmpss >> penMmcMax;
+					parseNum(tmp, penMmcMax);
 				} else {
 					penMmcMax = DEFAULT_MM_PENALTY_MAX;
 				}
 				if(ctoks.size() >= 3) {
 					string tmp = ctoks[2];
-					istringstream tmpss(tmp);
-					tmpss >> penMmcMin;
+					parseNum(tmp, penMmcMin);
 				} else {
 					penMmcMin = DEFAULT_MM_PENALTY_MIN;
 				}
@@ -456,8 +466,7 @@ void SeedAlignmentPolicy::parseString(
 			if(ctoks[0][0] == 'C') {
 				string tmp = ctoks[0].substr(1);
 				// Parse constant penalty
-				istringstream tmpss(tmp);
-				tmpss >> penN;
+				parseNum(tmp, penN);
 				// Parse constant penalty
 				penNType = COST_MODEL_CONSTANT;
 			} else if(ctoks[0][0] == 'Q') {
@@ -483,16 +492,14 @@ void SeedAlignmentPolicy::parseString(
 		//             (defaults to 0)
 		else if(tag == "RDG") {
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> penRdExConst;
+				parseNum(ctoks[0], penRdExConst);
 			} else {
 				penRdExConst = noisyHpolymer ?
 					DEFAULT_READ_GAP_CONST_BADHPOLY :
 					DEFAULT_READ_GAP_CONST;
 			}
 			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> penRdExLinear;
+				parseNum(ctoks[1], penRdExLinear);
 			} else {
 				penRdExLinear = noisyHpolymer ?
 					DEFAULT_READ_GAP_LINEAR_BADHPOLY :
@@ -508,16 +515,14 @@ void SeedAlignmentPolicy::parseString(
 		//             (defaults to 0)
 		else if(tag == "RFG") {
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> penRfExConst;
+				parseNum(ctoks[0], penRfExConst);
 			} else {
 				penRfExConst = noisyHpolymer ?
 					DEFAULT_REF_GAP_CONST_BADHPOLY :
 					DEFAULT_REF_GAP_CONST;
 			}
 			if(ctoks.size() >= 2) {
-				istringstream tmpss(ctoks[1]);
-				tmpss >> penRfExLinear;
+				parseNum(ctoks[1], penRfExLinear);
 			} else {
 				penRfExLinear = noisyHpolymer ?
 					DEFAULT_REF_GAP_LINEAR_BADHPOLY :
@@ -561,8 +566,7 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> multiseedMms;
+				parseNum(ctoks[0], multiseedMms);
 				if(multiseedMms > 1) {
 					cerr << "Error: -N was set to " << multiseedMms << ", but cannot be set greater than 1" << endl;
 					throw 1;
@@ -582,8 +586,7 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> multiseedLen;
+				parseNum(ctoks[0], multiseedLen);
 			}
 		}
 		else if(tag == "DPS") {
@@ -595,8 +598,7 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> failStreak;
+				parseNum(ctoks[0], failStreak);
 			}
 		}
 		else if(tag == "ROUNDS") {
@@ -608,8 +610,7 @@ void SeedAlignmentPolicy::parseString(
 				assert(false); throw 1;
 			}
 			if(ctoks.size() >= 1) {
-				istringstream tmpss(ctoks[0]);
-				tmpss >> seedRounds;
+				parseNum(ctoks[0], seedRounds);
 			}
 		}
 		/*

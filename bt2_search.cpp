@@ -1619,7 +1619,7 @@ static void parseOption(int next_option, const char *arg) {
 		tokenize(arg, ",", args);
 		if(args.size() > 3 || args.size() == 0) {
 			cerr << "Error: expected 3 or fewer comma-separated "
-			     << "arguments to --n-ceil option, got "
+			     << "arguments to --score-min option, got "
 			     << args.size() << endl;
 			throw 1;
 		}
