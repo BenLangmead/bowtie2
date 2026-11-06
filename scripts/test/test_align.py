@@ -750,6 +750,14 @@ def test_mismatch_penalty_spelled_out(bt2, genome_index, qual_read, tmp_path):
 		qual=qual).tags['AS'] == -(5 + 6 + 8)
 
 
+def test_mismatch_penalty_above_255(bt2, lambda_index, example_reads):
+	"""A penalty that does not fit in a byte (--mp 300) gives the same records as
+	the 16-bit DP (--no-sse8): the 8-bit kernel used to truncate it to 44."""
+	fq = example_reads['reads_1']
+	args = ['--mp', '300,300', '--score-min', 'C,-254', '-u', 500]
+	same_records(align(bt2, lambda_index, fq, args), align(bt2, lambda_index, fq, args + ['--no-sse8']), 500)
+
+
 def test_mp_max_below_min_is_an_error(bt2, genome_index, qual_read, tmp_path):
 	"""--mp with MX < MN is rejected."""
 	edited, qual = qual_read
