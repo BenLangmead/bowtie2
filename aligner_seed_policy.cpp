@@ -46,17 +46,20 @@ static int parseFuncType(const std::string& otype) {
 
 /**
  * Parse all of s as a number into v; reject junk like "-O.6" instead of
- * silently using 0.
+ * silently using 0.  A fraction given for an integer setting is truncated,
+ * as it always was (scripts/sim passes e.g. --ma 31.9).
  */
 template<typename T>
 static void parseNum(const std::string& s, T& v) {
 	istringstream tmpss(s);
-	tmpss >> v;
+	double d;
+	tmpss >> d;
 	if(tmpss.fail() || !tmpss.eof()) {
 		std::cerr << "Error: could not parse '" << s.c_str()
 		          << "' as a number in alignment policy setting." << std::endl;
 		throw 1;
 	}
+	v = (T)d;
 }
 
 #define PARSE_FUNC(fv) { \
