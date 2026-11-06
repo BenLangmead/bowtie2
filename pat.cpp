@@ -1763,7 +1763,15 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	bool done = false;
 
 	while (readi < pt.max_buf_) {
-		if(!read_iter_->nextRead() || !read_iter_->nextFragment()) {
+		if(read_iter_ == NULL || !read_iter_->nextRead()) {
+			// this accession is used up; move on to the next one
+			if(!open()) {
+				done = true;
+				break;
+			}
+			continue;
+		}
+		if(!read_iter_->nextFragment()) {
 			done = true;
 			break;
 		}
@@ -1788,12 +1796,7 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 	}
 
 	pt.setReadId(readCnt_);
-
-	{
-		ThreadSafe ts(mutex);
-		readCnt_ += readi;
-	}
-
+	readCnt_ += readi;
 	return make_pair(done, readi);
 }
 
@@ -1808,6 +1811,7 @@ std::pair<bool, int> SRAPatternSource::nextBatch(
 	if(lock) {
 		// synchronization at this level because both reading and manipulation of
 		// current file pointer have to be protected
+		ThreadSafe ts(mutex);
 		return nextBatchImpl(pt, batch_a);
 	} else {
 		return nextBatchImpl(pt, batch_a);
@@ -1921,37 +1925,41 @@ bool SRAPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 	return true;
 }
 
-void SRAPatternSource::open() {
-	const string& sra_acc = sra_accs_[sra_acc_cur_];
+bool SRAPatternSource::open() {
+	delete read_iter_;
+	read_iter_ = NULL;
 	string version = "bowtie2";
 	ncbi::NGS::setAppVersionString(version);
-	assert(!sra_acc.empty());
-	try {
-		// open requested accession using SRA implementation of the API
-		ngs::ReadCollection sra_run = ncbi::NGS::openReadCollection(sra_acc);
+	for(; sra_acc_cur_ < sra_accs_.size(); sra_acc_cur_++) {
+		const string& sra_acc = sra_accs_[sra_acc_cur_];
+		assert(!sra_acc.empty());
+		try {
+			// open requested accession using SRA implementation of the API
+			ngs::ReadCollection sra_run = ncbi::NGS::openReadCollection(sra_acc);
 
-		// compute window to iterate through
-		size_t MAX_ROW = sra_run.getReadCount();
-		pp_.upto -= pp_.skip;
+			// compute window to iterate through
+			uint64_t nreads = sra_run.getReadCount();
+			uint64_t skip = 0;
 
-		if (pp_.upto <= MAX_ROW) {
-			MAX_ROW = pp_.upto;
+			// -s/-u windows apply to the first accession only; later accessions
+			// are read whole and filtered by read id, as with file input
+			if (sra_acc_cur_ == 0) {
+				skip = pp_.skip < nreads ? pp_.skip : nreads;
+				readCnt_ = skip;
+				nreads -= skip;
+				if (pp_.upto - pp_.skip < nreads) {
+					nreads = pp_.upto - pp_.skip;
+				}
+			}
+
+			read_iter_ = new ngs::ReadIterator(sra_run.getReadRange(skip + 1, nreads, ngs::Read::all));
+			sra_acc_cur_++;
+			return true;
+		} catch(...) {
+			cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
 		}
-		if(MAX_ROW < 0) {
-			return;
-		}
-
-		size_t start = 1;
-
-		if (pp_.skip > 0) {
-			start = pp_.skip + 1;
-			readCnt_ = pp_.skip;
-		}
-
-		read_iter_ = new ngs::ReadIterator(sra_run.getReadRange(start, MAX_ROW, ngs::Read::all));
-	} catch(...) {
-		cerr << "Warning: Could not access \"" << sra_acc << "\" for reading; skipping..." << endl;
 	}
+	return false;
 }
 
 #endif
