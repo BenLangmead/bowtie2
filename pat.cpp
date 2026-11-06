@@ -1772,8 +1772,7 @@ std::pair<bool, int> SRAPatternSource::nextBatchImpl(
 			continue;
 		}
 		if(!read_iter_->nextFragment()) {
-			done = true;
-			break;
+			continue; // spot without a biological fragment
 		}
 		const ngs::StringRef rname = read_iter_->getReadId();
 		const ngs::StringRef ra_seq = read_iter_->getFragmentBases();

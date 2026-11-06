@@ -1039,6 +1039,13 @@ def test_version(bt2):
 	assert re.search(r'bowtie2-align-s(-v256)? version %s$' % re.escape(version_string(bt2)), first), first
 
 
+def test_version_reports_use_sra(bt2):
+	"""--version lists -DUSE_SRA exactly when the build has --sra-acc
+	(simple_tests.pl looks for it to decide whether to run the SRA cases)."""
+	has_sra = '--sra-acc' in bt2.run('bowtie2', ['--help']).stdout
+	assert ('-DUSE_SRA' in bt2.run('bowtie2', ['--version']).stdout) == has_sra
+
+
 @pytest.mark.parametrize('opt', ['-h', '--help'])
 def test_help(bt2, opt):
 	"""-h/--help prints the usage, listing the output and performance options,
