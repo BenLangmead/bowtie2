@@ -11,6 +11,7 @@ Run from the repository root after `make`:
 
 import os
 import random
+import shutil
 import subprocess
 
 import pytest
@@ -232,3 +233,30 @@ def test_shmem_does_not_share_another_index(bt2, shmem_align, tmp_path):
 	assert second.returncode == 0, second.stderr
 	records = h.parse_sam(second.stdout)[1]
 	assert [(r.qname, r.pos) for r in records] == [('r%d' % p, p + 1) for p in starts]
+
+
+def test_shmem_failed_load_does_not_hang(bt2, shmem_align, lambda_index,
+		example_reads, tmp_path):
+	"""A --shmem run that dies while loading the index must not leave a
+	segment that makes every later run wait for it forever."""
+	for ext in ('1', '2', '3', '4', 'rev.1', 'rev.2'):
+		shutil.copy('%s.%s.bt2' % (lambda_index, ext), str(tmp_path))
+	ref = str(tmp_path / 'lambda_virus.4.bt2')
+	with open(ref, 'r+b') as f:
+		f.truncate(os.path.getsize(ref) // 2)
+	for _ in range(2):
+		proc = shmem_align(['-x', 'lambda_virus', '-U', example_reads['reads_1']],
+			cwd=str(tmp_path), timeout=20)
+		assert proc.returncode != 0
+		assert 'Only read' in proc.stderr
+
+
+def test_shmem_rejected_without_support(bt2, lambda_index, example_reads):
+	"""A build without BOWTIE_SHARED_MEM rejects --shmem instead of crashing."""
+	version = bt2.run(os.path.join(h.BIN_DIR, 'bowtie2-align-s'), ['--version']).stdout
+	if '-DBOWTIE_SHARED_MEM' in version:
+		pytest.skip('bowtie2-align-s was built with BOWTIE_SHARED_MEM')
+	proc = bt2.run('bowtie2', ['--shmem', '-x', lambda_index, '-U',
+		example_reads['reads_1']], check=False)
+	assert proc.returncode == 1
+	assert 'BOWTIE_SHARED_MEM' in proc.stderr

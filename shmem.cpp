@@ -36,14 +36,4 @@ void notifySharedMem(void *mem, size_t len) {
 	((volatile uint32_t*)((char*)mem + len))[0] = SHMEM_INIT;
 }
 
-/**
- * Wait until the leader of a shared-memory chunk has finished
- * initializing it.
- */
-void waitSharedMem(void *mem, size_t len) {
-	while(((volatile uint32_t*)((char*)mem + len))[0] != SHMEM_INIT) {
-		sleep(1);
-	}
-}
-
 #endif
