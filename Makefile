@@ -535,15 +535,15 @@ bowtie2-dp-debug: bt2_dp.cpp $(HEADERS) $(SHARED_CPPS) $(DP_CPPS)
 
 bowtie2.bat:
 	echo "@echo off" > bowtie2.bat
-	echo "perl %~dp0/bowtie2 %*" >> bowtie2.bat
+	echo 'perl "%~dp0bowtie2" %*' >> bowtie2.bat
 
 bowtie2-build.bat:
 	echo "@echo off" > bowtie2-build.bat
-	echo "python3 %~dp0/bowtie2-build %*" >> bowtie2-build.bat
+	echo 'python3 "%~dp0bowtie2-build" %*' >> bowtie2-build.bat
 
 bowtie2-inspect.bat:
 	echo "@echo off" > bowtie2-inspect.bat
-	echo "python3 %~dp0/bowtie2-inspect %*" >> bowtie2-inspect.bat
+	echo 'python3 "%~dp0bowtie2-inspect" %*' >> bowtie2-inspect.bat
 
 .PHONY: bowtie2-src-pkg
 bowtie2-src-pkg: $(SRC_PKG_LIST)
