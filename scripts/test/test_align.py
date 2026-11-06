@@ -787,6 +787,15 @@ def test_bad_number_is_an_error(bt2, genome_index, genome_dict, tmp_path, args):
 	assert 'could not parse' in proc.stderr
 
 
+@pytest.mark.parametrize('args', [
+	['--ma', '31.9387360218878', '--local'], ['--mp', '8.775,2.5'], ['--rdg', '5.7,3.2'],
+])
+def test_fraction_for_integer_setting_still_accepted(bt2, genome_index, genome_dict, tmp_path, args):
+	"""Fractions for integer penalties are truncated as before (the random tests pass them)."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	bt2.run('bowtie2', ['-x', genome_index, '-U', fq] + args)
+
+
 def test_score_min_too_many_parts(bt2, genome_index, genome_dict, tmp_path):
 	"""The error for a 4-part --score-min names --score-min."""
 	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
