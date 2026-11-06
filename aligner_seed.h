@@ -1777,24 +1777,6 @@ protected:
 	class SeedAlignerSearchParams;
 
 	/**
-	 * Report a seed hit found by searchSeedBi(), but first try to extend it out in
-	 * either direction as far as possible without hitting any edits.  This will
-	 * allow us to prioritize the seed hits better later on.  Call reportHit() when
-	 * we're done, which actually adds the hit to the cache.  Returns result from
-	 * calling reportHit().
-	 */
-	void extendAndReportHit(
-		SeedSearchCache &cache,              // local seed alignment cache
-		size_t off,                          // offset of seed currently being searched
-		bool fw,                             // orientation of seed currently being searched
-		TIndexOffU topf,                     // top in BWT
-		TIndexOffU botf,                     // bot in BWT
-		TIndexOffU topb,                     // top in BWT'
-		TIndexOffU botb,                     // bot in BWT'
-		uint16_t len,                      // length of hit
-		DoublyLinkedList<Edit> *prevEdit); // previous edit
-
-	/**
 	 * Report a seed hit found by searchSeedBi() by adding it to the cache.
 	 */
 	void reportHit(
@@ -1848,20 +1830,6 @@ protected:
 		const BwtTopBot &bwt,       // The 4 BWT idxs
 		int step)                   // step to get ready for
 	{ nextLocsBi(seed, tloc, bloc, bwt.topf, bwt.botf, bwt.topb, bwt.botb, step); }
-
-	void prefetchNextLocsBi(
-		const InstantiatedSeed& seed, // current instantiated seed
-		TIndexOffU topf,              // top in BWT
-		TIndexOffU botf,              // bot in BWT
-		TIndexOffU topb,              // top in BWT'
-		TIndexOffU botb,              // bot in BWT'
-		int step);                  // step to get ready for
-
-	void prefetchNextLocsBi(
-		const InstantiatedSeed& seed, // current instantiated seed
-		const BwtTopBot &bwt,       // The 4 BWT idxs
-		int step)                   // step to get ready for
-	{ prefetchNextLocsBi(seed, bwt.topf, bwt.botf, bwt.topb, bwt.botb, step); }
 
 	// Following are set in searchAllSeeds then used by searchSeed()
 	// and other protected members.

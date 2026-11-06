@@ -28,14 +28,4 @@ public:
 	void operator()() const;
 };
 
-class multiseedSearchWorker_2p5 {
-	int tid;
-
-public:
-	multiseedSearchWorker_2p5(const multiseedSearchWorker_2p5& W): tid(W.tid) {};
-	multiseedSearchWorker_2p5(int id):tid(id) {};
-	void operator()() const;
-
-};
-
 #endif /* BT2_SEARCH_H_ */

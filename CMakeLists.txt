@@ -83,7 +83,6 @@ set(SEARCH_CPPS
   qual.cpp pat.cpp sam.cpp
   read_qseq.cpp aligner_seed_policy.cpp
   aligner_seed.cpp
-  aligner_seed2.cpp
   aligner_sw.cpp
   aligner_sw_driver.cpp aligner_cache.cpp
   aligner_result.cpp ref_coord.cpp mask.cpp
@@ -97,7 +96,6 @@ set(SEARCH_CPPS
   aligner_swsse_ee_i16.cpp
   aligner_swsse_loc_u8.cpp
   aligner_swsse_ee_u8.cpp
-  aligner_driver.cpp
   bowtie_main.cpp
   bt2_search.cpp
   )

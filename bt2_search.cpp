@@ -19,7 +19,6 @@
  */
 
 #include <cassert>
-#include <dirent.h>
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
@@ -47,11 +46,9 @@
 #include "pat.h"
 #include "threading.h"
 #include "ds.h"
-#include "aligner_metrics.h"
 #include "sam.h"
 #include "aligner_seed.h"
 #include "aligner_seed_policy.h"
-#include "aligner_driver.h"
 #include "aligner_sw.h"
 #include "aligner_sw_driver.h"
 #include "aligner_cache.h"
@@ -61,13 +58,10 @@
 #include "presets.h"
 #include "opts.h"
 #include "outq.h"
-#include "aligner_seed2.h"
 #include "bt2_search.h"
 
 using namespace std;
 
-static int FNAME_SIZE;
-static std::atomic<int> thread_counter;
 static EList<string> mates1;  // mated reads (first mate)
 static EList<string> mates2;  // mated reads (second mate)
 static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
@@ -98,9 +92,6 @@ static bool solexaQuals;  // quality strings are solexa quals, not phred, and su
 static bool phred64Quals; // quality chars are phred, but must subtract 64 (not 33)
 static bool integerQuals; // quality strings are space-separated strings of integers, not ASCII
 static int nthreads;      // number of pthreads operating concurrently
-static int thread_ceiling;// maximum number of threads user wants bowtie to use
-static string thread_stealing_dir; // keep track of pids in this directory
-static bool thread_stealing;// true iff thread stealing is in use
 static int outType;       // style of output
 static bool noRefNames;   // true -> print reference indexes; not names
 static uint32_t lowseeds; // size of seed range above which a seed is considered low quality, and thus discarded (0 disables the cut)
@@ -214,11 +205,6 @@ static int   penRfGapLinear;  // coeff of linear term for cost of gap extension 
 static SimpleFunc scoreMin;   // minimum valid score as function of read len
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
-static double descConsExp;    // how to adjust score minimum as we descent further into index-assisted alignment
-static bool descPrioritizeRoots; // whether to prioritize search roots with scores
-static size_t descLanding;    // don't place a search root if it's within this many positions of end
-static SimpleFunc descentTotSz;    // maximum space a DescentDriver can use in bytes
-static SimpleFunc descentTotFmops; // maximum # FM ops a DescentDriver can perform
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
 static int    multiseedLen;   // length of multiseed seeds
 static size_t multiseedOff;   // offset to begin extracting seeds
@@ -259,7 +245,6 @@ static size_t nSeedRounds;    // # seed rounds
 static bool reorder;          // true -> reorder SAM recs in -p mode
 static float sampleFrac;      // only align random fraction of input reads
 static bool arbitraryRandom;  // pseudo-randoms no longer a function of read properties
-static bool bowtie2p5;
 static string logDps;         // log seed-extend dynamic programming problems
 static string logDpsOpp;      // log mate-search dynamic programming problems
 
@@ -333,10 +318,6 @@ static void resetOptions() {
 	phred64Quals	    = false;	// quality chars are phred, but must subtract 64 (not 33)
 	integerQuals	    = false;	// quality strings are space-separated strings of integers, not ASCII
 	nthreads	    = set_default_thread_count();	// number of pthreads operating concurrently
-	thread_ceiling	    = 0;	// max # threads user asked for
-	thread_stealing_dir = "";	// keep track of pids in this directory
-	thread_stealing	    = false;	// true iff thread stealing is in use
-	FNAME_SIZE	    = 4096;
 	outType		    = OUTPUT_SAM;	// style of output
 	noRefNames	    = false;	// true -> print reference indexes; not names
 	lowseeds	    = 0;	// size of seed range above which a seed is considered low quality, and thus discarded (0 disables the cut)
@@ -449,11 +430,6 @@ static void resetOptions() {
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	descConsExp	    = 2.0;
-	descPrioritizeRoots = false;
-	descLanding	    = 20;
-	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
-	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms	    = DEFAULT_SEEDMMS;
 	multiseedLen	    = gDefaultSeedLen;
 	multiseedOff	    = 0;
@@ -497,7 +473,6 @@ static void resetOptions() {
 	reorder		    = false;	// reorder SAM records with -p > 1
 	sampleFrac	    = 1.1f;	// align all reads
 	arbitraryRandom	    = false;	// let pseudo-random seeds be a function of read properties
-	bowtie2p5	    = false;
 	logDps.clear();         // log seed-extend dynamic programming problems
 	logDpsOpp.clear();      // log mate-search dynamic programming problems
 #ifdef USE_SRA
@@ -683,19 +658,10 @@ static struct option long_options[] = {
 	{(char*)"local-seed-cache-sz",         required_argument,  0,                   ARG_LOCAL_SEED_CACHE_SZ},
 	{(char*)"seed-cache-sz",               required_argument,  0,                   ARG_CURRENT_SEED_CACHE_SZ},
 	{(char*)"no-unal",                     no_argument,        0,                   ARG_SAM_NO_UNAL},
-	{(char*)"test-25",                     no_argument,        0,                   ARG_TEST_25},
-// TODO: following should be a function of read length?
-	{(char*)"desc-kb",                     required_argument,  0,                   ARG_DESC_KB},
-	{(char*)"desc-landing",                required_argument,  0,                   ARG_DESC_LANDING},
-	{(char*)"desc-exp",                    required_argument,  0,                   ARG_DESC_EXP},
-	{(char*)"desc-prioritize",             no_argument,        0,                   ARG_DESC_PRIORITIZE},
-	{(char*)"desc-fmops",                  required_argument,  0,                   ARG_DESC_FMOPS},
 	{(char*)"log-dp",                      required_argument,  0,                   ARG_LOG_DP},
 	{(char*)"log-dp-opp",                  required_argument,  0,                   ARG_LOG_DP_OPP},
 	{(char*)"soft-clipped-unmapped-tlen",  no_argument,        0,                   ARG_SC_UNMAPPED},
 	{(char*)"xeq",                         no_argument,        0,                   ARG_XEQ},
-	{(char*)"thread-ceiling",              required_argument,  0,                   ARG_THREAD_CEILING},
-	{(char*)"thread-piddir",               required_argument,  0,                   ARG_THREAD_PIDDIR},
 	{(char*)"trim-to",                     required_argument,  0,                   ARG_TRIM_TO},
 	{(char*)"preserve-tags",               no_argument,        0,                   ARG_PRESERVE_TAGS},
 	{(char*)"align-paired-reads",          no_argument,        0,                   ARG_ALIGN_PAIRED_READS},
@@ -1063,28 +1029,8 @@ static EList<string> presetList;
  */
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
-	case ARG_TEST_25: bowtie2p5 = true; break;
-	case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 1024.0, DMAX); break;
-	case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
 	case ARG_LOG_DP: logDps = arg; break;
 	case ARG_LOG_DP_OPP: logDpsOpp = arg; break;
-	case ARG_DESC_LANDING: {
-		descLanding = parse<int>(arg);
-		if(descLanding < 1) {
-			cerr << "Error: --desc-landing must be greater than or equal to 1" << endl;
-			throw 1;
-		}
-		break;
-	}
-	case ARG_DESC_EXP: {
-		descConsExp = parse<double>(arg);
-		if(descConsExp < 0.0) {
-			cerr << "Error: --desc-exp must be greater than or equal to 0" << endl;
-			throw 1;
-		}
-		break;
-	}
-	case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 	case '1': tokenize(arg, ",", mates1); break;
 	case '2': tokenize(arg, ",", mates2); break;
 	case ARG_ONETWO: tokenize(arg, ",", mates12); set_format(format, TAB_MATE5); break;
@@ -1223,12 +1169,6 @@ static void parseOption(int next_option, const char *arg) {
 	case ARG_WRAPPER: wrapper = arg; break;
 	case 'p':
 		nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
-		break;
-	case ARG_THREAD_CEILING:
-		thread_ceiling = parseInt(0, "--thread-ceiling must be at least 0", arg);
-		break;
-	case ARG_THREAD_PIDDIR:
-		thread_stealing_dir = arg;
 		break;
 	case ARG_FILEPAR:
 		fileParallel = true;
@@ -1416,7 +1356,6 @@ static void parseOption(int next_option, const char *arg) {
 		sam_print_zb = true;
 		sam_print_zr = true;
 		sam_print_zf = true;
-		sam_print_zm = true;
 		sam_print_zi = true;
 		break;
 	}
@@ -1881,7 +1820,6 @@ static void parseOptions(int argc, const char **argv) {
 		     << " instead" << endl;
 		multiseedMms = multiseedLen-1;
 	}
-	sam_print_zm = sam_print_zm && bowtie2p5;
 #ifndef NDEBUG
 	if(!gQuiet) {
 		cerr << "Warning: Running in debug mode.  Please use debug mode only "
@@ -3068,17 +3006,6 @@ void get_cpu_and_node(int& cpu, int& node) {
 }
 #endif
 
-class ThreadCounter {
-public:
-	ThreadCounter() {
-		thread_counter.fetch_add(1);
-	}
-
-	~ThreadCounter() {
-		thread_counter.fetch_sub(1);
-	}
-};
-
 /**
  * Called once per thread.  Sets up per-thread pointers to the shared global
  * data structures, creates per-thread structures, then enters the alignment
@@ -4257,519 +4184,6 @@ static void multiseedSearchWorker(void *vp) {
 	return;
 }
 
-//void multiseedSearchWorker_2p5::operator()() const {
-static void multiseedSearchWorker_2p5(void *vp) {
-	//int tid = *((int*)vp);
-	thread_tracking_pair *p = (thread_tracking_pair*) vp;
-	int tid = p->tid;
-	assert(multiseed_ebwtFw != NULL);
-	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
-	PatternSourceReadAheadFactory& readahead_factory =  *multiseed_readahead_factory;
-	const Ebwt&             ebwtFw   = *multiseed_ebwtFw;
-	const Ebwt&             ebwtBw   = *multiseed_ebwtBw;
-	const Scoring&          sc       = *multiseed_sc;
-	const BitPairReference& ref      = *multiseed_refs;
-	AlnSink&                msink    = *multiseed_msink;
-	OutFileBuf*             metricsOfb = multiseed_metricsOfb;
-
-	// Sinks: these are so that we can print tables encoding counts for
-	// events of interest on a per-read, per-seed, per-join, or per-SW
-	// level.  These in turn can be used to diagnose performance
-	// problems, or generally characterize performance.
-
-	ThreadCounter tc;
-
-	// Instantiate an object for holding reporting-related parameters.
-	ReportingParams rp(
-		(allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
-		mhits,             // -m/-M
-		0,                 // penalty gap (not used now)
-		msample,           // true -> -M was specified, otherwise assume -m
-		gReportDiscordant, // report discordang paired-end alignments?
-		gReportMixed);     // report unpaired alignments for paired reads?
-
-	// Instantiate a mapping quality calculator
-	unique_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
-
-	// Make a per-thread wrapper for the global MHitSink object.
-	AlnSinkWrap msinkwrap(
-		msink,         // global sink
-		rp,            // reporting parameters
-		*bmapq,        // MAPQ calculator
-		(size_t)tid);  // thread id
-
-	OuterLoopMetrics olm;
-	SeedSearchMetrics sdm;
-	WalkMetrics wlm;
-	SwMetrics swmSeed, swmMate;
-	DescentMetrics descm;
-	ReportingMetrics rpm;
-	RandomSource rnd, rndArb;
-	SSEMetrics sseU8ExtendMet;
-	SSEMetrics sseU8MateMet;
-	SSEMetrics sseI16ExtendMet;
-	SSEMetrics sseI16MateMet;
-	uint64_t nbtfiltst = 0; // TODO: find a new home for these
-	uint64_t nbtfiltsc = 0; // TODO: find a new home for these
-	uint64_t nbtfiltdo = 0; // TODO: find a new home for these
-
-	ASSERT_ONLY(BTDnaString tmp);
-
-	int pepolFlag;
-	if(gMate1fw && gMate2fw) {
-		pepolFlag = PE_POLICY_FF;
-	} else if(gMate1fw && !gMate2fw) {
-		pepolFlag = PE_POLICY_FR;
-	} else if(!gMate1fw && gMate2fw) {
-		pepolFlag = PE_POLICY_RF;
-	} else {
-		pepolFlag = PE_POLICY_RR;
-	}
-	assert_geq(gMaxInsert, gMinInsert);
-	assert_geq(gMinInsert, 0);
-	PairedEndPolicy pepol(
-		pepolFlag,
-		gMaxInsert,
-		gMinInsert,
-		localAlign,
-		gFlippedMatesOK,
-		gDovetailMatesOK,
-		gContainMatesOK,
-		gOlapMatesOK,
-		gExpandToFrag);
-
-	AlignerDriver ald(
-		descConsExp,         // exponent for interpolating maximum penalty
-		descPrioritizeRoots, // whether to select roots with scores and weights
-		msIval,              // interval length, as function of read length
-		descLanding,         // landing length
-		gVerbose,            // verbose?
-		descentTotSz,        // limit on total bytes of best-first search data
-		descentTotFmops);    // limit on total number of FM index ops in BFS
-
-	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
-	BTString nametmp;
-
-	PerReadMetrics prm;
-
-	// Used by thread with threadid == 1 to measure time elapsed
-	time_t iTime = time(0);
-
-	// Keep track of whether last search was exhaustive for mates 1 and 2
-	bool exhaustive[2] = { false, false };
-	// Keep track of whether mates 1/2 were filtered out last time through
-	bool filt[2]    = { true, true };
-	// Keep track of whether mates 1/2 were filtered out due Ns last time
-	bool nfilt[2]   = { true, true };
-	// Keep track of whether mates 1/2 were filtered out due to not having
-	// enough characters to rise about the score threshold.
-	bool scfilt[2]  = { true, true };
-	// Keep track of whether mates 1/2 were filtered out due to not having
-	// more characters than the number of mismatches permitted in a seed.
-	bool lenfilt[2] = { true, true };
-	// Keep track of whether mates 1/2 were filtered out by upstream qc
-	bool qcfilt[2]  = { true, true };
-
-	rndArb.init((uint32_t)time(0));
-	int mergei = 0;
-	int mergeival = 16;
-	while(true) {
-	   PatternSourceReadAhead psrah(readahead_factory);
-	   PatternSourcePerThread* const ps = psrah.ptr();
-	   do {
-		pair<bool, bool> ret = ps->nextReadPair();
-		bool success = ret.first;
-		bool done = ret.second;
-		if(!success && done) {
-			break;
-		} else if(!success) {
-			continue;
-		}
-		TReadId rdid = ps->read_a().rdid;
-		bool sample = true;
-		if(arbitraryRandom) {
-			ps->read_a().seed = rndArb.nextU32();
-			ps->read_b().seed = rndArb.nextU32();
-		}
-		if(sampleFrac < 1.0f) {
-			rnd.init(ROTL(ps->read_a().seed, 2));
-			sample = rnd.nextFloat() < sampleFrac;
-		}
-		if(rdid >= skipReads && rdid < qUpto && sample) {
-			//
-			// Check if there is metrics reporting for us to do.
-			//
-			if(metricsIval > 0 &&
-			   (metricsOfb != NULL || metricsStderr) &&
-			   !metricsPerRead &&
-			   ++mergei == mergeival)
-			{
-				// Do a periodic merge.  Update global metrics, in a
-				// synchronized manner if needed.
-				MERGE_METRICS(metrics);
-				mergei = 0;
-				// Check if a progress message should be printed
-				if(tid == 0) {
-					// Only thread 1 prints progress messages
-					time_t curTime = time(0);
-					if(curTime - iTime >= metricsIval) {
-						metrics.reportInterval(metricsOfb, metricsStderr, false, NULL);
-						iTime = curTime;
-					}
-				}
-			}
-			prm.reset(); // per-read metrics
-			prm.doFmString = sam_print_zm;
-			// If we're reporting how long each read takes, get the initial time
-			// measurement here
-			if(sam_print_xt) {
-				gettimeofday(&prm.tv_beg, &prm.tz_beg);
-			}
-			// Try to align this read
-			olm.reads++;
-			bool paired = !ps->read_b().empty();
-			const size_t rdlen1 = ps->read_a().length();
-			const size_t rdlen2 = paired ? ps->read_b().length() : 0;
-			olm.bases += (rdlen1 + rdlen2);
-			// Check if read is identical to previous read
-			rnd.init(ROTL(ps->read_a().seed, 5));
-			msinkwrap.nextRead(
-				&ps->read_a(),
-				paired ? &ps->read_b() : NULL,
-				rdid,
-				sc.qualitiesMatter());
-			assert(msinkwrap.inited());
-			size_t rdlens[2] = { rdlen1, rdlen2 };
-			// Calculate the minimum valid score threshold for the read
-			TAlScore minsc[2], maxpen[2];
-			minsc[0] = minsc[1] = std::numeric_limits<TAlScore>::max();
-			setupMinScores(*ps, paired, localAlign, sc, rdlens, minsc, maxpen);
-			// N filter; does the read have too many Ns?
-			size_t readns[2] = {0, 0};
-			sc.nFilterPair(
-				&ps->read_a().patFw,
-				paired ? &ps->read_b().patFw : NULL,
-				readns[0],
-				readns[1],
-				nfilt[0],
-				nfilt[1]);
-			// Score filter; does the read enough character to rise above
-			// the score threshold?
-			scfilt[0] = sc.scoreFilter(minsc[0], rdlens[0]);
-			scfilt[1] = sc.scoreFilter(minsc[1], rdlens[1]);
-			lenfilt[0] = lenfilt[1] = true;
-			if(rdlens[0] <= (size_t)multiseedMms || rdlens[0] < 2) {
-				if(!gQuiet) printMmsSkipMsg(*ps, paired, true, multiseedMms);
-				lenfilt[0] = false;
-			}
-			if((rdlens[1] <= (size_t)multiseedMms || rdlens[1] < 2) && paired) {
-				if(!gQuiet) printMmsSkipMsg(*ps, paired, false, multiseedMms);
-				lenfilt[1] = false;
-			}
-			if(rdlens[0] < 2) {
-				if(!gQuiet) printLenSkipMsg(*ps, paired, true);
-				lenfilt[0] = false;
-			}
-			if(rdlens[1] < 2 && paired) {
-				if(!gQuiet) printLenSkipMsg(*ps, paired, false);
-				lenfilt[1] = false;
-			}
-			qcfilt[0] = qcfilt[1] = true;
-			if(qcFilter) {
-				qcfilt[0] = (ps->read_a().filter != '0');
-				qcfilt[1] = (ps->read_b().filter != '0');
-			}
-			filt[0] = (nfilt[0] && scfilt[0] && lenfilt[0] && qcfilt[0]);
-			filt[1] = (nfilt[1] && scfilt[1] && lenfilt[1] && qcfilt[1]);
-			prm.nFilt += (filt[0] ? 0 : 1) + (filt[1] ? 0 : 1);
-			Read* rds[2] = { &ps->read_a(), &ps->read_b() };
-			assert(msinkwrap.empty());
-			// Calcualte nofw / no rc
-			bool nofw[2] = { false, false };
-			bool norc[2] = { false, false };
-			nofw[0] = paired ? (gMate1fw ? gNofw : gNorc) : gNofw;
-			norc[0] = paired ? (gMate1fw ? gNorc : gNofw) : gNorc;
-			nofw[1] = paired ? (gMate2fw ? gNofw : gNorc) : gNofw;
-			norc[1] = paired ? (gMate2fw ? gNorc : gNofw) : gNorc;
-			// Calculate nceil
-			int nceil[2] = { 0, 0 };
-			nceil[0] = nCeil.f<int>((double)rdlens[0]);
-			nceil[0] = min(nceil[0], (int)rdlens[0]);
-			if(paired) {
-				nceil[1] = nCeil.f<int>((double)rdlens[1]);
-				nceil[1] = min(nceil[1], (int)rdlens[1]);
-			}
-			exhaustive[0] = exhaustive[1] = false;
-			bool pairPostFilt = filt[0] && filt[1];
-			if(pairPostFilt) {
-				rnd.init(ROTL((rds[0]->seed ^ rds[1]->seed), 10));
-			}
-			// Calculate streak length
-			size_t streak[2]    = { maxDpStreak,   maxDpStreak };
-			size_t mtStreak[2]  = { maxMateStreak, maxMateStreak };
-			size_t mxDp[2]      = { maxDp,         maxDp       };
-			size_t mxUg[2]      = { maxUg,         maxUg       };
-			size_t mxIter[2]    = { maxIters,      maxIters    };
-			if(allHits) {
-				streak[0]   = streak[1]   = std::numeric_limits<size_t>::max();
-				mtStreak[0] = mtStreak[1] = std::numeric_limits<size_t>::max();
-				mxDp[0]     = mxDp[1]     = std::numeric_limits<size_t>::max();
-				mxUg[0]     = mxUg[1]     = std::numeric_limits<size_t>::max();
-				mxIter[0]   = mxIter[1]   = std::numeric_limits<size_t>::max();
-			} else if(khits > 1) {
-				for(size_t mate = 0; mate < 2; mate++) {
-					streak[mate]   += (khits-1) * maxStreakIncr;
-					mtStreak[mate] += (khits-1) * maxStreakIncr;
-					mxDp[mate]     += (khits-1) * maxItersIncr;
-					mxUg[mate]     += (khits-1) * maxItersIncr;
-					mxIter[mate]   += (khits-1) * maxItersIncr;
-				}
-			}
-			// If paired-end and neither mate filtered...
-			if(filt[0] && filt[1]) {
-				// Reduce streaks for either mate
-				streak[0] = (size_t)ceil((double)streak[0] / 2.0);
-				streak[1] = (size_t)ceil((double)streak[1] / 2.0);
-				assert_gt(streak[1], 0);
-			}
-			assert_gt(streak[0], 0);
-			prm.maxDPFails = streak[0];
-			// Increment counters according to what got filtered
-			for(size_t mate = 0; mate < (paired ? 2:1); mate++) {
-				if(!filt[mate]) {
-					// Mate was rejected by N filter
-					olm.freads++;               // reads filtered out
-					olm.fbases += rdlens[mate]; // bases filtered out
-				} else {
-					olm.ureads++;               // reads passing filter
-					olm.ubases += rdlens[mate]; // bases passing filter
-				}
-			}
-			if(filt[0]) {
-				ald.initRead(ps->read_a(), nofw[0], norc[0], minsc[0], maxpen[0], filt[1] ? &ps->read_b() : NULL);
-			} else if(filt[1]) {
-				ald.initRead(ps->read_b(), nofw[1], norc[1], minsc[1], maxpen[1], NULL);
-			}
-			if(filt[0] || filt[1]) {
-				ald.go(sc, ebwtFw, ebwtBw, ref, descm, wlm, prm, rnd, msinkwrap);
-			}
-			// Commit and report paired-end/unpaired alignments
-			uint32_t sd = rds[0]->seed ^ rds[1]->seed;
-			rnd.init(ROTL(sd, 20));
-			msinkwrap.finishRead(
-				NULL,                 // seed results for mate 1
-				NULL,                 // seed results for mate 2
-				exhaustive[0],        // exhausted seed results for 1?
-				exhaustive[1],        // exhausted seed results for 2?
-				nfilt[0],
-				nfilt[1],
-				scfilt[0],
-				scfilt[1],
-				lenfilt[0],
-				lenfilt[1],
-				qcfilt[0],
-				qcfilt[1],
-				rnd,                  // pseudo-random generator
-				rpm,                  // reporting metrics
-				prm,                  // per-read metrics
-				sc,                   // scoring scheme
-				!seedSumm,            // suppress seed summaries?
-				seedSumm,             // suppress alignments?
-				scUnMapped,           // Consider soft-clipped bases unmapped when calculating TLEN
-				xeq);
-		} // if(rdid >= skipReads && rdid < qUpto)
-		else if(rdid >= qUpto) {
-			break;
-		}
-		if(metricsPerRead) {
-			MERGE_METRICS(metricsPt);
-			nametmp = ps->read_a().name;
-			metricsPt.reportInterval(
-				metricsOfb, metricsStderr, true, &nametmp);
-			metricsPt.reset();
-		}
-	   } while (ps->nextReadPairReady()); // must read the whole cached buffer
-	} // while(true)
-
-	// One last metrics merge
-	MERGE_METRICS(metrics);
-	p->done->fetch_add(1);
-
-	return;
-}
-
-#ifndef _WIN32
-/**
- * Print friendly-ish message pertaining to failed system call.
- */
-static void errno_message() {
-	int errnum = errno;
-	cerr << "errno is " << errnum << endl;
-	perror("perror error: ");
-}
-
-/**
- * Delete PID file.  Raise error if the file doesn't exist or if
- * we fail to delete it.
- */
-void del_pid(const char* dirname,int pid) {
-	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
-	if(fname == NULL) {
-		errno_message();
-		cerr << "del_pid: could not allocate buffer" << endl;
-		throw 1;
-	}
-	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
-	if(unlink(fname) != 0) {
-		if(errno != ENOENT) {
-			errno_message();
-			cerr << "del_pid: could not delete PID file " << fname << endl;
-			free(fname);
-			throw 1;
-		} else {
-			// Probably just a race between processes
-		}
-	}
-	free(fname);
-}
-
-/**
- * Write PID file.
- */
-static void write_pid(const char* dirname,int pid) {
-	struct stat dinfo;
-	if(stat(dirname, &dinfo) != 0) {
-		if(mkdir(dirname, 0755) != 0) {
-			if(errno != EEXIST) {
-				errno_message();
-				cerr << "write_pid: could not create PID directory " << dirname << endl;
-				throw 1;
-			}
-		}
-	}
-	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
-	if(fname == NULL) {
-		errno_message();
-		cerr << "write_pid: could not allocate buffer" << endl;
-		throw 1;
-	}
-	snprintf(fname, FNAME_SIZE, "%s/%d", dirname, pid);
-	FILE *f = fopen(fname, "w");
-	if(f == NULL) {
-		errno_message();
-		cerr << "write_pid: could not open PID file " << fname << endl;
-		throw 1;
-	}
-	if(fclose(f) != 0) {
-		errno_message();
-		cerr << "write_pid: could not close PID file " << fname << endl;
-		throw 1;
-	}
-	free(fname);
-}
-
-/**
- * Read all the PID files in the given PID directory.  If the
- * process corresponding to a PID file seems to have expired,
- * delete the PID file.  Return the lowest PID encountered for
- * a still-valid process.
- */
-static int read_dir(const char* dirname, int* num_pids) {
-	DIR *dir;
-	struct dirent *ent;
-	char* fname = (char*)calloc(FNAME_SIZE, sizeof(char));
-	if(fname == NULL) {
-		errno_message();
-		cerr << "read_dir: could not allocate buffer" << endl;
-		throw 1;
-	}
-	dir = opendir(dirname);
-	if(dir == NULL) {
-		errno_message();
-		cerr << "read_dir: could not open directory " << dirname << endl;
-		free(fname);
-		throw 1;
-	}
-	int lowest_pid = -1;
-	while(true) {
-		errno = 0;
-		ent = readdir(dir);
-		if(ent == NULL) {
-			if(errno != 0) {
-				errno_message();
-				cerr << "read_dir: could not read directory " << dirname << endl;
-				free(fname);
-				throw 1;
-			}
-			break;
-		}
-		if(ent->d_name[0] == '.') {
-			continue;
-		}
-		int pid = atoi(ent->d_name);
-		if(kill(pid, 0) != 0) {
-			if(errno == ESRCH) {
-				del_pid(dirname, pid);
-				continue;
-			} else {
-				errno_message();
-				cerr << "read_dir: could not interrogate pid " << pid << endl;
-				free(fname);
-				throw 1;
-			}
-		}
-		(*num_pids)++;
-		if(pid < lowest_pid || lowest_pid == -1) {
-			lowest_pid = pid;
-		}
-	}
-	if(closedir(dir) != 0) {
-		errno_message();
-		cerr << "read_dir: could not close directory " << dir << endl;
-		free(fname);
-		throw 1;
-	}
-	free(fname);
-	return lowest_pid;
-}
-
-template<typename T>
-static void steal_threads(int pid, int orig_nthreads, EList<int>& tids, EList<T*>& threads)
-{
-	int ncpu = thread_ceiling;
-	if(thread_ceiling <= nthreads) {
-		return;
-	}
-	int num_pids = 0;
-	int lowest_pid = read_dir(thread_stealing_dir.c_str(), &num_pids);
-	if(lowest_pid != pid) {
-		return;
-	}
-	int in_use = ((num_pids-1) * orig_nthreads) + nthreads;
-	if(in_use < ncpu) {
-		nthreads++;
-		tids.push_back(nthreads);
-		threads.push_back(new T(multiseedSearchWorker, (void*)&tids.back()));
-		cerr << "pid " << pid << " started new worker # " << nthreads << endl;
-	}
-}
-
-template<typename T>
-static void thread_monitor(int pid, int orig_threads, EList<int>& tids, EList<T*>& threads)
-{
-	for(int j = 0; j < 10; j++) {
-		sleep(1);
-	}
-	int steal_ctr = 1;
-	while(thread_counter > 0) {
-		steal_threads(pid, orig_threads, tids, threads);
-		steal_ctr++;
-		for(int j = 0; j < 10; j++) {
-			sleep(1);
-		}
-	}
-}
-#endif
 /**
  * Called once per alignment job.  Sets up global pointers to the
  * shared global data structures, creates per-thread structures, then
@@ -4813,7 +4227,6 @@ static void multiseedSearch(
 	sigaddset(&set, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &set, NULL);
 #endif
-	EList<int> tids;
 	EList<std::thread*> threads(nthreads);
 	EList<thread_tracking_pair> tps;
 	// The condition_variable synchronization can be problematic
@@ -4826,9 +4239,8 @@ static void multiseedSearch(
 	PatternSourceReadAheadFactory readahead_factory(patsrc,pp,4*nthreads+1,readahead_useCVLocks);
 	multiseed_readahead_factory = &readahead_factory;
 
-	tps.resize(std::max(nthreads, thread_ceiling));
-	threads.reserveExact(std::max(nthreads, thread_ceiling));
-	tids.reserveExact(std::max(nthreads, thread_ceiling));
+	tps.resize(nthreads);
+	threads.reserveExact(nthreads);
 	{
 		// Load the other half of the index into memory
 		assert(!ebwtFw.isInMemory());
@@ -4866,35 +4278,14 @@ static void multiseedSearch(
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
 
-#ifndef _WIN32
-		int pid = 0;
-		if(thread_stealing) {
-			pid = getpid();
-			write_pid(thread_stealing_dir.c_str(), pid);
-			thread_counter = 0;
-		}
-#endif
-
 		for(int i = 0; i < nthreads; i++) {
-			tids.push_back(i);
 			tps[i].tid = i;
 			tps[i].done = &all_threads_done;
 
-			if(bowtie2p5) {
-				threads.push_back(new std::thread(multiseedSearchWorker_2p5, (void*)&tps[i]));
-			} else {
-				threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
-			}
+			threads.push_back(new std::thread(multiseedSearchWorker, (void*)&tps[i]));
 			threads[i]->detach();
 			SLEEP(10);
 		}
-
-#ifndef _WIN32
-		if(thread_stealing) {
-			int orig_threads = nthreads;
-			thread_monitor(pid, orig_threads, tids, threads);
-		}
-#endif
 
 		while(all_threads_done < nthreads) {
 			SLEEP(10);
@@ -4902,12 +4293,6 @@ static void multiseedSearch(
 		for (int i = 0; i < nthreads; ++i) {
 			delete threads[i];
 		}
-
-#ifndef _WIN32
-		if(thread_stealing) {
-			del_pid(thread_stealing_dir.c_str(), pid);
-		}
-#endif
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
 		metrics.reportInterval(metricsOfb, metricsStderr, true, NULL);
@@ -5029,9 +4414,9 @@ static void driver(
 	}
 	OutputQueue oq(
 		*fout,                           // out file buffer
-		reorder && (nthreads > 1 || thread_stealing), // whether to reorder
+		reorder && nthreads > 1,         // whether to reorder
 		nthreads,                        // # threads
-		nthreads > 1 || thread_stealing, // whether to be thread-safe
+		nthreads > 1,                    // whether to be thread-safe
 		readsPerBatch,                   // size of output buffer of reads
 		skipReads);                      // first read will have this rdid
 	{
@@ -5279,15 +4664,6 @@ int bowtie(int argc, const char **argv) {
 			// Get index basename (but only if it wasn't specified via --index)
 			if(bt2index.empty()) {
 				cerr << "No index, query, or output file specified!" << endl;
-				printUsage(cerr);
-				return 1;
-			}
-
-#ifndef _WIN32
-			thread_stealing = thread_ceiling > nthreads;
-#endif
-			if(thread_stealing && thread_stealing_dir.empty()) {
-				cerr << "When --thread-ceiling is specified, must also specify --thread-piddir" << endl;
 				printUsage(cerr);
 				return 1;
 			}
