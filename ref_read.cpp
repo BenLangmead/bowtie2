@@ -45,6 +45,11 @@ RefRecord fastaRefReadSize(
 		assert(!in.eof());
 		lastc = '>';
 		c = in.getPastWhitespace();
+		// Skip comment lines starting with ';' (the original FASTA
+		// comment convention) before the first record
+		while(c == ';') {
+			c = in.getPastNewline();
+		}
 		if(in.eof()) {
 			// Got eof right away; emit warning
 			cerr << "Warning: Empty input file" << endl;
@@ -290,7 +295,7 @@ fastaRefReadSizes(
 #ifndef NDEBUG
 		// Check that it's really reset
 		int c = in[i]->get();
-		assert_eq('>', c);
+		assert(c == '>' || c == ';');
 		in[i]->reset();
 		assert(!in[i]->eof());
 #endif
