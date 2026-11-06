@@ -338,7 +338,7 @@ void Ebwt::readIntoMemory(
 		if(useShmem_) {
 			uint8_t *tmp = NULL;
 			shmemLeader = ALLOC_SHARED_U8(
-				(_in1Str + "[ebwt]"), eh->_ebwtTotLen, &tmp,
+				_in1Str, eh->_ebwtTotLen, &tmp,
 				"ebwt[]", (_verbose || startVerbose));
 			assert(tmp != NULL);
 			_ebwt.init(tmp, eh->_ebwtTotLen, false);
@@ -533,7 +533,7 @@ void Ebwt::readIntoMemory(
 			} else {
 				TIndexOffU *tmp = NULL;
 				shmemLeader = ALLOC_SHARED_U(
-					(_in2Str + "[offs]"), offsLenSampled*OFF_SIZE, &tmp,
+					_in2Str, offsLenSampled*OFF_SIZE, &tmp,
 					"offs", (_verbose || startVerbose));
 				_offs.init((TIndexOffU*)tmp, offsLenSampled, false);
 			}

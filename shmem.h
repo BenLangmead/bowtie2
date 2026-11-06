@@ -23,10 +23,14 @@
 #ifdef BOWTIE_SHARED_MEM
 
 #include <string>
+#include <sstream>
 #include <sys/shm.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <sys/shm.h>
 #include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdexcept>
 #include "str_util.h"
@@ -48,6 +52,9 @@ extern void waitSharedMem(void *mem, size_t len);
 
 /**
  * Tries to allocate a shared-memory chunk for a given file of a given size.
+ * The chunk is keyed on the file's real path, size and modification time,
+ * so another index opened under the same name, or a rebuilt one, gets its
+ * own chunk.
  */
 template <typename T>
 bool allocSharedMem(std::string fname,
@@ -58,8 +65,16 @@ bool allocSharedMem(std::string fname,
 {
 	using namespace std;
 	int shmid = -1;
-	// Calculate key given string
-	key_t key = (key_t)hash_string(fname);
+	struct stat st;
+	char path[PATH_MAX];
+	if(realpath(fname.c_str(), path) == NULL || stat(path, &st) != 0) {
+		cerr << "Could not stat " << fname << " for shared memory" << endl;
+		throw 1;
+	}
+	// shortcut: a 32-bit hash with 1 s mtime; a rewrite of the same size in the same second still matches
+	ostringstream id;
+	id << path << ':' << st.st_size << ':' << st.st_mtime << ':' << memName;
+	key_t key = (key_t)hash_string(id.str());
 	shmid_ds ds;
 	int ret;
 	// Reserve 4 bytes at the end for silly synchronization

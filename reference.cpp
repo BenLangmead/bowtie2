@@ -211,7 +211,7 @@ BitPairReference::BitPairReference(
 			}
 		} else {
 			shmemLeader = ALLOC_SHARED_U8(
-										  (s4 + "[ref]"), (cumsz >> 2), &buf_,
+										  s4, (cumsz >> 2), &buf_,
 										  "ref", (verbose_ || startVerbose));
 		}
 		if(shmemLeader) {
