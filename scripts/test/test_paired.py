@@ -335,6 +335,22 @@ def test_ys_is_opposite_mate_score(bt2, genome_dict, genome_index, tmp_path):
 	assert (r1.tags['YS'], r2.tags['YS']) == (-18, -6)
 
 
+@pytest.mark.parametrize('seedless', [0, 1])
+def test_seedless_mate_still_found_by_other_mate(bt2, genome_dict, genome_index, tmp_path, seedless):
+	"""A mate with an N in every seed (no seeds at all) does not stop the other mate's seed search: the pair aligns concordantly."""
+	frag = Fragment(genome_dict['chr1'], 1000, 300, 100)
+	mates = [frag.mate1, frag.mate2]
+	mates[seedless] = ''.join('N' if i % 10 == 5 else b for i, b in enumerate(mates[seedless]))
+	# 2 mismatches keep the other mate out of the exact/1-mismatch end-to-end pass
+	mates[1 - seedless] = h.mutate(mates[1 - seedless], [30, 70])
+	records, _ = align_pairs(bt2, genome_index, tmp_path, [('p', mates[0], mates[1])])
+	r1, r2 = mates_by_name(records)['p']
+	check_aligned_pair(r1, r2, frag, proper=True, yt='CP')
+	scores = [-12, -12]
+	scores[seedless] = -10
+	assert [r1.tags['AS'], r2.tags['AS']] == scores
+
+
 @pytest.mark.parametrize('orient', ['fr', 'rf', 'ff'])
 @pytest.mark.parametrize('option', ['--nofw', '--norc'])
 def test_nofw_norc_pertain_to_fragments(bt2, genome_dict, genome_index, tmp_path, orient, option):

@@ -3950,7 +3950,7 @@ static void multiseedSearchWorker(void *vp) {
 								// No seed hits!  Done with this mate.
 								assert(shs[mate].empty());
 								done[mate] = true;
-								break;
+								continue;
 							}
 							seedsTried += (inst.first + inst.second);
 							seedsTriedMS[mate * 2 + 0] = instFw.first + instFw.second;
@@ -3971,7 +3971,7 @@ static void multiseedSearchWorker(void *vp) {
 							if(shs[mate].empty()) {
 								// No seed alignments!  Done with this mate.
 								done[mate] = true;
-								break;
+								continue;
 							}
 						}
 						// shs contain what we need to know to update our seed
