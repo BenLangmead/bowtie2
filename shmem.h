@@ -82,8 +82,12 @@ bool allocSharedMem(std::string fname,
 	}
 	T *ptr = NULL;
 	while(true) {
-		// Create the shrared-memory block
-		if((shmid = shmget(key, shmemLen, IPC_CREAT | 0666)) < 0) {
+		// Create the shrared-memory block; other users may only read it,
+		// so attach to another user's block without asking for write access
+		if((shmid = shmget(key, shmemLen, IPC_CREAT | 0644)) < 0 && errno == EACCES) {
+			shmid = shmget(key, shmemLen, 0);
+		}
+		if(shmid < 0) {
 			if(errno == ENOMEM) {
 				cerr << "Out of memory allocating shared area " << memName << endl;
 			} else if(errno == EACCES) {
@@ -112,19 +116,20 @@ bool allocSharedMem(std::string fname,
 			}
 			throw 1;
 		}
-		ptr = (T*)shmat(shmid, 0, 0);
+		// Did I create it, or did I just attach to one created by
+		// another process?
+		if((ret = shmctl(shmid, IPC_STAT, &ds)) < 0) {
+			cerr << "shmctl returned " << ret << " for IPC_STAT and errno is " << errno << endl;
+			throw 1;
+		}
+		// Only the creator writes (it loads the data); the others only read
+		ptr = (T*)shmat(shmid, 0, ds.shm_cpid == getpid() ? 0 : SHM_RDONLY);
 		if(ptr == (void*)-1) {
 			cerr << "Failed to attach " << memName << " to shared memory with shmat()." << endl;
 			throw 1;
 		}
 		if(ptr == NULL) {
 			cerr << memName << " pointer returned by shmat() was NULL." << endl;
-			throw 1;
-		}
-		// Did I create it, or did I just attach to one created by
-		// another process?
-		if((ret = shmctl(shmid, IPC_STAT, &ds)) < 0) {
-			cerr << "shmctl returned " << ret << " for IPC_STAT and errno is " << errno << endl;
 			throw 1;
 		}
 		if(ds.shm_segsz != shmemLen) {
