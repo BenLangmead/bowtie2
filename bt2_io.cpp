@@ -376,11 +376,8 @@ void Ebwt::readIntoMemory(
 			if(useShmem_) NOTIFY_SHARED(ebwt(), eh->_ebwtTotLen);
 #endif
 		} else {
-			// Seek past the data and wait until master is finished
+			// Seek past the data (allocSharedMem waited until the leader loaded it)
 			fseeko(_in1, eh->_ebwtTotLen, SEEK_CUR);
-#ifdef BOWTIE_SHARED_MEM
-			if(useShmem_) WAIT_SHARED(ebwt(), eh->_ebwtTotLen);
-#endif
 		}
 	}
 
@@ -606,9 +603,6 @@ void Ebwt::readIntoMemory(
 			} else {
 				// Not the shmem leader
 				fseeko(_in2, offsLenSampled*OFF_SIZE, SEEK_CUR);
-#ifdef BOWTIE_SHARED_MEM
-				if(useShmem_) WAIT_SHARED(offs(), offsLenSampled*OFF_SIZE);
-#endif
 			}
 		}
 	}

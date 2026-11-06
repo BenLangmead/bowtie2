@@ -240,10 +240,6 @@ BitPairReference::BitPairReference(
 #ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) NOTIFY_SHARED(buf_, (cumsz >> 2));
 #endif
-		} else {
-#ifdef BOWTIE_SHARED_MEM
-			if(useShmem_) WAIT_SHARED(buf_, (cumsz >> 2));
-#endif
 		}
 	}
 	

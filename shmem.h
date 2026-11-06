@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <sys/shm.h>
 #include <errno.h>
+#include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -38,14 +39,11 @@
 
 extern void notifySharedMem(void *mem, size_t len);
 
-extern void waitSharedMem(void *mem, size_t len);
-
 #define ALLOC_SHARED_U allocSharedMem<TIndexOffU>
 #define ALLOC_SHARED_U8 allocSharedMem<uint8_t>
 #define ALLOC_SHARED_U32 allocSharedMem<uint32_t>
 #define FREE_SHARED shmdt
 #define NOTIFY_SHARED notifySharedMem
-#define WAIT_SHARED waitSharedMem
 
 #define SHMEM_UNINIT  0xafba4242
 #define SHMEM_INIT    0xffaa6161
@@ -138,7 +136,24 @@ bool allocSharedMem(std::string fname,
 				throw 1;
 			}
 		} else {
-			break;
+			// Unless I created it, wait until its creator has loaded it
+			volatile uint32_t *sync = (volatile uint32_t*)((char*)ptr + len);
+			while(ds.shm_cpid != getpid() && *sync != SHMEM_INIT &&
+			      !(kill(ds.shm_cpid, 0) < 0 && errno == ESRCH)) {
+				sleep(1);
+			}
+			if(ds.shm_cpid == getpid() || *sync == SHMEM_INIT) {
+				break;
+			}
+			cerr << "Warning: process " << ds.shm_cpid << " exited before it finished loading "
+			     << memName << " into shared memory" << endl
+			     << "Deleting its shared memory block and trying again." << endl;
+			shmdt(ptr);
+			// EINVAL/EIDRM: another waiting process deleted it first
+			if((ret = shmctl(shmid, IPC_RMID, &ds)) < 0 && errno != EINVAL && errno != EIDRM) {
+				cerr << "shmctl returned " << ret << " for IPC_RMID and errno is " << errno << endl;
+				throw 1;
+			}
 		}
 	} // while(true)
 	*dst = ptr;
@@ -169,7 +184,6 @@ bool allocSharedMem(std::string fname,
 #define ALLOC_SHARED_U32(...) 0
 #define FREE_SHARED(...)
 #define NOTIFY_SHARED(...)
-#define WAIT_SHARED(...)
 
 #endif /*BOWTIE_SHARED_MEM*/
 
