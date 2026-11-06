@@ -145,11 +145,6 @@ enum {
 	ARG_CURRENT_SEED_CACHE_SZ,  // --seed-cache-sz
 	ARG_SAM_NO_UNAL,            // --no-unal
 	ARG_NON_DETERMINISTIC,      // --non-deterministic
-	ARG_DESC_KB,                // --desc-kb
-	ARG_DESC_LANDING,           // --desc-landing
-	ARG_DESC_EXP,               // --desc-exp
-	ARG_DESC_PRIORITIZE,        // --desc-prioritize
-	ARG_DESC_FMOPS,             // --desc-fmops
 	ARG_LOG_DP,                 // --log-dp
 	ARG_LOG_DP_OPP,             // --log-dp-opp
 	ARG_XEQ,                    // --xeq

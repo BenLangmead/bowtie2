@@ -49,7 +49,6 @@
 #include "sam.h"
 #include "aligner_seed.h"
 #include "aligner_seed_policy.h"
-#include "aligner_driver.h"
 #include "aligner_sw.h"
 #include "aligner_sw_driver.h"
 #include "aligner_cache.h"
@@ -59,7 +58,6 @@
 #include "presets.h"
 #include "opts.h"
 #include "outq.h"
-#include "aligner_seed2.h"
 #include "bt2_search.h"
 
 using namespace std;
@@ -207,11 +205,6 @@ static int   penRfGapLinear;  // coeff of linear term for cost of gap extension 
 static SimpleFunc scoreMin;   // minimum valid score as function of read len
 static SimpleFunc nCeil;      // max # Ns allowed as function of read len
 static SimpleFunc msIval;     // interval between seeds as function of read len
-static double descConsExp;    // how to adjust score minimum as we descent further into index-assisted alignment
-static bool descPrioritizeRoots; // whether to prioritize search roots with scores
-static size_t descLanding;    // don't place a search root if it's within this many positions of end
-static SimpleFunc descentTotSz;    // maximum space a DescentDriver can use in bytes
-static SimpleFunc descentTotFmops; // maximum # FM ops a DescentDriver can perform
 static int    multiseedMms;   // mismatches permitted in a multiseed seed
 static int    multiseedLen;   // length of multiseed seeds
 static size_t multiseedOff;   // offset to begin extracting seeds
@@ -437,11 +430,6 @@ static void resetOptions() {
 	scoreMin.init  (SIMPLE_FUNC_LINEAR, DEFAULT_MIN_CONST,   DEFAULT_MIN_LINEAR);
 	nCeil.init     (SIMPLE_FUNC_LINEAR, 0.0f, DMAX, 2.0f, 0.1f);
 	msIval.init    (SIMPLE_FUNC_LINEAR, 1.0f, DMAX, DEFAULT_IVAL_B, DEFAULT_IVAL_A);
-	descConsExp	    = 2.0;
-	descPrioritizeRoots = false;
-	descLanding	    = 20;
-	descentTotSz.init(SIMPLE_FUNC_LINEAR, 1024.0, DMAX, 0.0, 1024.0);
-	descentTotFmops.init(SIMPLE_FUNC_LINEAR, 100.0, DMAX, 0.0, 10.0);
 	multiseedMms	    = DEFAULT_SEEDMMS;
 	multiseedLen	    = gDefaultSeedLen;
 	multiseedOff	    = 0;
@@ -670,12 +658,6 @@ static struct option long_options[] = {
 	{(char*)"local-seed-cache-sz",         required_argument,  0,                   ARG_LOCAL_SEED_CACHE_SZ},
 	{(char*)"seed-cache-sz",               required_argument,  0,                   ARG_CURRENT_SEED_CACHE_SZ},
 	{(char*)"no-unal",                     no_argument,        0,                   ARG_SAM_NO_UNAL},
-// TODO: following should be a function of read length?
-	{(char*)"desc-kb",                     required_argument,  0,                   ARG_DESC_KB},
-	{(char*)"desc-landing",                required_argument,  0,                   ARG_DESC_LANDING},
-	{(char*)"desc-exp",                    required_argument,  0,                   ARG_DESC_EXP},
-	{(char*)"desc-prioritize",             no_argument,        0,                   ARG_DESC_PRIORITIZE},
-	{(char*)"desc-fmops",                  required_argument,  0,                   ARG_DESC_FMOPS},
 	{(char*)"log-dp",                      required_argument,  0,                   ARG_LOG_DP},
 	{(char*)"log-dp-opp",                  required_argument,  0,                   ARG_LOG_DP_OPP},
 	{(char*)"soft-clipped-unmapped-tlen",  no_argument,        0,                   ARG_SC_UNMAPPED},
@@ -1047,27 +1029,8 @@ static EList<string> presetList;
  */
 static void parseOption(int next_option, const char *arg) {
 	switch (next_option) {
-	case ARG_DESC_KB: descentTotSz = SimpleFunc::parse(arg, 0.0, 1024.0, 1024.0, DMAX); break;
-	case ARG_DESC_FMOPS: descentTotFmops = SimpleFunc::parse(arg, 0.0, 10.0, 100.0, DMAX); break;
 	case ARG_LOG_DP: logDps = arg; break;
 	case ARG_LOG_DP_OPP: logDpsOpp = arg; break;
-	case ARG_DESC_LANDING: {
-		descLanding = parse<int>(arg);
-		if(descLanding < 1) {
-			cerr << "Error: --desc-landing must be greater than or equal to 1" << endl;
-			throw 1;
-		}
-		break;
-	}
-	case ARG_DESC_EXP: {
-		descConsExp = parse<double>(arg);
-		if(descConsExp < 0.0) {
-			cerr << "Error: --desc-exp must be greater than or equal to 0" << endl;
-			throw 1;
-		}
-		break;
-	}
-	case ARG_DESC_PRIORITIZE: descPrioritizeRoots = true; break;
 	case '1': tokenize(arg, ",", mates1); break;
 	case '2': tokenize(arg, ",", mates2); break;
 	case ARG_ONETWO: tokenize(arg, ",", mates12); set_format(format, TAB_MATE5); break;

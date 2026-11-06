@@ -191,7 +191,6 @@ SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
 SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   read_qseq.cpp aligner_seed_policy.cpp \
   aligner_seed.cpp \
-  aligner_seed2.cpp \
   aligner_sw.cpp \
   aligner_sw_driver.cpp aligner_cache.cpp \
   aligner_result.cpp ref_coord.cpp mask.cpp \
@@ -204,8 +203,7 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
   aligner_swsse_loc_i16.cpp \
   aligner_swsse_ee_i16.cpp \
   aligner_swsse_loc_u8.cpp \
-  aligner_swsse_ee_u8.cpp \
-  aligner_driver.cpp
+  aligner_swsse_ee_u8.cpp
 
 ifeq (1, $(WITH_ZSTD))
   LDLIBS += -lzstd
