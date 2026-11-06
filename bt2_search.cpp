@@ -1584,7 +1584,11 @@ static void parseOption(int next_option, const char *arg) {
 		if(args.size() == 3) {
 			polstr += (args[0] + "," + args[1] + "," + args[2]);
 		} else {
-			polstr += ("L," + args[0]);
+			// Default to L only when no function type (C, L, S, G) is given
+			if(!isalpha((unsigned char)args[0][0])) {
+				polstr += "L,";
+			}
+			polstr += args[0];
 			if(args.size() > 1) {
 				polstr += ("," + (args[1]));
 			}

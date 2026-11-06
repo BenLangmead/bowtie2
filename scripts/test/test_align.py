@@ -568,7 +568,7 @@ def three_n_read(genome_dict):
 @pytest.mark.parametrize('func,filtered', [
 	(None, False),                       # default L,0,0.15 -> 7.5
 	('L,0,0.07', False), ('L,0,0.05', True),     # 3.5, 2.5
-	('C,3,0', False), ('C,2,0', True),
+	('C,3,0', False), ('C,2,0', True), ('C,3', False), ('C,2', True),
 	('S,0,0.45', False), ('S,0,0.4', True),     # 3.18, 2.83
 	('G,0,0.8', False), ('G,0,0.7', True),      # 3.13, 2.74
 ])
