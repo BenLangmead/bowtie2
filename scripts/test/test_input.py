@@ -615,6 +615,22 @@ def test_bam_shipped_example(bt2, lambda_index, example_reads):
 		check(recs[2 * k + 1], seconds[k])
 
 
+# ------------------------------------------------------------------- SRA
+
+def test_sra_acc_with_read_files_is_an_error(bt2, lambda_index, example_reads):
+	"""--sra-acc with -U is an error; the -U file is not opened as an accession.
+
+	Only SRA builds (USE_SRA) have --sra-acc; the error comes before any
+	accession is accessed, so no network is needed."""
+	usage = bt2.run('bowtie2', ['--help']).stdout
+	if '--sra-acc' not in usage:
+		pytest.skip('bowtie2 built without USE_SRA')
+	_, proc = run_align(bt2, lambda_index,
+		['-U', example_reads['reads_1'], '--sra-acc', 'SRR0000000'], check=False)
+	assert proc.returncode != 0
+	assert '--sra-acc cannot be combined with' in proc.stderr
+
+
 # ------------------------------------------------- read selection: -s / -u
 
 @pytest.mark.parametrize('args,expected', [
