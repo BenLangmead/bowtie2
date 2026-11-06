@@ -824,7 +824,7 @@ void DifferenceCoverSample<TStr>::build(thread_pool& pool, int nthreads) {
 						tparams[tid].cur = &cur;
 						tparams[tid].mutex = &mutex;
 						if (tid == nthreads - 1)
-							VSorting_worker<TStr>(((void*)&tparams[tid]));
+							VSorting_worker<TStr>(((void*)&tparams[tid]))();
 						else
 							threads[tid] = pool.submit(VSorting_worker<TStr>(((void*)&tparams[tid])));
 					}

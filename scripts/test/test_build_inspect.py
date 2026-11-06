@@ -15,6 +15,7 @@ shape (--offrate, --ftabchars, --large-index) must not change alignments.
 import gzip
 import os
 import re
+import subprocess
 
 import pytest
 
@@ -375,6 +376,7 @@ STRATEGY_VARIANTS = [
 	['-a', '--dcv', '4096'],
 	['--dcv', '64'],
 	['--threads', '4'],
+	['--threads', '2', '--bmax', '64'],
 	['--threads', '3', '-a', '--bmaxdivn', '9', '--dcv', '32'],
 	['--seed', '7'],
 	['--seed', '123456'],
@@ -406,6 +408,24 @@ def test_large_build_strategy_does_not_change_index(bt2, mixed_fasta,
 	bt2.build_index(mixed_fasta, prefix, extra=extra)
 	assert files_written(prefix) == index_names('bt2l')
 	assert_same_files(prefix, mixed_index_large, ext='bt2l')
+
+
+@pytest.mark.parametrize('blocked', [1, 300], ids=['block0', 'allblocks'])
+def test_build_block_write_error_exits(bt2, lambda_fasta, tmp_path, blocked):
+	"""A sorted block that cannot be written ends a threaded build with an error, not a hang or crash."""
+	prefix = str(tmp_path / 'lam')
+	for i in range(blocked):
+		os.mkdir('%s.%d.sa' % (prefix, i))  # a directory: opening it for writing fails
+	exe = os.path.join(os.path.dirname(bt2.build), 'bowtie2-build-s')
+	try:
+		proc = bt2.run(exe, ['--threads', '4', '--bmax', '200', '--dcv', '32',
+			'-q', lambda_fasta, prefix], check=False, timeout=30)
+	except subprocess.TimeoutExpired:
+		pytest.fail('bowtie2-build hung after a block write error')
+	assert proc.returncode == 1, proc.stderr
+	assert 'Could not open file for writing' in proc.stderr
+	assert [f for f in os.listdir(str(tmp_path)) if f.endswith('.sa')
+		and os.path.isfile(os.path.join(str(tmp_path), f))] == []
 
 
 @pytest.mark.parametrize('extra,message', [
