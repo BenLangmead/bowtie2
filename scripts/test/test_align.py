@@ -370,6 +370,24 @@ def test_local_with_preset_is_local_preset(bt2, lambda_index, example_reads, pre
 		align(bt2, lambda_index, fq, ['--%s-local' % preset, '-u', 1000]), 1000)
 
 
+@pytest.mark.parametrize('cp_min', [None, 100000])
+def test_local_long_read_full_alignment(bt2, lambda_fasta, lambda_index, tmp_path, cp_min):
+	"""A 5 kb --local read with 17 substitutions aligns from end to end.
+
+	Reads of at least --cp-min (2000) bases use the checkpointed DP fill, which
+	keeps the 2 best backtrace candidates per diagonal. It used to keep the 2
+	worst, so the read came out as a short, low-scoring piece (AS:i:148).
+	--cp-min 100000 takes the uncheckpointed path and is the reference."""
+	with open(lambda_fasta) as f:
+		lam = ''.join(l.strip() for l in f if not l.startswith('>'))
+	subs = range(150, 5000, 300)
+	fq = write_reads(tmp_path, [('long', h.mutate(lam[5000:10000], subs))])
+	args = ['--local'] + (['--cp-min', cp_min] if cp_min else [])
+	rec, = align(bt2, lambda_index, fq, args)
+	assert (rec.pos, rec.cigar, rec.tags['NM']) == (5001, '5000M', len(subs))
+	assert rec.tags['AS'] == 2 * (5000 - len(subs)) - 6 * len(subs)
+
+
 # ---------------------------------------------------------------------------
 # Presets
 # ---------------------------------------------------------------------------

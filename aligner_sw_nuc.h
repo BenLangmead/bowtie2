@@ -203,7 +203,7 @@ public:
 	
 	/**
 	 * Add a new result to bin 'elt'.  Where it gets prioritized in the list of
-	 * results in that bin depends on the result of operator>.
+	 * results in that bin depends on the result of operator<; the best come first.
 	 */
 	bool add(size_t elt, const T& o) {
 		assert_lt(elt, nelt_);
@@ -211,7 +211,7 @@ public:
 		assert_leq(ncur, nbest_);
 		n_++;
 		for(size_t i = 0; i < nbest_ && i <= ncur; i++) {
-			if(o > elts_[nbest_ * elt + i] || i >= ncur) {
+			if(i >= ncur || o < elts_[nbest_ * elt + i]) {
 				// Insert it here
 				// Move everyone from here on down by one slot
 				for(int j = (int)ncur; j > (int)i; j--) {
