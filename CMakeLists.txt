@@ -179,10 +179,6 @@ if (ZLIB_FOUND)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR})
-get_directory_property(COMPILER_DEFS COMPILE_DEFINITIONS)
-string(REPLACE ";" " -D" COMPILER_DEFS "${COMPILER_DEFS}")
-string(REPLACE "\"" "" COMPILER_DEFS "${COMPILER_DEFS}")
-add_definitions(-DCOMPILER_OPTIONS="${CMAKE_CXX_FLAGS} -D${COMPILER_DEFS}")
 
 if (USE_SRA)
   set(SRA_TOOLS_VER 3.0.9)
@@ -242,6 +238,12 @@ if (USE_SRA)
   link_libraries(ncbi-ngs-static ncbi-vdb-static dl)
   add_definitions(-DUSE_SRA)
 endif()
+
+# after the USE_SRA block, so that --version reports -DUSE_SRA
+get_directory_property(COMPILER_DEFS COMPILE_DEFINITIONS)
+string(REPLACE ";" " -D" COMPILER_DEFS "${COMPILER_DEFS}")
+string(REPLACE "\"" "" COMPILER_DEFS "${COMPILER_DEFS}")
+add_definitions(-DCOMPILER_OPTIONS="${CMAKE_CXX_FLAGS} -D${COMPILER_DEFS}")
 
 if (USE_SAIS)
   set(LIBSAIS_VER 2.7.3)
