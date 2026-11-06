@@ -281,7 +281,26 @@ public:
 		_done(NULL)
 		{ _randomSrc.init(__seed); reset(); }
 
-	~KarkkainenBlockwiseSA() throw() {}
+	~KarkkainenBlockwiseSA() throw() {
+		// Pool threads use this object: let them claim no new block, and
+		// wait for the ones still sorting (after an error, for instance).
+		{
+			ThreadSafe ts(_mutex);
+			_cur = (TIndexOffU)_sampleSuffs.size() + 1;
+		}
+		for(size_t i = 0; i < _workers.size(); i++) {
+			if(_workers[i].valid()) _workers[i].wait();
+		}
+		if(_done != NULL) {
+			// Remove the sorted blocks that will not be read any more
+			for(size_t i = _itrBucketIdx; i <= _sampleSuffs.size(); i++) {
+				if(!_done[i]) continue;
+				std::ostringstream number; number << i;
+				std::remove((_base_fname + "." + number.str() + ".sa").c_str());
+			}
+		}
+		delete[] _done;
+	}
 
 	/**
 	 * Allocate an amount of memory that simulates the peak memory
@@ -319,7 +338,7 @@ public:
 						_tparams[tid].first = this;
 						_tparams[tid].second = tid;
 						if (tid < _nthreads - 1)
-							_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
+							_workers.push_back(_pool.submit(nextBlock_Worker((void *)&_tparams[tid])));
 					}
 				}
 			}
@@ -339,6 +358,12 @@ public:
 					_cur++;
 				} else {
 					while(!_done[this->_itrBucketIdx]) {
+						// Rethrow here the error of a pool thread that stopped
+						for(size_t i = 0; i < _workers.size(); i++) {
+							if(_workers[i].valid() &&
+							   _workers[i].wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+								_workers[i].get();
+						}
 						if(!sortNextBlock(this->_nthreads - 1)) SLEEP(1);
 					}
 					// Read suffixes from a file
@@ -507,7 +532,7 @@ private:
 	MUTEX_T                 _mutex;       /// synchronization of output message
 	string                  _base_fname;  /// base file name for storing SA blocks
 	bool                    _bigEndian;   /// bigEndian?
-	EList<std::thread*> _threads;     /// thread list
+	std::vector<std::future<void> > _workers; /// pool threads sorting blocks
 	EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
 	ELList<TIndexOffU>      _itrBuckets;  /// buckets
 	volatile bool *_done;        /// is a block processed?
