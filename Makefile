@@ -82,12 +82,15 @@ ARCH ?= $(shell uname -m)
 ifneq (,$(findstring $(ARCH), x86_64 amd64))
   BITS := 64
   SSE_FLAG := -msse2
+  # -ffp-contract=off: no fused multiply-adds, so floating-point results (e.g.
+  # --score-min, MAPQ) round the same way in every x86 build.  The -v256 build
+  # has FMA, and so does the 128-bit build when the compiler's default -march
+  # includes it (as on distributions built for x86-64-v3).
+  CXXFLAGS += -ffp-contract=off
   POPCNT_CAPABILITY ?= 1
   ifneq (0, $(SSE_AVX2))
     ENABLE_V256 := 1
-    # -ffp-contract=off: no fused multiply-adds, so floating-point results (e.g.
-    # --score-min, MAPQ) are rounded as in the 128-bit build and outputs match it
-    V256_FLAG := -march=x86-64-v3 -mtune=znver3 -ffp-contract=off -faligned-new -DSSE_AVX2 -DPOPCNT_CAPABILITY
+    V256_FLAG := -march=x86-64-v3 -mtune=znver3 -faligned-new -DSSE_AVX2 -DPOPCNT_CAPABILITY
     # tell 128-bit version to check for v256 capability and use it, if found
     SSE_FLAG += -DENABLE_x86_64_v3
   endif

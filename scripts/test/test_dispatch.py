@@ -163,8 +163,10 @@ FP_CASES = [
 def test_v256_matches_128bit_at_score_boundaries(v256, align_128, lambda_fasta,
 		lambda_index, tmp_path, name, length, opts):
 	"""The -v256 and 128-bit builds write identical SAM records for reads
-	whose minimum score depends on how C + L*x is rounded. The -v256 build
-	is compiled with -ffp-contract=off so that it rounds the same way."""
+	whose minimum score depends on how C + L*x is rounded. Every x86 build
+	is compiled with -ffp-contract=off so that they round the same way,
+	including a 128-bit build whose compiler defaults to an -march with
+	FMA."""
 	path, capable = v256
 	if not capable:
 		pytest.skip('this CPU cannot run the -v256 build')
