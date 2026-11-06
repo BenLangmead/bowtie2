@@ -523,6 +523,22 @@ def test_seed_length_L(bt2, genome_index, genome_dict, tmp_path, length, aligns)
 		assert (rec.pos, rec.tags['AS'], rec.tags['MD']) == (edited.pos, -24, edited.md)
 
 
+@pytest.mark.parametrize('policy', ['SEEDLEN=0', 'SEEDLEN=33'])
+def test_policy_seedlen_range(bt2, genome_index, genome_dict, tmp_path, policy):
+	"""SEEDLEN in --policy gets the same [1,32] check as -L."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq, '--policy', policy], check=False)
+	assert proc.returncode != 0
+	assert 'seed length must be within the interval [1,32]' in proc.stderr
+
+
+def test_seed_mismatches_not_less_than_length_warning(bt2, genome_index, genome_dict, tmp_path):
+	"""-N 1 -L 1 is lowered to -N 0 with a warning that says why."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq, '-L', 1, '-N', 1])
+	assert 'seed mismatches (1) is not less than seed length (1)' in proc.stderr
+
+
 @pytest.mark.parametrize('ival,aligns', [
 	('C,1,0', True), ('C,5,0', True), ('C,30,0', False),
 	('C,0,0', True),        # below 1, rounded up to 1
@@ -805,6 +821,17 @@ def test_score_min_end_to_end(bt2, genome_index, score18_read, tmp_path, func, a
 		assert (rec.pos, rec.tags['AS']) == (score18_read.pos, -18)
 	else:
 		assert 'YF' not in rec.tags
+
+
+@pytest.mark.parametrize('func,aligns', [
+	('L,0,-1,-100,-17', True),       # max(-100, min(-17, -64)) = -64
+	('L,0,-0.25,-100,-19', True),    # max(-100, min(-19, -16)) = -19
+	('L,0,-0.25,-100,-17', False),   # max(-100, min(-17, -16)) = -17
+])
+def test_score_min_max_part(bt2, genome_index, score18_read, tmp_path, func, aligns):
+	"""The 4th and 5th parts of a policy function are its minimum and maximum."""
+	rec = mapped(bt2, genome_index, tmp_path, score18_read.seq, ['--policy', 'MIN=' + func])
+	assert rec.is_unmapped != aligns
 
 
 @pytest.mark.parametrize('func,aligns', [

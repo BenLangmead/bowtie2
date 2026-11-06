@@ -81,7 +81,7 @@ static void parseNum(const std::string& s, T& v) {
 	if(ctoks.size() >= 5) { \
 		double mx; \
 		parseNum(ctoks[4], mx); \
-		fv.setMin(mx); \
+		fv.setMax(mx); \
 	} \
 }
 
@@ -584,6 +584,10 @@ void SeedAlignmentPolicy::parseString(
 			}
 			if(ctoks.size() >= 1) {
 				parseNum(ctoks[0], multiseedLen);
+				if(multiseedLen < 1 || multiseedLen > 32) {
+					cerr << "Error: seed length must be within the interval [1,32]; was " << multiseedLen << endl;
+					throw 1;
+				}
 			}
 		}
 		else if(tag == "DPS") {

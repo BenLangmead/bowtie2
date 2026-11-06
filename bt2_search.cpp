@@ -1876,7 +1876,7 @@ static void parseOptions(int argc, const char **argv) {
 	if(multiseedMms >= multiseedLen) {
 		assert_gt(multiseedLen, 0);
 		cerr << "Warning: seed mismatches (" << multiseedMms
-		     << ") is less than seed length (" << multiseedLen
+		     << ") is not less than seed length (" << multiseedLen
 		     << "); setting mismatches to " << (multiseedMms-1)
 		     << " instead" << endl;
 		multiseedMms = multiseedLen-1;
