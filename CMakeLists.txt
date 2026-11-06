@@ -38,8 +38,8 @@ set(INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 message("${CMAKE_SOURCE_DIR}/third_party")
 if (MINGW)
-  option(BOWTIE_MM "Memory mapped files not supported on Windows" OFF)
-  option(BOWTIE_SHARED_MEM "Shared memory not supported on Windows" OFF)
+  set(BOWTIE_MM OFF CACHE BOOL "Memory mapped files not supported on Windows" FORCE)
+  set(BOWTIE_SHARED_MEM OFF CACHE BOOL "Shared memory not supported on Windows" FORCE)
 endif(MINGW)
 
 if (APPLE)

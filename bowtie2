@@ -67,7 +67,7 @@ sub quote_params {
                               '--interleaved' => 1,
                               '--rg' => 1,'--rg-id' => 1,
                               '--tab5' => 1, '--tab6' => 1,
-                              '--sam-acc' => 1, '--bam' => 1
+                              '--sra-acc' => 1, '--bam' => 1
             );
         my $param_list = shift;
         my $quoting = 0;
@@ -215,6 +215,9 @@ GetOptions(
         "log-file=s"                    => \$log_fName,
     );
 
+# POSIX::mkfifo is not available on Windows
+$no_pipes = 1 unless $os_is_nix;
+
 my @bt2_args = @ARGV;
 
 if ($verbose == 1) {
@@ -250,11 +253,14 @@ if ($log_fName) {
 
 sub which {
         my $exec = shift;
+        my @names = $os_is_nix ? ($exec) : ($exec, "$exec.exe");
 
-        for my $path (split/:/, $ENV{"PATH"}) {
-                my $file_path = File::Spec->catfile($path, $exec);
-                if (-e $file_path && -x $file_path) {
-                        return 1;
+        for my $path (File::Spec->path()) {
+                for my $name (@names) {
+                        my $file_path = File::Spec->catfile($path, $name);
+                        if (-e $file_path && -x $file_path) {
+                                return 1;
+                        }
                 }
         }
         return 0;
