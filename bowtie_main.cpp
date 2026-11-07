@@ -151,10 +151,12 @@ void check_x86_64_v3(int argc, const char **argv) {
 		strncpy(new_path+fn_len,"-v256",15);
 
 		for (int i=1; i<=argc; i++) new_argv[i] = argv[i]; // all but first the same, also copy final NULL
-		new_argv[0] = new_path;
+		// keep argv[0], so --version and the @PG line name the binary that was run,
+		// whichever variant does the work
+		new_argv[0] = org_path;
 		// now replace the executable with new variant
 		// assuming the executable exists... execvp will gracefully fail else, which is OK
-		execvp(new_argv[0], (char *const *)new_argv);
+		execvp(new_path, (char *const *)new_argv);
 		// we should never get out of the above call
 		fprintf(stderr,"[WARNING] Failed to launch x86-64-v3 version, staying with default\n");
 	}
