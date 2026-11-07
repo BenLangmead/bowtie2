@@ -783,6 +783,18 @@ def test_phred64_rejects_phred33_input(bt2, genome_dict, genome_index, tmp_path)
 	assert 'expected 64-based Phred qual' in proc.stderr
 
 
+@pytest.mark.parametrize('threads', ['1', '4'])
+def test_input_error_in_thread_exits_cleanly(bt2, genome_dict, genome_index, tmp_path, threads):
+	"""A parse error in a reader or worker thread ends the run with exit 1,
+	not with std::terminate (SIGABRT, exit 134)."""
+	reads = [(n, s, '5' * len(s)) for n, s, _ in unpaired_reads(genome_dict)] * 50
+	path = h.write_fastq(str(tmp_path / 'r.fq'), reads)
+	_, proc = run_align(bt2, genome_index, ['-U', path, '--phred64', '-p', threads], check=False)
+	assert proc.returncode == 1, proc.stderr
+	assert 'expected 64-based Phred qual' in proc.stderr
+	assert 'terminat' not in proc.stderr and 'uncaught' not in proc.stderr
+
+
 # --------------------------------------- read files, compression, stdin
 
 def zstd_input_supported(bt2):
