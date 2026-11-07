@@ -1075,6 +1075,35 @@ def test_missing_index_binary(bt2, unp, tmp_path):
 	assert body(proc.stdout) == []
 
 
+@pytest.mark.parametrize('damage,extra,message', [
+	('missing .2.bt2', [], 'Could not open index file'),
+	('missing .rev.1.bt2', [], 'Could not open index file'),
+	('truncated .1.bt2', [], 'no reference names found'),
+	('truncated .rev.1.bt2', ['--mm', '-p', '4'], 'lambda_virus.rev.1.bt2 is truncated'),
+	('truncated .2.bt2', ['--mm', '-p', '4'], 'lambda_virus.2.bt2 is truncated'),
+])
+def test_damaged_index_is_an_error(bt2, lambda_index, example_reads, tmp_path,
+		damage, extra, message):
+	"""A missing or truncated index file is reported and exits 1 instead of
+	crashing (#537 1.5); with --mm the file size is checked before the mapping
+	is used."""
+	idx = tmp_path / 'lambda_virus'
+	for name in os.listdir(os.path.dirname(lambda_index)):
+		if name.endswith('.bt2'):
+			shutil.copy(os.path.join(os.path.dirname(lambda_index), name), str(tmp_path))
+	kind, suffix = damage.split(' ')
+	path = str(idx) + suffix
+	if kind == 'missing':
+		os.remove(path)
+	else:
+		with open(path, 'r+b') as f:
+			f.truncate(os.path.getsize(path) // 2)
+	proc = bt2.run(align_bin(bt2), extra + ['-x', str(idx), '-U', example_reads['reads_1'],
+		'-S', str(tmp_path / 'out.sam')], check=False)
+	assert proc.returncode == 1, proc.stderr
+	assert message in proc.stderr
+
+
 def test_missing_read_file(bt2, genome_index, tmp_path):
 	"""A read file that does not exist is an error when it is the only one."""
 	missing = str(tmp_path / 'missing.fq')

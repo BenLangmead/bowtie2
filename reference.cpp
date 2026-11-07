@@ -67,6 +67,7 @@ BitPairReference::BitPairReference(
 	}
 #ifdef BOWTIE_MM
     char *mmFile = NULL;
+	off_t mmSize = 0;
 	if(useMm_) {
 		if(verbose_ || startVerbose) {
 			cerr << "  Memory-mapping reference index file " << s4.c_str() << ": ";
@@ -78,6 +79,7 @@ BitPairReference::BitPairReference(
 			cerr << "Error: Could not stat index file " << s4.c_str() << " prior to memory-mapping" << endl;
 			throw 1;
 		}
+		mmSize = sbuf.st_size;
 		mmFile = (char*)mmap((void *)0, (size_t)sbuf.st_size,
 				     PROT_READ, MAP_SHARED, fileno(f4), 0);
 		if(mmFile == (void *)(-1) || mmFile == NULL) {
@@ -179,6 +181,10 @@ BitPairReference::BitPairReference(
 	if(useMm_) {
 #ifdef BOWTIE_MM
 		buf_ = (uint8_t*)mmFile;
+		if((uint64_t)mmSize < (cumsz >> 2)) {
+			cerr << "Only read " << mmSize << " bytes (out of " << (cumsz >> 2) << ") from reference index file " << s4.c_str() << endl;
+			throw 1;
+		}
 		if(sanity_) {
 			FILE *ftmp = fopen(s4.c_str(), "rb");
 			sanityBuf_ = new uint8_t[cumsz >> 2];
