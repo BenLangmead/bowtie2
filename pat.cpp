@@ -1437,6 +1437,19 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 			i += block_size;
 			continue;
 		}
+		if (interleaved_ && !batch_a) {
+			// A mate 2 completes a pair only with its own mate 1: drop a
+			// lone mate 2, e.g. one whose mate 1 is mapped or stored after it.
+			const Read::TBuf& mate1 = pt.bufa_[readi].readOrigBuf;
+			const uint8_t *rec = &alignment_batch[0] + i;
+			uint8_t l_read_name = rec[offset[BAMField::l_read_name]];
+			if (mate1.length() == 0 ||
+			    (uint8_t)mate1.buf()[offset[BAMField::l_read_name]] != l_read_name ||
+			    memcmp(mate1.buf() + offset[BAMField::read_name], rec + offset[BAMField::read_name], l_read_name) != 0) {
+				i += block_size;
+				continue;
+			}
+		}
 
 		readbuf[readi].readOrigBuf.resize(block_size);
 		memcpy(readbuf[readi].readOrigBuf.wbuf(), &alignment_batch[0] + i, block_size);
