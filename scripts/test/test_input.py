@@ -318,17 +318,17 @@ def test_formats_without_qualities_score_as_ignore_quals(bt2, genome_dict,
 	assert rec.tags['MD'] == '17%s32' % ref[17]
 
 
-def test_fasta_continuous_kmers(bt2, genome_dict, genome_index, tmp_path):
-	"""-F <k>,<i> aligns every k-mer at offsets 0, i, 2i... of each FASTA record, named <record>_<offset>.
+@pytest.mark.parametrize('spec', ['k:20,i:4', '20,4'])
+def test_fasta_continuous_kmers(bt2, genome_dict, genome_index, tmp_path, spec):
+	"""-F k:<k>,i:<i> aligns every k-mer at offsets 0, i, 2i... of each FASTA record, named <record>_<offset>.
 
 	seqB is 36 bases long, so its last k-mer (offset 16) ends at the record's
-	last base. Only the undocumented "-F 20,4" spelling works in the current
-	version; the MANUAL's "-F k:20,i:4" yields no reads and is not tested here."""
+	last base. The MANUAL's "k:20,i:4" and the shorter "20,4" are the same."""
 	seq_a = genome_dict['chr2'][200:230]
 	seq_b = genome_dict['chr3'][100:136]
 	path = str(tmp_path / 'long.fa')
 	h.write_fasta(path, [('seqA some description', seq_a), ('seqB', seq_b)], width=11)
-	recs, _ = run_align(bt2, genome_index, ['-F', '20,4', '-U', path])
+	recs, _ = run_align(bt2, genome_index, ['-F', spec, '-U', path])
 	expected = []
 	for name, chrom, start, length in (('seqA', 'chr2', 200, 30), ('seqB', 'chr3', 100, 36)):
 		for off in range(0, length - 20 + 1, 4):
@@ -339,6 +339,15 @@ def test_fasta_continuous_kmers(bt2, genome_dict, genome_index, tmp_path):
 		assert rec.seq == genome_dict[rec.rname][rec.pos - 1:rec.pos + 19]
 		assert rec.qual == 'I' * 20
 		assert rec.tags['AS'] == 0
+
+
+@pytest.mark.parametrize('spec', ['1500,5000', 'k:0,i:4', '20,0'])
+def test_fasta_continuous_bad_k_or_i(bt2, genome_index, tmp_path, spec):
+	"""-F rejects k outside 1-1024 (the k-mer window) and i of 0."""
+	path = h.write_fasta(str(tmp_path / 'long.fa'), [('s', 'ACGT' * 1000)])
+	_, proc = run_align(bt2, genome_index, ['-F', spec, '-U', path], check=False)
+	assert proc.returncode != 0
+	assert '1 <= k <= 1024' in proc.stderr
 
 
 def test_cmdline_paired(bt2, genome_dict, genome_index):
