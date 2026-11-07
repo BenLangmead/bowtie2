@@ -774,6 +774,37 @@ def test_solexa_quals(bt2, genome_dict, genome_index, tmp_path, solexa):
 	assert rec.tags['AS'] == -h.mismatch_penalty(chr(33 + phred))
 
 
+@pytest.mark.parametrize('fmt', ['fastq', 'tab5', 'qseq'])
+@pytest.mark.parametrize('sep,tail', [(' ', ''), ('  ', ' ')], ids=['spaced', 'double-trailing'])
+@pytest.mark.parametrize('trim', [[], ['-5', '2', '-3', '3']], ids=['untrimmed', 'trimmed'])
+def test_int_quals(bt2, genome_dict, genome_index, tmp_path, fmt, sep, tail, trim):
+	"""--int-quals reads space-separated Phred integers ("40 40 20 ...") as the same QUAL as Phred+33 characters.
+
+	Repeated and trailing spaces separate values too, and -5/-3 trim them
+	like character qualities."""
+	_, read, phred = low_quality_mismatch_read(genome_dict, 20)
+	q33 = ''.join(chr(33 + p) for p in phred)
+	ints = sep.join(str(p) for p in phred) + tail
+	(tmp_path / 'c').mkdir()
+	(tmp_path / 'i').mkdir()
+	args_c, _, _ = write_input(fmt, tmp_path / 'c', [('iq', read, q33)])
+	args_i, _, _ = write_input(fmt, tmp_path / 'i', [('iq', read, ints)])
+	_, chars = run_align(bt2, genome_index, args_c + trim)
+	_, as_int = run_align(bt2, genome_index, args_i + trim + ['--int-quals'])
+	assert len(sam_body(chars)) == 1
+	assert sam_body(as_int) == sam_body(chars)
+
+
+@pytest.mark.parametrize('fmt', ['fastq', 'tab5', 'qseq'])
+def test_int_quals_count_must_match(bt2, genome_dict, genome_index, tmp_path, fmt):
+	"""--int-quals with one value fewer than the read has bases is an error."""
+	_, read, phred = low_quality_mismatch_read(genome_dict, 20)
+	args, _, _ = write_input(fmt, tmp_path, [('iq', read, ' '.join(map(str, phred[1:])))])
+	_, proc = run_align(bt2, genome_index, args + ['--int-quals'], check=False)
+	assert proc.returncode != 0
+	assert 'more read characters than quality values' in proc.stderr
+
+
 def test_phred64_rejects_phred33_input(bt2, genome_dict, genome_index, tmp_path):
 	"""--phred64 on qualities below ASCII 64 is an error."""
 	n, s, q = unpaired_reads(genome_dict)[0]

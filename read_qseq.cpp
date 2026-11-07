@@ -172,21 +172,7 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		assert(r.qual.empty());
 		int nqual = 0;
 		if (pp_.intQuals) {
-			int cur_int = 0;
-			while(c != '\t') {
-				cur_int *= 10;
-				cur_int += (int)(c - '0');
-				c = r.readOrigBuf[cur++];
-				assert(c != '\r' && c != '\n');
-				if(c == ' ' || c == '\t') {
-					char cadd = intToPhred33(cur_int, pp_.solexa64);
-					cur_int = 0;
-					assert_geq(cadd, 33);
-					if(++nqual > pp_.trim5) {
-						r.qual.append(cadd);
-					}
-				}
-			}
+			parseIntQuals(r.readOrigBuf, cur, c, r.trimmed5, pp_.solexa64, r.qual);
 		} else {
 			while(cur < buflen) {
 				c = r.readOrigBuf[cur++];
@@ -202,14 +188,14 @@ bool QseqPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 					r.qual.append(c);
 				}
 			}
-			r.qual.trimEnd(r.trimmed3);
-			if(r.qual.length() < r.patFw.length()) {
-				tooFewQualities(r.name);
-				return false;
-			} else if(r.qual.length() > r.patFw.length()) {
-				tooManyQualities(r.name);
-				return false;
-			}
+		}
+		r.qual.trimEnd(r.trimmed3);
+		if(r.qual.length() < r.patFw.length()) {
+			tooFewQualities(r.name);
+			return false;
+		} else if(r.qual.length() > r.patFw.length()) {
+			tooManyQualities(r.name);
+			return false;
 		}
 	}
 	assert_eq('\t', c);
