@@ -279,7 +279,7 @@ sub cat_file($$) {
                 open($ifh, $ifn) || Fail("Could not open read file: $ifn \n");
         }
         while(readline $ifh) { print {$ofh} $_; }
-        close($ifh);
+        close($ifh) || Fail("Could not read file: $ifn\n");
 }
 
 sub write_files {
@@ -293,65 +293,39 @@ sub write_files {
         unless ($no_pipes) {
                 $pid = fork();
                 push @to_kill, $pid if $pid;
+                $SIG{HUP} = 'DEFAULT' unless $pid; # the kill at the end must work under nohup
         }
 
         if ($pid == 0) {
                 open(my $ofh, ">$output_file") || Fail("Can't open '$output_file' for writing.\n");
                 for my $fn (@$input_files) {
                         cat_file($fn, $ofh);
-                        close($ofh);
-                        exit 0 unless $no_pipes;
                 }
+                close($ofh) || Fail("Could not write '$output_file'.\n");
+                exit 0 unless $no_pipes;
         }
 }
 
 sub maybe_wrap_input {
         my ($orig_m1s, $orig_m2s, $ext) = @_;
-        my @m1s = ();
-        my @m2s = ();
-        my @wrapped_m1s = ();
-        my @wrapped_m2s = ();
+        # Classify each file of a comma list on its own; one temp file per
+        # wrapped file (or pair) keeps the files in the order given.
+        my @m1s = map { split /,/ } @$orig_m1s;
+        my @m2s = map { split /,/ } @$orig_m2s;
+        Fail("-1 and -2 must be given the same number of files.\n") if @m2s && @m2s != @m1s;
 
-        if (scalar(@$orig_m2s) == 0) {
-                my $fn = "$temp_dir/${host}_$$." . $ext;
-                for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-                        if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/) {
-                                push @m1s, $orig_m1s->[$i];
-                        } else {
-                                push @wrapped_m1s, $orig_m1s->[$i];
-                        }
-                }
-
-                if (scalar(@wrapped_m1s) > 0) {
-                        push @m1s, $fn;
+        for (my $i = 0; $i < scalar(@m1s); $i++) {
+                next unless grep { /\.(bz2|lz4)$/ } (@m2s ? ($m1s[$i], $m2s[$i]) : $m1s[$i]);
+                my $fn = "$temp_dir/${host}_$$.$i.$ext";
+                if (scalar(@m2s) == 0) {
                         push @to_delete, $fn;
-                        write_files(\@wrapped_m1s, $fn, $no_pipes);
-                }
-        } else {
-                my $fn1 = "$temp_dir/${host}_$$" . $ext . "1";
-                my $fn2 = "$temp_dir/${host}_$$" . $ext . "2";
-
-                for (my $i = 0; $i < scalar(@$orig_m1s); $i++) {
-                        if ($orig_m1s->[$i] !~ /\.bz2$/ && $orig_m1s->[$i] !~ /\.lz4$/ && $orig_m1s->[$i]
-                            && $orig_m2s->[$i] !~ /\.bz2$/ && $orig_m2s->[$i] !~ /\.lz4$/) {
-                                push @m1s, $orig_m1s->[$i];
-                                push @m2s, $orig_m2s->[$i];
-                        } else {
-                                push @wrapped_m1s, $orig_m1s->[$i];
-                                push @wrapped_m2s, $orig_m2s->[$i];
-                        }
-                }
-
-                if (scalar(@wrapped_m1s) > 0) {
-                        push @m1s, $fn1;
-                        push @to_delete, $fn1;
-                        write_files(\@wrapped_m1s, $fn1, $no_pipes);
-                }
-
-                if (scalar(@wrapped_m2s) > 0) {
-                        push @m2s, $fn2;
-                        push @to_delete, $fn2;
-                        write_files(\@wrapped_m2s, $fn2, $no_pipes);
+                        write_files([$m1s[$i]], $fn, $no_pipes);
+                        $m1s[$i] = $fn;
+                } else {
+                        push @to_delete, "${fn}1", "${fn}2";
+                        write_files([$m1s[$i]], "${fn}1", $no_pipes);
+                        write_files([$m2s[$i]], "${fn}2", $no_pipes);
+                        ($m1s[$i], $m2s[$i]) = ("${fn}1", "${fn}2");
                 }
         }
 
@@ -630,6 +604,9 @@ if(defined($cap_out)) {
 }
 if(!$keep) { for(@to_delete) { unlink($_); } }
 kill 'HUP', @to_kill;
+# A reader that exited with an error could not decompress its input
+my $input_failed = 0;
+for (@to_kill) { waitpid($_, 0); $input_failed = 1 if ($? >> 8) != 0; }
 
 if ($ret == -1) {
         Error("Failed to execute bowtie2-align: $!\n");
@@ -644,4 +621,4 @@ if ($ret == -1) {
 } elsif($ret != 0) {
         Error("bowtie2-align exited with value %d\n", ($ret >> 8));
 }
-exit ($ret >> 8);
+exit (($ret >> 8) || $input_failed);
