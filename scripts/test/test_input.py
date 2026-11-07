@@ -426,6 +426,21 @@ def test_wrong_format_is_an_error(bt2, genome_dict, genome_index, tmp_path, fmt,
 	assert message in proc.stderr
 
 
+@pytest.mark.parametrize('last', ['@t\nACGTACGTAC\n', '@t\nACGTACGTAC\n+'])
+@pytest.mark.parametrize('nvalid', [0, 3])
+def test_truncated_fastq_record_is_an_error(bt2, genome_dict, genome_index,
+		tmp_path, nvalid, last):
+	"""A last FASTQ record without its '+' or quality line is reported, not read past its buffer."""
+	args, _, _ = write_input('fastq', tmp_path, unpaired_reads(genome_dict)[:nvalid])
+	with open(args[-1], 'a') as f:
+		f.write(last)
+	_, proc = run_align(bt2, genome_index, args, check=False)
+	assert proc.returncode != 0
+	assert 'truncated FASTQ record' in proc.stderr
+	# An uncaught error in a worker thread may still abort; a crash may not.
+	assert '(SEGV)' not in proc.stderr and '(BUS)' not in proc.stderr
+
+
 # ------------------------------------------------------------------ QSEQ
 
 def test_qc_filter(bt2, genome_dict, genome_index, tmp_path):
