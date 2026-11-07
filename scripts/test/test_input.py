@@ -695,13 +695,14 @@ def test_trim_to(bt2, genome_dict, genome_index, tmp_path, fmt, spec, end):
 		assert_placed(rec, genome_dict, read_spec, q, trim5=trim5, trim3=trim3)
 
 
-def test_trim_to_default_end_is_3(bt2, genome_dict, genome_index, tmp_path):
-	"""--trim-to <int> is the same as --trim-to 3:<int>."""
+@pytest.mark.parametrize('n', [33, 9, 5])
+def test_trim_to_default_end_is_3(bt2, genome_dict, genome_index, tmp_path, n):
+	"""--trim-to <int> is the same as --trim-to 3:<int>, also for a one-digit <int>."""
 	args, _, _ = write_input('fastq', tmp_path, unpaired_reads(genome_dict))
-	_, bare = run_align(bt2, genome_index, args + ['--trim-to', '33'])
-	_, three = run_align(bt2, genome_index, args + ['--trim-to', '3:33'])
-	assert len(sam_body(three)) == len(UNPAIRED)
-	assert all('\t33M\t' in line for line in sam_body(three))
+	_, bare = run_align(bt2, genome_index, args + ['--trim-to', str(n)])
+	recs, three = run_align(bt2, genome_index, args + ['--trim-to', '3:%d' % n])
+	assert len(recs) == len(UNPAIRED)
+	assert all(len(r.seq) == n for r in recs)
 	assert sam_body(bare) == sam_body(three)
 
 

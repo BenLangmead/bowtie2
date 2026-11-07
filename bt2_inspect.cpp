@@ -108,7 +108,7 @@ static int parseInt(int lower, const char *errmsg) {
 	long l;
 	char *endPtr= NULL;
 	l = strtol(optarg, &endPtr, 10);
-	if (endPtr != NULL) {
+	if (endPtr != optarg && *endPtr == '\0') {
 		if (l < lower) {
 			cerr << errmsg << endl;
 			printUsage(cerr);
