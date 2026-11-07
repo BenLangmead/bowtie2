@@ -189,6 +189,9 @@ if (USE_SRA)
   set(NCBI_VDB_VER 3.0.9)
 
   set(THIRD_PARTY_LIBS "${PROJECT_SOURCE_DIR}/third_party")
+  # built by the external projects below, so find_library cannot find them at configure time
+  set(LIBNCBI_VDB ${THIRD_PARTY_LIBS}/lib64/libncbi-vdb-static.a)
+  set(LIBNCBI_NGS ${THIRD_PARTY_LIBS}/lib64/libncbi-ngs-static.a)
 
   find_package(Java COMPONENTS Development REQUIRED)
   find_package(PythonInterp REQUIRED)
@@ -213,6 +216,7 @@ if (USE_SRA)
     CONFIGURE_COMMAND cd build && cmake ..  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${THIRD_PARTY_LIBS}
     BUILD_COMMAND cmake --build build
     INSTALL_COMMAND cmake --install build
+    BUILD_BYPRODUCTS ${LIBNCBI_VDB}
     )
 
   ExternalProject_add(ngs_project
@@ -223,6 +227,7 @@ if (USE_SRA)
     BUILD_COMMAND cmake --build build
 
     INSTALL_COMMAND cmake --install build
+    BUILD_BYPRODUCTS ${LIBNCBI_NGS}
     DEPENDS ncbi_vdb_project
     )
 
@@ -231,12 +236,10 @@ if (USE_SRA)
 
   add_library(ncbi-vdb-static STATIC IMPORTED)
   add_dependencies(ncbi-vdb-static ncbi_vdb_project)
-  find_library(LIBNCBI_VDB ncbi-vdb-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
   set_property(TARGET ncbi-vdb-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_VDB})
 
   add_library(ncbi-ngs-static STATIC IMPORTED)
   add_dependencies(ncbi-ngs-static ngs_project)
-  find_library(LIBNCBI_NGS ncbi-ngs-static PATHS ${THIRD_PARTY_LIBS}/lib64 NO_DEFAULT_PATH)
   set_property(TARGET ncbi-ngs-static PROPERTY IMPORTED_LOCATION ${LIBNCBI_NGS})
 
   link_libraries(ncbi-ngs-static ncbi-vdb-static dl)
