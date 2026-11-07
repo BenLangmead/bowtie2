@@ -169,6 +169,7 @@ pair<bool, bool> PatternSourcePerThread::nextReadPair() {
 	assert(!buf_.read_a().readOrigBuf.empty());
 	assert(buf_.read_a().empty());
 	if(!parse(buf_.read_a(), buf_.read_b())) {
+		buf_.read_a().rdid = buf_.rdid(); // caller still has to retire this id
 		return make_pair(false, false);
 	}
 	// Finalize read/pair
@@ -853,15 +854,10 @@ bool FastaPatternSource::parse(Read& r, Read& rb, TReadId rdid) const {
 		}
 		r.name.append(c);
 	}
-	if(cur >= buflen) {
-		return false; // FASTA ended prematurely
-	}
-
-	// Parse sequence
+	// Parse sequence; a record with only a name gives an empty read, as in FASTQ
 	int nchar = 0;
 	assert(r.patFw.empty());
-	assert(c != '\n' && c != '\r');
-	assert_lt(cur, buflen);
+	assert(cur >= buflen || (c != '\n' && c != '\r'));
 	while(cur < buflen) {
 		if(c == '.') {
 			c = 'N';
