@@ -824,6 +824,47 @@ def test_compressed_reads(bt2, genome_dict, genome_index, tmp_path, kind):
 		assert_placed(rec, genome_dict, spec, q)
 
 
+def zstd_file(path, data):
+	"""Write `data` (bytes) compressed with the zstd program; returns path."""
+	plain = path + '.plain'
+	with open(plain, 'wb') as f:
+		f.write(data)
+	subprocess.run(['zstd', '-q', '-f', '-o', path, plain], check=True)
+	return path
+
+
+def test_zstd_reader(bt2, genome_dict, genome_index, tmp_path):
+	"""The zstd reader keeps going past frames that decode to no output, keeps
+	bytes pushed back between -r batches, and reads byte 0xFF as data, not EOF
+	(#547 item 5)."""
+	if not zstd_input_supported(bt2):
+		pytest.skip('bowtie2 built without WITH_ZSTD, or zstd program not found')
+	reads = unpaired_reads(genome_dict)
+	fq = [b'@%s\n%s\n+\n%s\n' % (n.encode(), s.encode(), q.encode()) for n, s, q in reads]
+
+	# Two data frames with an empty skippable frame between them.
+	a = zstd_file(str(tmp_path / 'a.zst'), b''.join(fq[:2]))
+	b = zstd_file(str(tmp_path / 'b.zst'), b''.join(fq[2:]))
+	path = str(tmp_path / 'frames.fq.zst')
+	with open(a, 'rb') as fa, open(b, 'rb') as fb, open(path, 'wb') as f:
+		f.write(fa.read() + struct.pack('<II', 0x184D2A50, 0) + fb.read())
+	recs, _ = run_align(bt2, genome_index, ['-U', path])
+	assert [r.qname for r in recs] == [r[0] for r in reads]
+
+	# -r with one read per batch pushes a byte back at every batch edge.
+	raw = b''.join(s.encode() + b'\n' for n, s, q in reads)
+	plain = write_text(tmp_path / 'r.raw', raw.decode())
+	zst = zstd_file(str(tmp_path / 'r.raw.zst'), raw)
+	_, p_plain = run_align(bt2, genome_index, ['-r', '--reads-per-batch', '1', '-U', plain])
+	_, p_zst = run_align(bt2, genome_index, ['-r', '--reads-per-batch', '1', '-U', zst])
+	assert sam_body(p_zst) == sam_body(p_plain)
+
+	# A read name containing byte 0xFF.
+	path = zstd_file(str(tmp_path / 'ff.fq.zst'), fq[0].replace(b'@', b'@\xff', 1) + b''.join(fq[1:]))
+	_, proc = run_align(bt2, genome_index, ['-U', path])
+	assert len(sam_body(proc)) == len(reads)
+
+
 @pytest.mark.parametrize('layout', [
 	['-U', '{a},{b}', '-U', '{c}'],
 	['-U', '{a}', '-U', '{b},{c}'],
