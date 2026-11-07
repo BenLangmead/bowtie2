@@ -1340,7 +1340,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			alignment_batch.resize(block.ftr.isize + delta_);
 			int ret_code = decompress_bgzf_block(&alignment_batch[0] + delta_, block.ftr.isize, block.cdata, cdata_len);
 			if (ret_code != Z_OK) {
-				return make_pair(true, 0);
+				compressedReadError(stream.msg != NULL ? stream.msg : zError(ret_code));
 			}
 #ifndef NDEBUG
 			uLong crc = crc32(0L, Z_NULL, 0);

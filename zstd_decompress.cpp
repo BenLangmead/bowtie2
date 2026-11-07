@@ -15,6 +15,7 @@ zstdStrm *zstdStrmInit()
 	if ((s = (zstdStrm *)malloc(sizeof(zstdStrm))) == NULL)
                 return NULL;
         s->back  = EOF;
+        s->err   = 0;
         s->i_len = ZSTD_DStreamInSize();
         s->o_len = 0;
         s->i_pos = 0;
@@ -128,8 +129,10 @@ int zstdRead(zstdStrm *s, void *buf, size_t len)
                 ret = zstdDecompress(s);
                 if (ret == 0)
                         break;
-                if (ZSTD_isError(ret))
-                        return ret;
+                if (ZSTD_isError(ret)) {
+                        s->err = ret;
+                        return -1;
+                }
 		else if (s->o_pos == 0)
                         return -1; // we have reached EOF
 
