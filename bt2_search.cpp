@@ -1971,7 +1971,7 @@ struct OuterLoopMetrics {
  */
 struct PerfMetrics {
 
-	PerfMetrics() : first(true) { reset(); }
+	PerfMetrics() { reset(); }
 
 	/**
 	 * Set all counters to 0.
@@ -2072,6 +2072,8 @@ struct PerfMetrics {
 		const BTString *name) // non-NULL name pointer if is per-read record
 		{
 			ThreadSafe ts(mutex_m);
+			// With --met-read every thread reports from its own object to the one shared output
+			ThreadSafe tsOut(mutex_out);
 			ostringstream stderrSs;
 			time_t curtime = time(0);
 			char buf[1024];
@@ -2809,13 +2811,14 @@ struct PerfMetrics {
 		wlm.merge(wlmu);
 		swmSeed.merge(swmuSeed);
 		swmMate.merge(swmuMate);
+		rpm.merge(rpmu);
 		dpSse8Seed.merge(dpSse8uSeed);
 		dpSse8Mate.merge(dpSse8uMate);
 		dpSse16Seed.merge(dpSse16uSeed);
 		dpSse16Mate.merge(dpSse16uMate);
-		nbtfiltst_u += nbtfiltst;
-		nbtfiltsc_u += nbtfiltsc;
-		nbtfiltdo_u += nbtfiltdo;
+		nbtfiltst += nbtfiltst_u;
+		nbtfiltsc += nbtfiltsc_u;
+		nbtfiltdo += nbtfiltdo_u;
 
 		olmu.reset();
 		sdmu.reset();
@@ -2863,10 +2866,13 @@ struct PerfMetrics {
 	uint64_t          nbtfiltdo_u;
 
 	MUTEX_T           mutex_m;  // lock for when one ob
-	bool              first; // yet to print first line?
+	static MUTEX_T    mutex_out; // lock for writing to the output
+	static bool       first; // yet to print first line?
 	time_t            lastElapsed; // used in reportInterval to measure time since last call
 };
 
+MUTEX_T PerfMetrics::mutex_out;
+bool PerfMetrics::first = true;
 static PerfMetrics metrics;
 
 // Cyclic rotations
@@ -3044,6 +3050,9 @@ static void setupMinScores(
 		sseU8MateMet.reset();		\
 		sseI16ExtendMet.reset();	\
 		sseI16MateMet.reset();		\
+		nbtfiltst = 0;			\
+		nbtfiltsc = 0;			\
+		nbtfiltdo = 0;			\
 	}
 
 #define MERGE_SW(x) {				\
