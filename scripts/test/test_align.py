@@ -714,6 +714,25 @@ def test_gbar(bt2, genome_index, genome_dict, tmp_path, end):
 				off += n
 
 
+@pytest.mark.parametrize('cp_min', [None, 100000])
+def test_checkpointed_score_below_int16(bt2, lambda_fasta, lambda_index, tmp_path, cp_min):
+	"""An end-to-end alignment scoring below -32768 backtraces correctly.
+
+	Reads of at least --cp-min (2000) bases are backtraced from checkpointed
+	scores. Those were stored as int16 and wrapped, so cells scoring below
+	-32768 looked like high scores and the backtrace returned a different,
+	gapped alignment. --cp-min 100000 takes the uncheckpointed path."""
+	with open(lambda_fasta) as f:
+		lam = ''.join(l.strip() for l in f if not l.startswith('>'))
+	subs = range(15, 3000, 30)
+	fq = write_reads(tmp_path, [('low', h.mutate(lam[5000:8000], subs))])
+	args = ['--mp', '400,400', '--rdg', '400,400', '--rfg', '400,400',
+		'--score-min', 'L,0,-20'] + (['--cp-min', cp_min] if cp_min else [])
+	rec, = align(bt2, lambda_index, fq, args)
+	assert (rec.pos, rec.cigar, rec.tags['NM']) == (5001, '3000M', len(subs))
+	assert rec.tags['AS'] == -400 * len(subs)
+
+
 # ---------------------------------------------------------------------------
 # Mismatch scoring: --mp, --ignore-quals
 # ---------------------------------------------------------------------------

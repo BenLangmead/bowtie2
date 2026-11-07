@@ -639,22 +639,22 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 							size_t delt = idxrow + row;
 							size_t vecoff = (row_mod << (ROWSTRIDE_LOG2+BYTES_LOG2_PER_REG)) + row_div;
 							assert_lt(row_div, NBYTES_PER_REG);
-							int16_t h_sc = ((uint8_t*)pvH)[vecoff];
-							int16_t e_sc = ((uint8_t*)pvE)[vecoff];
-							int16_t f_sc = ((uint8_t*)pvF)[vecoff];
-							if(h_sc == 0) h_sc = MIN_I16;
+							int32_t h_sc = ((uint8_t*)pvH)[vecoff];
+							int32_t e_sc = ((uint8_t*)pvE)[vecoff];
+							int32_t f_sc = ((uint8_t*)pvF)[vecoff];
+							if(h_sc == 0) h_sc = MIN_I32;
 							else h_sc -= 0xff;
-							if(e_sc == 0) e_sc = MIN_I16;
+							if(e_sc == 0) e_sc = MIN_I32;
 							else e_sc -= 0xff;
-							if(f_sc == 0) f_sc = MIN_I16;
+							if(f_sc == 0) f_sc = MIN_I32;
 							else f_sc -= 0xff;
 							assert_leq(h_sc, cper_.perf_);
 							assert_leq(e_sc, cper_.perf_);
 							assert_leq(f_sc, cper_.perf_);
-							CpQuad *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
-							qdiags[delt].sc[0] = h_sc;
-							qdiags[delt].sc[1] = e_sc;
-							qdiags[delt].sc[2] = f_sc;
+							CpQuad16 *qdiags = ((j == 0) ? cper_.qdiag1s_.ptr() : cper_.qdiag2s_.ptr());
+							qdiags[delt].sc[0] = cper_.enc(h_sc);
+							qdiags[delt].sc[1] = cper_.enc(e_sc);
+							qdiags[delt].sc[2] = cper_.enc(f_sc);
 						} // if(row >= 0 && row < nrow_)
 						else if(row >= 0 && (size_t)row >= cper_.nrow_) {
 							done = true;
@@ -692,22 +692,22 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 				size_t sz = cper_.commitMap_.size();
 				for(size_t i = 0; i < sz; i++, rowoff += cper_.ncol_) {
 					size_t vecoff = cper_.commitMap_[i];
-					int16_t h_sc = ((uint8_t*)pvH)[vecoff];
+					int32_t h_sc = ((uint8_t*)pvH)[vecoff];
 					//int16_t e_sc = ((uint8_t*)pvE)[vecoff];
-					int16_t f_sc = ((uint8_t*)pvF)[vecoff];
-					if(h_sc == 0) h_sc = MIN_I16;
+					int32_t f_sc = ((uint8_t*)pvF)[vecoff];
+					if(h_sc == 0) h_sc = MIN_I32;
 					else h_sc -= 0xff;
 					//if(e_sc == 0) e_sc = MIN_I16;
 					//else e_sc -= 0xff;
-					if(f_sc == 0) f_sc = MIN_I16;
+					if(f_sc == 0) f_sc = MIN_I32;
 					else f_sc -= 0xff;
 					assert_leq(h_sc, cper_.perf_);
 					//assert_leq(e_sc, cper_.perf_);
 					assert_leq(f_sc, cper_.perf_);
-					CpQuad& dst = cper_.qrows_[rowoff + coli];
-					dst.sc[0] = h_sc;
+					CpQuad16& dst = cper_.qrows_[rowoff + coli];
+					dst.sc[0] = cper_.enc(h_sc);
 					//dst.sc[1] = e_sc;
-					dst.sc[2] = f_sc;
+					dst.sc[2] = cper_.enc(f_sc);
 				}
 				// Is this a column we'd like to checkpoint?
 				if((coli & cper_.lomask_) == cper_.lomask_) {
