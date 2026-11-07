@@ -313,12 +313,12 @@ public:
 					}
 					_itrBuckets.resize(this->_nthreads);
 					_tparams.resize(this->_nthreads);
+					// The pool has _nthreads-1 threads; the last tid is
+					// this thread, which sorts blocks while it waits below.
 					for(int tid = 0; tid < this->_nthreads; tid++) {
 						_tparams[tid].first = this;
 						_tparams[tid].second = tid;
-						if (tid == _nthreads - 1)
-							nextBlock_Worker((void *)&_tparams[tid]);
-						else
+						if (tid < _nthreads - 1)
 							_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
 					}
 				}
@@ -339,7 +339,7 @@ public:
 					_cur++;
 				} else {
 					while(!_done[this->_itrBucketIdx]) {
-						SLEEP(1);
+						if(!sortNextBlock(this->_nthreads - 1)) SLEEP(1);
 					}
 					// Read suffixes from a file
 					std::ostringstream number; number << this->_itrBucketIdx;
@@ -377,6 +377,39 @@ public:
 	/// Return the difference-cover period
 	uint32_t dcV() const { return _dcV; }
 
+	/**
+	 * Claim the next unsorted block, sort it into a .sa file and mark it
+	 * done.  Return false when no block is left.
+	 */
+	bool sortNextBlock(int tid) {
+		size_t cur = 0;
+		{
+			ThreadSafe ts(this->_mutex);
+
+			cur = this->_cur;
+			if(cur > this->_sampleSuffs.size()) return false;
+			this->_cur++;
+		}
+		this->nextBlock((int)cur, tid);
+		// Write suffixes into a file
+		std::ostringstream number; number << cur;
+		const string fname = this->_base_fname + "." + number.str() + ".sa";
+		ofstream sa_file(fname.c_str(), ios::binary);
+		if(!sa_file.good()) {
+			cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
+			throw 1;
+		}
+		const EList<TIndexOffU>& bucket = this->_itrBuckets[tid];
+		writeU<TIndexOffU>(sa_file, (TIndexOffU)bucket.size(), this->_bigEndian);
+		for(size_t i = 0; i < bucket.size(); i++) {
+			writeU<TIndexOffU>(sa_file, bucket[i], this->_bigEndian);
+		}
+		sa_file.close();
+		this->_itrBuckets[tid].clear();
+		this->_done[cur] = true;
+		return true;
+	}
+
 //TBB requires a Functor to be passed to the thread group
 //hence the nested class
 
@@ -388,35 +421,7 @@ public:
 		nextBlock_Worker(void *vp_):vp(vp_) {};
 		void operator()() const {
 			pair<KarkkainenBlockwiseSA*, int> param = *(pair<KarkkainenBlockwiseSA*, int>*)vp;
-			KarkkainenBlockwiseSA* sa = param.first;
-			int tid = param.second;
-			while(true) {
-				size_t cur = 0;
-				{
-					ThreadSafe ts(sa->_mutex);
-
-					cur = sa->_cur;
-					if(cur > sa->_sampleSuffs.size()) break;
-					sa->_cur++;
-				}
-				sa->nextBlock((int)cur, tid);
-				// Write suffixes into a file
-				std::ostringstream number; number << cur;
-				const string fname = sa->_base_fname + "." + number.str() + ".sa";
-				ofstream sa_file(fname.c_str(), ios::binary);
-				if(!sa_file.good()) {
-					cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
-					throw 1;
-				}
-				const EList<TIndexOffU>& bucket = sa->_itrBuckets[tid];
-				writeU<TIndexOffU>(sa_file, (TIndexOffU)bucket.size(), sa->_bigEndian);
-				for(size_t i = 0; i < bucket.size(); i++) {
-					writeU<TIndexOffU>(sa_file, bucket[i], sa->_bigEndian);
-				}
-				sa_file.close();
-				sa->_itrBuckets[tid].clear();
-				sa->_done[cur] = true;
-			}
+			while(param.first->sortNextBlock(param.second)) { }
 		}
 	};
 
