@@ -228,21 +228,28 @@ def bam_record(name, flag, seq, qual, tags):
 	read_name = name.encode() + b'\0'
 	body = struct.pack('<iiBBHHHiiii', -1, -1, len(read_name), 0, 4680, 0, flag,
 		len(seq), -1, -1, 0)
-	body += read_name + bytes(packed) + bytes(ord(c) - 33 for c in qual)
+	# qual None: no qualities, stored as 0xFF per base
+	body += read_name + bytes(packed) + (b'\xff' * len(seq) if qual is None
+		else bytes(ord(c) - 33 for c in qual))
 	body += b''.join(bam_tag(*t) for t in tags)
 	return struct.pack('<i', len(body)) + body
 
 
-def write_bam(path, records):
+def write_bam(path, records, n_ref=0):
 	"""Unaligned BAM from (name, flag, seq, Phred+33 qual, tags) records,
 	where tags are (tag, type, value) and a B-array value is (subtype, list).
-	Everything goes in one BGZF block followed by the EOF block."""
-	text = b'@HD\tVN:1.6\tSO:unsorted\n'
-	data = b'BAM\1' + struct.pack('<i', len(text)) + text + struct.pack('<i', 0)
+	The header lists n_ref references. The data is cut into BGZF blocks of
+	at most 65280 bytes, followed by the EOF block."""
+	refs = [('ref%d' % k).encode() for k in range(n_ref)]
+	text = b'@HD\tVN:1.6\tSO:unsorted\n' + b''.join(
+		b'@SQ\tSN:%s\tLN:1000\n' % r for r in refs)
+	data = b'BAM\1' + struct.pack('<i', len(text)) + text + struct.pack('<i', n_ref)
+	data += b''.join(struct.pack('<i', len(r) + 1) + r + b'\0' + struct.pack('<i', 1000)
+		for r in refs)
 	data += b''.join(bam_record(*r) for r in records)
-	assert len(data) < 65536
 	with open(path, 'wb') as f:
-		f.write(bgzf_block(data))
+		for k in range(0, len(data), 65280):
+			f.write(bgzf_block(data[k:k + 65280]))
 		f.write(BAM_EOF)
 	return path
 
@@ -575,6 +582,33 @@ def test_bam_preserve_tags_paired(bt2, genome_dict, genome_index, tmp_path):
 	assert_pair(recs[0], recs[1], genome_dict, PAIRS[0])
 	assert recs[0].line.endswith('\tYT:Z:CP\tQZ:Z:mate one\tQi:i:-7')
 	assert recs[1].line.endswith('\tYT:Z:CP\tQC:i:200')
+
+
+def test_bam_reads_every_file(bt2, genome_dict, genome_index, tmp_path):
+	"""-b a.bam,b.bam aligns the reads of both files, in order."""
+	reads = unpaired_reads(genome_dict)
+	a = write_bam(str(tmp_path / 'a.bam'), [(n, 4, s, q, []) for n, s, q in reads[:2]])
+	b = write_bam(str(tmp_path / 'b.bam'), [(n, 4, s, q, []) for n, s, q in reads[2:]])
+	recs, _ = run_align(bt2, genome_index, ['-b', a + ',' + b])
+	assert [r.qname for r in recs] == ['u1', 'u2', 'u3', 'u4']
+
+
+def test_bam_header_spans_several_blocks(bt2, genome_dict, genome_index, tmp_path):
+	"""A BAM header too large for one BGZF block (5000 @SQ lines) is skipped whole."""
+	reads = unpaired_reads(genome_dict)
+	path = write_bam(str(tmp_path / 'r.bam'), [(n, 4, s, q, []) for n, s, q in reads], n_ref=5000)
+	recs, _ = run_align(bt2, genome_index, ['-b', path])
+	assert [r.qname for r in recs] == ['u1', 'u2', 'u3', 'u4']
+	for rec, spec, (_, _, q) in zip(recs, UNPAIRED, reads):
+		assert_placed(rec, genome_dict, spec, q)
+
+
+def test_bam_missing_quality(bt2, genome_dict, genome_index, tmp_path):
+	"""A BAM record without qualities (0xFF) gets Phred 40 ('I'), as FASTA reads do."""
+	n, s, _ = unpaired_reads(genome_dict)[0]
+	path = write_bam(str(tmp_path / 'r.bam'), [(n, 4, s, None, [])])
+	recs, _ = run_align(bt2, genome_index, ['-b', path])
+	assert_placed(recs[0], genome_dict, UNPAIRED[0], 'I' * len(s))
 
 
 @pytest.mark.parametrize('option', ['--preserve-tags', '--align-paired-reads'])

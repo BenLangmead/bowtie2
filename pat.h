@@ -889,6 +889,9 @@ protected:
 	 */
 	virtual void resetForNextFile() {
 		first_ = true;
+		delta_ = 0;
+		alignment_batch.clear();
+		alignment_offset = 0;
 	}
 
 	bool first_; // parsing first read in file

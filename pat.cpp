@@ -1333,6 +1333,13 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			BGZF block;
 			cdata_len = nextBGZFBlockFromFile(block);
 			if (cdata_len == 0) {
+				if (filecur_ < infiles_.size()) {
+					// end of this file: go on with the next one
+					open();
+					resetForNextFile();
+					filecur_++;
+					continue;
+				}
 				done = nread == 0;
 				break;
 			}
@@ -1364,26 +1371,39 @@ std::pair<bool, int> BAMPatternSource::get_alignments(PerThreadReadBuf& pt, bool
 	bool done = false;
 
 	if (first_) {
-		char magic[4];
-		uint32_t l_text;
-		uint32_t nref;
+		const uint8_t *buf = alignment_batch.data();
+		const size_t len = alignment_batch.size();
+		uint32_t l_text, nref, l_name;
 
-                memcpy(magic, &alignment_batch[0], 4);
-                if (magic[0] != 'B' || magic[1] != 'A' || magic[2] != 'M' || magic[3] != 1) {
+                if (len >= 4 && memcmp(buf, "BAM\1", 4) != 0) {
                         std::cerr << "Error: Invalid BAM file (bad magic number)" << std::endl;
                         return make_pair(true, 0);
                 }
-		// assert(magic[0] == 'B'&& magic[1] == 'A' && magic[2] == 'M' && magic[3] == 1);
-		i += 4;
-		memcpy(&l_text, &alignment_batch[0] + i, sizeof(l_text));
-		i = i + sizeof(uint32_t) + l_text;
-		memcpy(&nref, &alignment_batch[0] + i, sizeof(nref));
-		i += sizeof(nref);
-		for (uint32_t j = 0; j < nref; j++) {
-			uint32_t l_name;
-			memcpy(&l_name, &alignment_batch[0] + i, sizeof(l_name));
-			i = i + sizeof(l_name) + l_name + sizeof(uint32_t);
+		// The header can span several BGZF blocks: skip it only once it is
+		// all in alignment_batch, otherwise keep the bytes and read more.
+		size_t h = 4 + sizeof(l_text);
+		bool complete = len >= h;
+		if (complete) {
+			memcpy(&l_text, buf + 4, sizeof(l_text));
+			h += l_text + sizeof(nref);
+			complete = len >= h;
 		}
+		if (complete)
+			memcpy(&nref, buf + h - sizeof(nref), sizeof(nref));
+		for (uint32_t j = 0; complete && j < nref; j++) {
+			complete = len >= h + sizeof(l_name);
+			if (complete) {
+				memcpy(&l_name, buf + h, sizeof(l_name));
+				h += sizeof(l_name) + l_name + sizeof(uint32_t);
+				complete = len >= h;
+			}
+		}
+		if (!complete) {
+			delta_ = len;
+			i = len;
+			return make_pair(false, readi);
+		}
+		i = h;
 		first_ = false;
         }
 
@@ -1498,7 +1518,8 @@ bool BAMPatternSource::parse(Read& ra, Read& rb, TReadId rdid) const {
 		if (i < pp_.trim5) {
 			ra.trimmed5 += 1;
 		} else {
-			ra.qual.append(qual[i] + 33);
+			// 0xFF: the record has no qualities; use 'I' like FASTA input
+			ra.qual.append(static_cast<uint8_t>(qual[i]) == 0xff ? 'I' : qual[i] + 33);
 			int base = "=ACMGRSVTWYHKDBN"[static_cast<uint8_t>(seq[i/2]) >> 4*(1-(i%2)) & 0xf];
 			ra.patFw.append(asc2dna[base]);
 		}
