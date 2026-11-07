@@ -486,6 +486,7 @@ $cmd = "$readpipe $cmd" if defined($readpipe);
 
 Info("$cmd\n");
 my $ret;
+my $write_ok = 1;
 if(defined($cap_out)) {
         # Open Bowtie 2 pipe
         open(BT, "$cmd |") || Fail("Could not open Bowtie 2 pipe: '$cmd |'\n");
@@ -621,10 +622,12 @@ if(defined($cap_out)) {
                 }
                 print {$ofh} "$_\n" if !$filt;
         }
-        for my $k (@fhs_to_close) { close($k); }
-        close($ofh);
+        # close() also reports failed writes and a failed samtools/compressor
+        for my $k (@fhs_to_close) { close($k) || ($write_ok = 0); }
+        close($ofh) || ($write_ok = 0);
         close(BT);
         $ret = $?;
+        Error("Could not write all of the output.\n") unless $write_ok;
 } else {
         $ret = system($cmd);
 }
@@ -644,4 +647,4 @@ if ($ret == -1) {
 } elsif($ret != 0) {
         Error("bowtie2-align exited with value %d\n", ($ret >> 8));
 }
-exit ($ret >> 8);
+exit (($ret >> 8) || ($write_ok ? 0 : 1));
