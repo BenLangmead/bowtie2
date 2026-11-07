@@ -1059,7 +1059,7 @@ public:
 				VMSG_NL("bmax according to bmax setting: " << bmax);
 			}
 			else if(bmaxSqrtMult != OFF_MASK) {
-				bmax *= bmaxSqrtMult;
+				bmax = (TIndexOffU)sqrt(s.length()) * bmaxSqrtMult;
 				VMSG_NL("bmax according to bmaxSqrtMult setting: " << bmax);
 			}
 			else if(bmaxDivN != OFF_MASK) {
