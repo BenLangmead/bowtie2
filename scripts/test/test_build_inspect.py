@@ -936,3 +936,15 @@ def test_build_errors(bt2, mixed_fasta, tmp_path, args, message):
 	assert proc.returncode != 0
 	assert message in proc.stderr
 	assert os.listdir(str(work)) == []
+
+
+def test_sais_build_refuses_packed(bt2, mixed_fasta, tmp_path):
+	"""A bowtie2-build compiled with USE_SAIS cannot index a packed string, so
+	--packed is an error instead of writing a corrupt index."""
+	version = bt2.run(os.path.join(bt2.bin_dir, 'bowtie2-build-s'), ['--version']).stdout
+	if 'USE_SAIS' not in version:
+		pytest.skip('bowtie2-build-s not built with USE_SAIS')
+	proc = bt2.build_index(mixed_fasta, str(tmp_path / 'idx'), extra=['--packed'], check=False)
+	assert proc.returncode == 1, proc.stderr
+	assert 'not supported by a bowtie2-build compiled with SAIS' in proc.stderr
+	assert '.1.bt2' not in files_written(str(tmp_path / 'idx'))
