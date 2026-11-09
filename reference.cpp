@@ -211,7 +211,7 @@ BitPairReference::BitPairReference(
 			}
 		} else {
 			shmemLeader = ALLOC_SHARED_U8(
-										  (s4 + "[ref]"), (cumsz >> 2), &buf_,
+										  s4, (cumsz >> 2), &buf_,
 										  "ref", (verbose_ || startVerbose));
 		}
 		if(shmemLeader) {
@@ -239,10 +239,6 @@ BitPairReference::BitPairReference(
 			fclose(f4);
 #ifdef BOWTIE_SHARED_MEM
 			if(useShmem_) NOTIFY_SHARED(buf_, (cumsz >> 2));
-#endif
-		} else {
-#ifdef BOWTIE_SHARED_MEM
-			if(useShmem_) WAIT_SHARED(buf_, (cumsz >> 2));
 #endif
 		}
 	}

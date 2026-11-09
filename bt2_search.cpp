@@ -1146,7 +1146,13 @@ static void parseOption(int next_option, const char *arg) {
 	case ARG_FF: gMate1fw = true;  gMate2fw = true;  break;
 	case ARG_RF: gMate1fw = false; gMate2fw = true;  break;
 	case ARG_FR: gMate1fw = true;  gMate2fw = false; break;
-	case ARG_SHMEM: useShmem = true; break;
+	case ARG_SHMEM:
+#ifndef BOWTIE_SHARED_MEM
+		cerr << "Error: --shmem is not supported because bowtie2 was not compiled with" << endl
+		     << "BOWTIE_SHARED_MEM defined." << endl;
+		throw 1;
+#endif
+		useShmem = true; break;
 	case ARG_SEED_SUMM: seedSumm = true; break;
 	case ARG_SC_UNMAPPED: scUnMapped = true; break;
 	case ARG_XEQ: xeq = true; break;
