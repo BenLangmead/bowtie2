@@ -1737,38 +1737,3 @@ bool BtBranchTracer::nextAlignment(
 			rnd);
 	}
 }
-
-#ifdef MAIN_ALIGNER_BT
-
-#include <iostream>
-
-int main(int argc, char **argv) {
-	size_t off = 0;
-	RandomSource rnd(77);
-	BtBranchTracer tr;
-	Scoring sc = Scoring::base1();
-	SwResult res;
-	tr.init(
-		"ACGTACGT", // in: read sequence
-		"IIIIIIII", // in: quality sequence
-		8,          // in: read sequence length
-		"ACGTACGT", // in: reference sequence
-		8,          // in: reference sequence length
-		0,          // in: reference id
-		0,          // in: reference offset
-		true,       // in: orientation
-		sc,         // in: scoring scheme
-		0,          // in: N ceiling
-		8,          // in: alignment score
-		7,          // start in this row
-		7,          // start in this column
-		rnd);       // random gen, to choose among equal paths
-	size_t nrej = 0;
-	tr.nextAlignment(
-		res,
-		off,
-		nrej,
-		rnd);
-}
-
-#endif /*def MAIN_ALIGNER_BT*/
