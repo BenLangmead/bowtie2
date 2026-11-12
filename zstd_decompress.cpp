@@ -105,10 +105,11 @@ int zstdRead(zstdStrm *s, void *buf, size_t len)
         s->o_buf = buf;
         s->o_len = len;
 
-        if (s->back != EOF) {
-                *((char *)(s->o_buf) + s->o_pos++) = (char)s->back;
-                s->back = EOF;
-        }
+        // if (s->back != EOF) {
+        //         *((char *)(s->o_buf) + s->o_pos++) = (char)s->back;
+        //         s->back = EOF;
+        // }
+        auto prev_o_pos = s->o_pos;
         while (s->o_pos < len) {
                 int ret;
 
@@ -126,13 +127,11 @@ int zstdRead(zstdStrm *s, void *buf, size_t len)
 			} while (nleft > 0);
                 }
                 ret = zstdDecompress(s);
-                if (ret == 0)
+                if (ret == 0 && prev_o_pos != s->o_pos)
                         break;
                 if (ZSTD_isError(ret))
                         return ret;
-		else if (s->o_pos == 0)
-                        return -1; // we have reached EOF
-
+                prev_o_pos = s->o_pos;
         }
 
         return s->o_pos;
@@ -140,10 +139,10 @@ int zstdRead(zstdStrm *s, void *buf, size_t len)
 
 int zstdUngetc(int c, zstdStrm *s)
 {
-        if (s == NULL || c == EOF || s->back != EOF)
+        if (s == NULL || c == EOF || s->o_pos == 0)
                 return EOF;
-        s->o_pos--;
-        s->back = c;
+	((unsigned char *)s->o_buf)[--s->o_pos] = c;
+	s->o_len++;
 
         return c;
 }
@@ -157,11 +156,11 @@ int zstdGetc(zstdStrm *s)
 		ret = zstdRead(s, s->o_buf, ZSTD_DStreamOutSize());
 		if (ret < 0)
 			return ret;
-		s->o_len = s->o_pos;
+		s->o_len = ret;
 		s->o_pos = 0;
 	}
 	s->o_len--;
-	return ((char *)s->o_buf)[s->o_pos++];
+	return ((unsigned char *)s->o_buf)[s->o_pos++];
 }
 
 int zstdClose(zstdStrm *s)
