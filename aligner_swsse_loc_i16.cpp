@@ -558,7 +558,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 			
 			// Factor in query profile (matches and mismatches)
 			vh = sse_adds_epi16(vh, pvScore[0]);
-			vh = sse_max_epi16(vh, vf);
 			
 			// Update vE value
 			vhdtmp = vhd;
@@ -569,7 +568,11 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 			ve = sse_max_epi16(ve, vhd);
 			
 			vh = sse_max_epi16(vh, ve);
-			vtmp = vh;
+			// F's own contribution to the next F's H - rfgapo term never
+			// beats F - rfgape (rfgapo >= rfgape), so that term uses H before
+			// F is folded in, off F's loop-carried chain.
+			vtmp = sse_subs_epi16(vh, rfgapo);
+			vh = sse_max_epi16(vh, vf);
 			
 			// Update highest score encountered this far
 			vcolmax = sse_max_epi16(vcolmax, vh);
@@ -588,7 +591,6 @@ TAlScore SwAligner::alignGatherLoc16(int& flag, bool debug) {
 			pvERight += ROWSTRIDE_2COL;
 			
 			// Update vf value
-			vtmp = sse_subs_epi16(vtmp, rfgapo);
 			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epi16(vf, vtmp);
@@ -1163,6 +1165,10 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 			
 			// Update H, factoring in E and F
 			vh = sse_max_epi16(vh, ve);
+			// F's own contribution to the next F's H - rfgapo term never
+			// beats F - rfgape (rfgapo >= rfgape), so that term uses H before
+			// F is folded in, off F's loop-carried chain.
+			vtmp = sse_subs_epi16(vh, rfgapo);
 			vh = sse_max_epi16(vh, vf);
 			
 			// Update highest score encountered this far
@@ -1173,7 +1179,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 			pvHStore += ROWSTRIDE;
 			
 			// Update vE value
-			vtmp = vh;
 			vh = sse_subs_epi16(vh, rdgapo);
 			vh = sse_adds_epi16(vh, pvScore[1]); // veto some read gap opens
 			vh = sse_adds_epi16(vh, pvScore[1]); // veto some read gap opens
@@ -1190,7 +1195,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseI16(int& flag, bool debug) {
 			pvEStore += ROWSTRIDE;
 			
 			// Update vf value
-			vtmp = sse_subs_epi16(vtmp, rfgapo);
 			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epi16(vf, vtmp);

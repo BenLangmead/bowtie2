@@ -548,16 +548,13 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			pvELeft += ROWSTRIDE_2COL;
 
 			// Store cells in F, calculated previously
-			vf = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
-			sse_store_siall(pvFRight, vf);
+			SSERegI vfv = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
+			sse_store_siall(pvFRight, vfv);
 			pvFRight += ROWSTRIDE_2COL;
 
 			// Factor in query profile (matches and mismatches)
 			vh = sse_adds_epu8(vh, pvScore[0]);
 			vh = sse_subs_epu8(vh, vbias);
-
-			// Update H, factoring in E and F
-			vh = sse_max_epu8(vh, vf);
 
 			vhdtmp = vhd;
 			vhd = sse_subs_epu8(vhd, rdgapo);
@@ -565,8 +562,12 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			ve = sse_subs_epu8(ve, rdgape);
 			ve = sse_max_epu8(ve, vhd);
 
+			// Update H, factoring in E and F.  F's own contribution to the
+			// next F's H - rfgapo term never beats F - rfgape (rfgapo >=
+			// rfgape), so that term uses H before F is folded in.
 			vh = sse_max_epu8(vh, ve);
-			vtmp = vh;
+			vtmp = sse_subs_epu8(vh, rfgapo);
+			vh = sse_max_epu8(vh, vfv);
 
 			// Update highest score encountered this far
 			vcolmax = sse_max_epu8(vcolmax, vh);
@@ -584,9 +585,8 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			sse_store_siall(pvERight, ve);
 			pvERight += ROWSTRIDE_2COL;
 
-			// Update vf value
-			vtmp = sse_subs_epu8(vtmp, rfgapo);
-			vf = sse_subs_epu8(vf, rfgape);
+			// Update vf value: veto and extension in one saturating subtraction
+			vf = sse_subs_epu8(vf, sse_adds_epu8(pvScore[1], rfgape));
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epu8(vf, vtmp);
 
@@ -1128,17 +1128,20 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			pvELoad += ROWSTRIDE;
 
 			// Store cells in F, calculated previously
-			vf = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
-			sse_store_siall(pvFStore, vf);
+			SSERegI vfv = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
+			sse_store_siall(pvFStore, vfv);
 			pvFStore += ROWSTRIDE;
 
 			// Factor in query profile (matches and mismatches)
 			vh = sse_adds_epu8(vh, pvScore[0]);
 			vh = sse_subs_epu8(vh, vbias);
 
-			// Update H, factoring in E and F
+			// Update H, factoring in E and F.  F's own contribution to the
+			// next F's H - rfgapo term never beats F - rfgape (rfgapo >=
+			// rfgape), so that term uses H before F is folded in.
 			vh = sse_max_epu8(vh, ve);
-			vh = sse_max_epu8(vh, vf);
+			vtmp = sse_subs_epu8(vh, rfgapo);
+			vh = sse_max_epu8(vh, vfv);
 
 			// Update highest score encountered this far
 			vcolmax = sse_max_epu8(vcolmax, vh);
@@ -1148,7 +1151,6 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			pvHStore += ROWSTRIDE;
 
 			// Update vE value
-			vtmp = vh;
 			vh = sse_subs_epu8(vh, rdgapo);
 			vh = sse_subs_epu8(vh, pvScore[1]); // veto some read gap opens
 			ve = sse_subs_epu8(ve, rdgape);
@@ -1163,9 +1165,8 @@ TAlScore SwAligner::alignNucleotidesLocalSseU8(int& flag, bool debug) {
 			sse_store_siall(pvEStore, ve);
 			pvEStore += ROWSTRIDE;
 
-			// Update vf value
-			vtmp = sse_subs_epu8(vtmp, rfgapo);
-			vf = sse_subs_epu8(vf, rfgape);
+			// Update vf value: veto and extension in one saturating subtraction
+			vf = sse_subs_epu8(vf, sse_adds_epu8(pvScore[1], rfgape));
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epu8(vf, vtmp);
 

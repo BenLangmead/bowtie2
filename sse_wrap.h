@@ -57,6 +57,7 @@ typedef __m256i SSERegI;
 #define sse_subs_epu8(x, y) _mm256_subs_epu8(x, y)
 #define sse_xor_siall(x, y) _mm256_xor_si256(x, y)
 #define sse_set1_epi16(x) _mm256_set1_epi16(x)
+#define sse_is_zero_siall(x) _mm256_testz_si256(x, x)
 
 /* AVX2 does not have a native 256-bit shift instruction */
 /* Note only works for y<=16, which is OK for this code */
@@ -150,6 +151,12 @@ typedef simde__m128i SSERegI;
 #define sse_subs_epu8(x, y) simde_mm_subs_epu8(x, y)
 #define sse_xor_siall(x, y) simde_mm_xor_si128(x, y)
 #define sse_set1_epi16(x) simde_mm_set1_epi16(x)
+#if defined(__aarch64__)
+#define sse_is_zero_siall(x) (vmaxvq_u8(simde__m128i_to_neon_u8(x)) == 0)
+#else
+#define sse_is_zero_siall(x) \
+	(simde_mm_movemask_epi8(simde_mm_cmpeq_epi8(x, simde_mm_setzero_si128())) == 0xffff)
+#endif
 
 #else
 typedef __m128i SSERegI;
@@ -179,6 +186,8 @@ typedef __m128i SSERegI;
 #define sse_subs_epu8(x, y) _mm_subs_epu8(x, y)
 #define sse_xor_siall(x, y) _mm_xor_si128(x, y)
 #define sse_set1_epi16(x) _mm_set1_epi16(x)
+#define sse_is_zero_siall(x) \
+	(_mm_movemask_epi8(_mm_cmpeq_epi8(x, _mm_setzero_si128())) == 0xffff)
 
 #endif
 
