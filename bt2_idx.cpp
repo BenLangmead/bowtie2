@@ -22,6 +22,8 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
+#include <limits>
+#include <algorithm>
 #include "bt2_idx.h"
 
 using namespace std;
@@ -48,8 +50,10 @@ string gLastIOErrMsg;
 /**
  * Take an offset into the joined text and translate it into the
  * reference of the index it falls on, the offset into the reference,
- * and the length of the reference.  Use a binary search through the
- * sorted list of reference fragment ranges t
+ * and the length of the reference.  The fragment holding the offset
+ * comes from the bucket table built by buildFragTab() when there is
+ * one, else from a binary search through the sorted list of reference
+ * fragment ranges.
  */
 void Ebwt::joinedToTextOff(
 	TIndexOffU qlen, 
@@ -61,66 +65,142 @@ void Ebwt::joinedToTextOff(
 	bool& straddled) const
 {
 	assert(rstarts() != NULL); // must have loaded rstarts
-	TIndexOffU top = 0;
-	TIndexOffU bot = _nFrag; // 1 greater than largest addressable element
-	TIndexOffU elt = OFF_MASK;
-	// Begin binary search
-	while(true) {
-		ASSERT_ONLY(TIndexOffU oldelt = elt);
-		elt = top + ((bot - top) >> 1);
-		assert_neq(oldelt, elt); // must have made progress
-		TIndexOffU lower = rstarts()[elt*3];
-		TIndexOffU upper;
-		if(elt == _nFrag-1) {
-			upper = _eh._len;
-		} else {
-			upper = rstarts()[((elt+1)*3)];
-		}
-		assert_gt(upper, lower);
-		TIndexOffU fraglen = upper - lower;
-		if(lower <= off) {
-			if(upper > off) { // not last element, but it's within
-				// off is in this range; check if it falls off
-				if(off + qlen > upper) {
-					straddled = true;
-					if(rejectStraddle) {
-						// it falls off; signal no-go and return
-						tidx = OFF_MASK;
-						assert_lt(elt, _nFrag-1);
-						return;
-					}
-				}
-				// This is the correct text idx whether the index is
-				// forward or reverse
-				tidx = rstarts()[(elt*3)+1];
-				assert_lt(tidx, this->_nPat);
-				assert_leq(fraglen, this->plen()[tidx]);
-				// it doesn't fall off; now calculate textoff.
-				// Initially it's the number of characters that precede
-				// the alignment in the fragment
-				TIndexOffU fragoff = off - rstarts()[(elt*3)];
-				if(!this->fw_) {
-					fragoff = fraglen - fragoff - 1;
-					fragoff -= (qlen-1);
-				}
-				// Add the alignment's offset into the fragment
-				// ('fragoff') to the fragment's offset within the text
-				textoff = fragoff + rstarts()[(elt*3)+2];
-				assert_lt(textoff, this->plen()[tidx]);
-				break; // done with binary search
+	TIndexOffU elt;
+	if(off < _fragTabLen) {
+		// The fragment holding 'off' is the last one starting at or
+		// before 'off'.  It lies between the fragments holding the first
+		// offsets of off's bucket and of the next bucket, which are
+		// usually the same fragment.
+		size_t b = (size_t)(off >> _fragShift);
+		elt = _fragTab[b];
+		TIndexOffU hi = _fragTab[b+1];
+		while(elt < hi) {
+			TIndexOffU mid = elt + ((hi - elt + 1) >> 1);
+			if(rstarts()[mid*3] <= off) {
+				elt = mid;
 			} else {
-				// 'off' belongs somewhere in the region between elt
-				// and bot
-				top = elt;
+				hi = mid - 1;
 			}
-		} else {
-			// 'off' belongs somewhere in the region between top and
-			// elt
-			bot = elt;
 		}
-		// continue with binary search
+	} else {
+		TIndexOffU top = 0;
+		TIndexOffU bot = _nFrag; // 1 greater than largest addressable element
+		elt = OFF_MASK;
+		// Begin binary search
+		while(true) {
+			ASSERT_ONLY(TIndexOffU oldelt = elt);
+			elt = top + ((bot - top) >> 1);
+			assert_neq(oldelt, elt); // must have made progress
+			TIndexOffU lower = rstarts()[elt*3];
+			TIndexOffU upper;
+			if(elt == _nFrag-1) {
+				upper = _eh._len;
+			} else {
+				upper = rstarts()[((elt+1)*3)];
+			}
+			assert_gt(upper, lower);
+			if(lower <= off) {
+				if(upper > off) { // not last element, but it's within
+					break; // done with binary search
+				} else {
+					// 'off' belongs somewhere in the region between elt
+					// and bot
+					top = elt;
+				}
+			} else {
+				// 'off' belongs somewhere in the region between top and
+				// elt
+				bot = elt;
+			}
+			// continue with binary search
+		}
 	}
+	TIndexOffU lower = rstarts()[elt*3];
+	TIndexOffU upper;
+	if(elt == _nFrag-1) {
+		upper = _eh._len;
+	} else {
+		upper = rstarts()[((elt+1)*3)];
+	}
+	assert_leq(lower, off);
+	assert_gt(upper, off);
+	TIndexOffU fraglen = upper - lower;
+	// off is in this range; check if it falls off
+	if(off + qlen > upper) {
+		straddled = true;
+		if(rejectStraddle) {
+			// it falls off; signal no-go and return
+			tidx = OFF_MASK;
+			assert_lt(elt, _nFrag-1);
+			return;
+		}
+	}
+	// This is the correct text idx whether the index is
+	// forward or reverse
+	tidx = rstarts()[(elt*3)+1];
+	assert_lt(tidx, this->_nPat);
+	assert_leq(fraglen, this->plen()[tidx]);
+	// it doesn't fall off; now calculate textoff.
+	// Initially it's the number of characters that precede
+	// the alignment in the fragment
+	TIndexOffU fragoff = off - rstarts()[(elt*3)];
+	if(!this->fw_) {
+		fragoff = fraglen - fragoff - 1;
+		fragoff -= (qlen-1);
+	}
+	// Add the alignment's offset into the fragment
+	// ('fragoff') to the fragment's offset within the text
+	textoff = fragoff + rstarts()[(elt*3)+2];
+	assert_lt(textoff, this->plen()[tidx]);
 	tlen = this->plen()[tidx];
+}
+
+/**
+ * Build the table joinedToTextOff() uses in place of its binary search,
+ * from the loaded rstarts and the joined length 'len': for each bucket of
+ * 2^_fragShift joined offsets, the index of the fragment holding the
+ * bucket's first offset, then the last fragment's index.  There are at
+ * most 16 buckets per fragment and at most 2^15 in all (hg38: 23,265
+ * buckets of 128 kbp).  The table is left empty (_fragTabLen = 0), and
+ * the binary search runs, unless the fragments start at 0, their starts
+ * strictly increase and the last one starts before 'len'.
+ */
+void Ebwt::buildFragTab(TIndexOffU len) {
+	_fragTab.clear();
+	_fragTabLen = 0;
+	_fragShift = 0;
+	const TIndexOffU* rs = rstarts();
+	if(rs == NULL || _nFrag == 0 || len == 0 ||
+	   (uint64_t)_nFrag > (uint64_t)std::numeric_limits<uint32_t>::max())
+	{
+		return;
+	}
+	if(rs[0] != 0 || rs[(_nFrag-1)*3] >= len) {
+		return;
+	}
+	for(TIndexOffU i = 1; i < _nFrag; i++) {
+		if(rs[i*3] <= rs[(i-1)*3]) {
+			return;
+		}
+	}
+	const uint64_t maxBuckets = std::min<uint64_t>((uint64_t)_nFrag * 16, 1u << 15);
+	int shift = 0;
+	while((uint64_t)((len - 1) >> shift) + 1 > maxBuckets) {
+		shift++;
+	}
+	size_t nb = (size_t)((len - 1) >> shift) + 1;
+	_fragTab.resize(nb + 1);
+	TIndexOffU e = 0;
+	for(size_t b = 0; b < nb; b++) {
+		TIndexOffU first = (TIndexOffU)b << shift;
+		while(e + 1 < _nFrag && rs[(e+1)*3] <= first) {
+			e++;
+		}
+		_fragTab[b] = (uint32_t)e;
+	}
+	_fragTab[nb] = (uint32_t)(_nFrag - 1);
+	_fragShift = shift;
+	_fragTabLen = len;
 }
 
 /**

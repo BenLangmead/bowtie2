@@ -291,6 +291,29 @@ struct ExtendRange {
 	size_t sz;  // # of elements in SA range
 };
 
+/**
+ * One direction of a seed-hit extension (SwDriver::extend()): the left
+ * chain walks the forward index, the right chain the mirror index.  The two
+ * are independent, so extend() steps them in turn: one LF step per chain per
+ * turn, with each chain's next side prefetched (INIT_LOCS) before the other
+ * chain's step.
+ */
+struct ExtChain {
+	const Ebwt*        ebwt;   // index the chain walks
+	const BTDnaString* seq;    // read characters (patFw or patRc)
+	SideLocus          tloc;
+	SideLocus          bloc;
+	TIndexOffU         top;
+	TIndexOffU         bot;
+	TIndexOffU         tp0;    // topsP[0] handed to mapBiLFEx
+	size_t             i;      // read position of the next step
+	size_t             left;   // steps left before the end of the read
+	size_t             n;      // positions extended (nlex or nrex)
+	size_t             ops;    // LF ops (added to prm.nSdFmops)
+	bool               right;  // walks to the right (i increases)
+	bool               live;   // has another step to take
+};
+
 class SwDriver {
 
 	typedef PList<TIndexOffU, CACHE_PAGE_SZ> TSAList;
@@ -542,6 +565,21 @@ protected:
 	// Ranges that we've extended through when extending seed hits
 	EList<ExtendRange> seedExRangeFw_[2];
 	EList<ExtendRange> seedExRangeRc_[2];
+
+	// Chains of a seed-hit extension (extend())
+	static void extInit(
+		ExtChain* ch,          // out: ch[0] left, ch[1] right
+		const Read& rd,
+		const Ebwt& ebwtFw,
+		const Ebwt* ebwtBw,
+		TIndexOffU topf,
+		TIndexOffU botf,
+		TIndexOffU topb,
+		TIndexOffU botb,
+		bool fw,
+		size_t off,
+		size_t len);
+	static void extStep(ExtChain& c);
 
 	// Data structures encapsulating the diagonals that have already been used
 	// to seed alignment for mate 1 and mate 2.

@@ -1357,6 +1357,8 @@ public:
 		_ftab.free();
 		_eftab.free();
 		_rstarts.free();
+		_fragTab.clear();
+		_fragTabLen = 0;
 		_offs.free(); // might not be under control of APtrWrap
 		_ebwt.free(); // might not be under control of APtrWrap
 		// Keep plen; it's small and the client may want to seq it
@@ -1726,6 +1728,7 @@ public:
 
 	// Searching and reporting
 	void joinedToTextOff(TIndexOffU qlen, TIndexOffU off, TIndexOffU& tidx, TIndexOffU& textoff, TIndexOffU& tlen, bool rejectStraddle, bool& straddled) const;
+	void buildFragTab(TIndexOffU len);
 
 #define WITHIN_BWT_LEN(x)				\
 	assert_leq(x[0], this->_eh._sideBwtLen);	\
@@ -2525,6 +2528,11 @@ public:
 	TIndexOffU  _nFrag; /// number of fragments
 	APtrWrap<TIndexOffU> _plen;
 	APtrWrap<TIndexOffU> _rstarts; // starting offset of fragments / text indexes
+	// Fragment by joined-offset bucket, for joinedToTextOff(); see
+	// buildFragTab().  No table when _fragTabLen is 0.
+	EList<uint32_t> _fragTab;
+	TIndexOffU _fragTabLen = 0;
+	int _fragShift = 0;
 	// _fchr, _ftab and _eftab are expected to be relatively small
 	// (usually < 1MB, perhaps a few MB if _fchr is particularly large
 	// - like, say, 11).  For this reason, we don't bother with writing

@@ -88,12 +88,13 @@ bool AlignmentCache::addOnTheFlyImpl(
 		s->payload.len = botf - topf;
 		s->payload.topf = topf;
 		s->payload.topb = topb;
-		for(size_t j = 0; j < (botf-topf); j++) {
-			if(!salist_.add(pool(), OFF_MASK)) {
-				// Change the payload's len field
-				s->payload.len = (TIndexOffU)j;
-				return false; // Exhausted pool memory
-			}
+		// One OFF_MASK (offset not yet resolved) per element of the range
+		const size_t len = botf - topf;
+		const size_t j = salist_.addFillUpTo(pool(), len, OFF_MASK);
+		if(j < len) {
+			// Change the payload's len field
+			s->payload.len = (TIndexOffU)j;
+			return false; // Exhausted pool memory
 		}
 		assert(s->payload.repOk(*this));
 	}

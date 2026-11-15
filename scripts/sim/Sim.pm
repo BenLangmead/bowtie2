@@ -340,8 +340,8 @@ sub genRef {
 		my $trimleft = int(Math::Random::random_exponential(1, 200));
 		# Select amount to trim from RHS
 		my $trimright = int(Math::Random::random_exponential(1, 200));
-		# Make sure we're leaving some sequence after trimming
-		while($trimleft + $trimright > $len) {
+		# Make sure we're leaving at least one character after trimming
+		while($trimleft + $trimright >= $len) {
 			if(int(rand(2))) {
 				$trimleft = int($trimleft*0.5);
 			} else {
@@ -372,6 +372,15 @@ sub genRef {
 		print FA "$buf\n" if $buf ne "";
 	}
 	close(FA);
+	# bowtie2-build refuses references with no A, C, G or T at all, so
+	# generate a new set in that case.
+	my $unamb = 0;
+	$unamb += ($ccnt{$_} || 0) for ("A", "C", "G", "T");
+	if($unamb == 0) {
+		print STDERR "References have no unambiguous characters; generating new ones\n";
+		delete $ref->{$_} for keys %$ref;
+		return $self->genRef($ref, $refdnagen, $conf, $tmpfn);
+	}
 	print STDERR "Wrote references to $tmpfn\n";
 	for my $k (sort keys %ccnt) {
 		print STDERR "  $k: $ccnt{$k}\n";
@@ -992,10 +1001,15 @@ sub nextCase {
 	$conf->{bowtie2_build_debug} = $conf->{bowtie2_build}." --debug";
 	$conf->{bowtie2_debug}       = $conf->{bowtie2}." --debug";
 	$conf->{tempdir}             = "/tmp"           unless defined($conf->{tempdir});
-	srand(time ^ $$);
+	# Seed both generators from one number, and print it, so that a failing
+	# case can be rerun with --seed.
+	my $seed = defined($conf->{seed}) ? $conf->{seed} : ((time ^ $$) & 0x7fffffff);
+	srand($seed);
+	Math::Random::random_set_seed(($seed % 2147483562) + 1, (($seed * 7 + 13) % 2147483398) + 1);
 	$conf->{randstr} = randStr(8);
 
 	print "*** TEST CASE ***\n";
+	print "Random seed: $seed (rerun with --seed $seed)\n";
 	
 	# Build a large index?
 	my $large_index = int(rand(2)) == 0;

@@ -174,6 +174,7 @@ protected:
 	EList<TIndexOffU> refOffs_;    /// buf_ begin offsets per ref seq
 	EList<TIndexOffU> refRecOffs_; /// record begin/end offsets per ref seq
 	uint8_t *buf_;      /// the whole reference as a big bitpacked byte array
+	uint8_t *bufBase_;  /// what new[] returned for buf_ (NULL when buf_ is mapped or shared)
 	uint8_t *sanityBuf_;/// for sanity-checking buf_
 	TIndexOffU bufSz_;    /// size of buf_
 	TIndexOffU bufAllocSz_;

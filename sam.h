@@ -84,7 +84,9 @@ public:
 		bool print_xg,
 		bool print_nm,
 		bool print_md,
-		bool print_yf,
+                bool print_mc,
+                bool print_mq,
+                bool print_yf,
 		bool print_yi,
 		bool print_ym,
 		bool print_yp,
@@ -131,7 +133,9 @@ public:
 		print_xg_(print_xg),
 		print_nm_(print_nm),
 		print_md_(print_md),
-		print_yf_(print_yf),
+                print_mc_(print_mc),
+                print_mq_(print_mq),
+                print_yf_(print_yf),
 		print_yi_(print_yi),
 		print_ym_(print_ym),
 		print_yp_(print_yp),
@@ -198,7 +202,11 @@ public:
                         print_nm_ = value;
                 } else if(strcasecmp(name, "md") == 0) {
                         print_md_ = value;
-                } else if(strcasecmp(name, "yf") == 0) {
+                } else if (strcasecmp(name, "mc") == 0) {
+                        print_mc_ = value;
+                } else if (strcasecmp(name, "mq") == 0) {
+                        print_mq_ = value;
+                } else if (strcasecmp(name, "yf") == 0) {
                         print_yf_ = value;
                 } else if(strcasecmp(name, "yi") == 0) {
                         print_yi_ = value;
@@ -380,13 +388,14 @@ public:
 		const Read& rd,            // the read
 		const Read* rdo,           // the opposite read
 		AlnRes& res,               // individual alignment result
-		StackedAln& staln,         // stacked alignment
-		const AlnFlags& flags,     // alignment flags
+		StackedAln& staln,         // stacked alignment mate1
+                StackedAln& stalno,        // stacked alignment mate2
+                const AlnFlags& flags,     // alignment flags
 		const AlnSetSumm& summ,    // summary of alignments for this read
 		const SeedAlSumm& ssm,     // seed alignment summary
 		const PerReadMetrics& prm, // per-read metics
 		const Scoring& sc,         // scoring scheme
-		const char *mapqInp)       // inputs to MAPQ calculation
+		const std::vector<char const*>& mapqs)       // inputs to MAPQ calculation
 		const;
 
 	/**
@@ -530,8 +539,10 @@ protected:
 	bool print_xg_; // XG:i: Number of gap extensions (incl. opens)
 	bool print_nm_; // NM:i: Edit dist. to the ref, Ns count, clipping doesn't
 	bool print_md_; // MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
+        bool print_mc_; // MC:Z: Cigar of the mate next segment
+        bool print_mq_; // MQ:i: MAPQ of the mate
 
-	// Following are Bowtie2-specific
+        // Following are Bowtie2-specific
 	bool print_yf_; // YF:i: Read was filtered out?
 	bool print_yi_; // YI:Z: Summary of inputs to MAPQ calculation
 	bool print_ym_; // YM:i: Read was repetitive when aligned unpaired?

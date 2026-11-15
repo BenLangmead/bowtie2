@@ -672,7 +672,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 				vh = sse_load_siall(pvHLeft);
 				vtmp = sse_cmpgt_epi8(pvScore[0], vbiasm1);
 				int cmp = sse_movemask_epi8(vtmp);
-				if(cmp != SSE_MASK_ALL) {
+				if(cmp != 0) {
 					// At least one candidate in this mask.  Now iterate
 					// through vm/vh to evaluate individual cells.
 					for(size_t m = 0; m < NWORDS_PER_REG; m++) {
@@ -855,7 +855,7 @@ TAlScore SwAligner::alignGatherLoc8(int& flag, bool debug) {
 			vh = sse_load_siall(pvHLeft);
 			vtmp = sse_cmpgt_epi8(pvScore[0], vbiasm1);
 			int cmp = sse_movemask_epi8(vtmp);
-			if(cmp != SSE_MASK_ALL) {
+			if(cmp != 0) {
 				// At least one candidate in this mask.  Now iterate
 				// through vm/vh to evaluate individual cells.
 				for(size_t m = 0; m < NWORDS_PER_REG; m++) {

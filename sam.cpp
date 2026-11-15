@@ -125,12 +125,13 @@ void SamConfig::printAlignedOptFlags(
 	const Read* rdo,           // the opposite read
 	AlnRes& res,               // individual alignment result
 	StackedAln& staln,         // stacked alignment buffer
-	const AlnFlags& flags,     // alignment flags
+        StackedAln& stalno,        // stacked alignment buffer
+        const AlnFlags& flags,     // alignment flags
 	const AlnSetSumm& summ,    // summary of alignments for this read
 	const SeedAlSumm& ssm,     // seed alignment summary
 	const PerReadMetrics& prm, // per-read metrics
 	const Scoring& sc,         // scoring scheme
-	const char *mapqInp)       // inputs to MAPQ calculation
+	const std::vector<char const*> &mapqs)       // inputs to MAPQs and MAPQ inputs
 	const
 {
 	char buf[1024];
@@ -144,13 +145,12 @@ void SamConfig::printAlignedOptFlags(
 		o.append(buf);
 	}
 	if(print_xs_) {
-		// XS:i: Suboptimal alignment score
-		AlnScore sco;
-		if(flags.partOfPair()) {
-			sco = summ.bestUnchosenPScore(rd.mate < 2);
-		} else {
-			sco = summ.bestUnchosenUScore();
-		}
+		// XS:i: Suboptimal alignment score.  For a mate reported as an
+		// unpaired alignment (YT:Z:UP) the summary holds unpaired
+		// alignments only, so take the second-best unpaired score there,
+		// as the MAPQ calculation does; the paired second-best is only
+		// filled in for concordant and discordant pairs.
+		AlnScore sco = summ.bestUnchosenScore(rd.mate < 2);
 		if(sco.valid()) {
 			itoa10<TAlScore>(sco.score(), buf);
 			WRITE_SEP();
@@ -242,11 +242,20 @@ void SamConfig::printAlignedOptFlags(
 		// MD:Z: String for mms. [0-9]+(([A-Z]|\^[A-Z]+)[0-9]+)*2
 		WRITE_SEP();
 		o.append("MD:Z:");
-		staln.buildMdz();
 		staln.writeMdz(
 			&o,        // output buffer
 			NULL);     // no char buffer
-	}
+        }
+        if (print_mc_ && stalno.inited()) {
+                WRITE_SEP();
+                o.append("MC:Z:");
+                stalno.writeCigar(&o, NULL);
+        }
+        if (print_mq_ && mapqs[1] != nullptr) {
+                WRITE_SEP();
+                o.append("MQ:i:");
+                o.append(mapqs[1]);
+        }
 	if(print_ys_ && summ.paired()) {
 		// YS:i: Alignment score of opposite mate
 		assert(res.oscore().valid());
@@ -336,11 +345,11 @@ void SamConfig::printAlignedOptFlags(
 	}
 	if(print_yi_) {
 		// Print MAPQ calibration info
-		if(mapqInp[0] != '\0') {
+		if(mapqs[2] != nullptr && mapqs[2][0] != '\0') {
 			// YI:i: Suboptimal alignment score
 			WRITE_SEP();
 			o.append("YI:Z:");
-			o.append(mapqInp);
+			o.append(mapqs[2]);
 		}
 	}
 	if(flags.partOfPair() && print_zp_) {

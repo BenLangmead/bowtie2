@@ -49,7 +49,7 @@ static inline bool isnewline(int c) {
  * whitespace character.
  */
 static inline bool isspace_notnl(int c) {
-	return isspace(c) && !isnewline(c);
+	return c != -1 && isspace(c) && !isnewline(c);
 }
 
 /**
@@ -108,7 +108,11 @@ public:
 	 * Return true iff there is a stream ready to read.
 	 */
 	bool isOpen() {
-		return _in != NULL || _inf != NULL || _ins != NULL;
+          return _in != NULL || _inf != NULL || _ins != NULL || _zIn != NULL
+#ifdef WITH_ZSTD
+                  || _zstdIn != NULL
+#endif
+                  ;
 	}
 
 	/**
@@ -116,29 +120,34 @@ public:
 	 */
 	void close() {
 		if(_in != NULL && _in != stdin) {
-			fclose(_in);
+                        fclose(_in);
+                        _in = NULL;
 		} else if(_inf != NULL) {
-			_inf->close();
+                        _inf->close();
+                        _inf = NULL;
 		} else if(_zIn != NULL) {
-			gzclose(_zIn);
+                        gzclose(_zIn);
+                        _zIn = NULL;
 #ifdef WITH_ZSTD
 		} else if(_zstdIn != NULL) {
-			zstdClose(_zstdIn);
+                        zstdClose(_zstdIn);
+                        _zstdIn = NULL;
 #endif
 		} else {
 			// can't close _ins
-		}
+                }
 	}
 
 	/**
 	 * Get the next character of input and advance.
 	 */
 	int get() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL
 #ifdef WITH_ZSTD
-		assert(_zstdIn != NULL);
+                       || _zstdIn != NULL
 #endif
-		int c = peek();
+                        );
+                int c = peek();
 		if(c != -1) {
 			_cur++;
 			if(_lastn_cur < LASTN_BUF_SZ) _lastn_buf[_lastn_cur++] = c;
@@ -157,7 +166,8 @@ public:
 	 * Initialize the buffer with a new C-style file.
 	 */
 	void newFile(FILE *in) {
-		_in = in;
+                close();
+                _in = in;
 		_zIn = NULL;
 		_inf = NULL;
 		_ins = NULL;
@@ -172,7 +182,8 @@ public:
 	/**
 	 * Initialize the buffer with a new gz file.
 	 */
-	void newFile(gzFile in) {
+        void newFile(gzFile in) {
+                close();
 		_in = NULL;
 		_zIn = in;
 		_inf = NULL;
@@ -203,7 +214,8 @@ public:
 	/**
 	 * Initialize the buffer with a new ifstream.
 	 */
-	void newFile(std::ifstream *__inf) {
+        void newFile(std::ifstream *__inf) {
+                close();
 		_in = NULL;
 		_zIn = NULL;
 		_inf = __inf;
@@ -219,7 +231,8 @@ public:
 	/**
 	 * Initialize the buffer with a new istream.
 	 */
-	void newFile(std::istream *__ins) {
+        void newFile(std::istream *__ins) {
+                close();
 		_in = NULL;
 		_zIn = NULL;
 		_inf = NULL;
@@ -254,7 +267,8 @@ public:
 		}
 		_cur = BUF_SZ;
 		_buf_sz = BUF_SZ;
-		_done = false;
+                _done = false;
+                resetLastN();
 	}
 
 	/**
@@ -263,11 +277,12 @@ public:
 	 * Occasionally we'll need to read in a new buffer's worth of data.
 	 */
 	int peek() {
-		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL);
+		assert(_in != NULL || _zIn != NULL || _inf != NULL || _ins != NULL
 #ifdef WITH_ZSTD
-		assert(_zstdIn != NULL);
+                       || _zstdIn != NULL
 #endif
-		assert_leq(_cur, _buf_sz);
+                        );
+                assert_leq(_cur, _buf_sz);
 		if(_cur == _buf_sz) {
 			if(_done) {
 				// We already exhausted the input stream
@@ -313,7 +328,10 @@ public:
 	 * until we see a newline, EOF, or until 'len' characters have been
 	 * read.
 	 */
-	size_t gets(char *buf, size_t len) {
+        size_t gets(char *buf, size_t len) {
+                if (len == 0) {
+                        return 0;
+                }
 		size_t stored = 0;
 		while(true) {
 			int c = get();
@@ -687,7 +705,10 @@ public:
 	 */
 	void setFile(const char *out, bool binary = false) {
 		assert(out != NULL);
-		out_ = fopen(out, binary ? "wb" : "w");
+                if (out_) {
+                        close();
+                }
+                out_ = fopen(out, binary ? "wb" : "w");
 		if(out_ == NULL) {
 			std::cerr << "Error: Could not open alignment output file " << out << std::endl;
 			throw 1;
@@ -769,7 +790,7 @@ public:
 		if(cur_ > 0) flush();
 		asyncData_.waitIdle();
 		closed_ = true;
-		if(out_ != stdout) {
+		if(out_ != NULL && out_ != stdout) {
 			fclose(out_);
 		}
 	}
@@ -951,23 +972,23 @@ private:
 	static void writeAsync(AsyncData *asyncDataPtr) {
 		AsyncData &asyncData = *asyncDataPtr;
 		bool abort = false;
-                size_t written = 0;
 		while(!abort) {
 			abort = asyncData.waitForBuf();
 			if(abort) break;
-			while (asyncData.cur != 0) {
-                                written += fwrite((const void *)(asyncData.buf + written), 1, asyncData.cur, asyncData.out);
+                        size_t total_written = 0;
+                        while (asyncData.cur != 0) {
+                                size_t n = fwrite((const void *)(asyncData.buf + total_written), 1, asyncData.cur, asyncData.out);
 				if (errno == EPIPE) {
 					exit(EXIT_SUCCESS);
 				}
-                                if (feof(asyncData.out) || written == 0)
+                                if (feof(asyncData.out) || n == 0)
                                         break;
                                 // asyncData.buf += written;
-                                asyncData.cur -= written;
-                                written = 0;
+                                total_written += n;
+                                asyncData.cur -= n;
 			}
 
-                        if (written != asyncData.cur) {
+                        if (asyncData.cur != 0) {
                                 // std::cerr << "Error while flushing and closing output" << std::endl;
                                 perror("fwrite");
 				throw 1;

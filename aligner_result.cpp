@@ -924,52 +924,161 @@ void AlnRes::printQuals(
 }
 
 /**
- * Add all of the cells involved in the given alignment to the database.
+ * Append the runs of res's cells to runs and set a's key and bounds.  Returns
+ * false iff res covers no rows.
+ *
+ * The cells are the ones the per-cell walk this replaces visits: row i, from
+ * the first row not soft-trimmed on the left for readExtentRows() rows, covers
+ * columns [left, right).  right is left + 1 plus the number of read gaps among
+ * the edits at pos i+1 that directly follow the edits consumed so far (none on
+ * the last row); the next row's left is right, or right - 1 if an edit at pos
+ * i is a reference gap.  Edits are consumed in list order, those at pos i while
+ * on row i.  So a row before the next edit's pos - 1, and every row once the
+ * next edit's pos is behind the current row, covers one cell one column right
+ * of the row above's: those rows are emitted in bulk, and the rows next to an
+ * edit run the per-cell walk's code unchanged.
  */
-void RedundantAlns::add(const AlnRes& res) {
-	assert(!cells_.empty());
-	TRefOff left = res.refoff(), right;
+bool RedundantAlns::makeRuns(const AlnRes& res, EList<Run>& runs, Aln& a) {
 	const size_t len = res.readExtentRows();
+	if(len == 0) {
+		return false;
+	}
+	TRefOff left = res.refoff(), right;
 	const size_t alignmentStart = res.trimmedLeft(true);
-	if(!res.fw()) {
+	const size_t end = alignmentStart + len;
+	const bool fw = res.fw();
+	if(!fw) {
 		const_cast<AlnRes&>(res).invertEdits();
 	}
 	const EList<Edit>& ned = res.ned();
+	const size_t nned = ned.size();
 	size_t nedidx = 0;
-	assert_leq(len, cells_.size());
-	// For each row...
-	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
-		size_t diff = 1;  // amount to shift to right for next round
-		right = left + 1;
-		while(nedidx < ned.size() && ned[nedidx].pos == i) {
-			if(ned[nedidx].isRefGap()) {
-				// Next my_left will be in same column as this round
-				diff = 0;
-			}
-			nedidx++;
-		}
-		if(i < alignmentStart + len - 1) {
-			// See how many inserts there are before the next read
-			// character
-			size_t nedidx_next = nedidx;
-			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
-			{
-				if(ned[nedidx_next].isReadGap()) {
-					right++;
+	Run cur;
+	cur.dlo = cur.dhi = 0;
+	cur.r0 = cur.r1 = 0;
+	bool open = false;
+	int64_t dmin = 0, dmax = 0;
+	a.run0 = runs.size();
+	size_t i = alignmentStart;
+	while(i < end) {
+		// Rows [i, stop) cover one cell each, on the diagonal of left at row i
+		size_t stop = end;
+		if(nedidx < nned) {
+			size_t pos = ned[nedidx].pos;
+			if(pos >= i) {
+				stop = (pos > i) ? pos - 1 : i;
+				if(stop > end) {
+					stop = end;
 				}
-				nedidx_next++;
 			}
 		}
-		for(TRefOff j = left; j < right; j++) {
-			// Add to db
-			RedundantCell c(res.refid(), res.fw(), j, i);
-			ASSERT_ONLY(bool ret =) cells_[i].insert(c);
-			assert(ret);
+		int64_t dlo, dhi;
+		size_t rfirst = i, rlast;
+		if(stop > i) {
+			dlo = (int64_t)left - (int64_t)i;
+			dhi = dlo + 1;
+			rlast = stop - 1;
+			left += (TRefOff)(stop - i);
+			i = stop;
+		} else {
+			size_t diff = 1;  // amount to shift to right for next round
+			right = left + 1;
+			while(nedidx < nned && ned[nedidx].pos == i) {
+				if(ned[nedidx].isRefGap()) {
+					// Next my_left will be in same column as this round
+					diff = 0;
+				}
+				nedidx++;
+			}
+			if(i < end - 1) {
+				// See how many inserts there are before the next read
+				// character
+				size_t nedidx_next = nedidx;
+				while(nedidx_next < nned && ned[nedidx_next].pos == i+1)
+				{
+					if(ned[nedidx_next].isReadGap()) {
+						right++;
+					}
+					nedidx_next++;
+				}
+			}
+			dlo = (int64_t)left - (int64_t)i;
+			dhi = (int64_t)right - (int64_t)i;
+			rlast = i;
+			left = right + diff - 1;
+			i++;
 		}
-		left = right + diff - 1;
+		if(open && dlo == cur.dlo && dhi == cur.dhi) {
+			cur.r1 = rlast; // rows are consecutive: extend the open run
+			continue;
+		}
+		if(open) {
+			runs.push_back(cur);
+			if(cur.dlo < dmin) dmin = cur.dlo;
+			if(cur.dhi > dmax) dmax = cur.dhi;
+		} else {
+			dmin = dlo;
+			dmax = dhi;
+		}
+		cur.dlo = dlo;
+		cur.dhi = dhi;
+		cur.r0 = rfirst;
+		cur.r1 = rlast;
+		open = true;
 	}
-	if(!res.fw()) {
+	runs.push_back(cur);
+	if(cur.dlo < dmin) dmin = cur.dlo;
+	if(cur.dhi > dmax) dmax = cur.dhi;
+	if(!fw) {
 		const_cast<AlnRes&>(res).invertEdits();
+	}
+	a.rfid = res.refid();
+	a.fw = fw;
+	a.dlo = dmin;
+	a.dhi = dmax;
+	a.r0 = alignmentStart;
+	a.r1 = end - 1;
+	a.nrun = runs.size() - a.run0;
+	return true;
+}
+
+/**
+ * Return true iff the two run lists, each in ascending row order, share a
+ * cell: some pair of runs shares a row and a diagonal.
+ */
+bool RedundantAlns::runsOverlap(
+	const Run* a,
+	size_t na,
+	const Run* b,
+	size_t nb)
+{
+	size_t i = 0, j = 0;
+	while(i < na && j < nb) {
+		if(a[i].r1 < b[j].r0) {
+			i++;
+		} else if(b[j].r1 < a[i].r0) {
+			j++;
+		} else {
+			if(a[i].dlo < b[j].dhi && b[j].dlo < a[i].dhi) {
+				return true;
+			}
+			if(a[i].r1 < b[j].r1) {
+				i++;
+			} else {
+				j++;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Add all of the cells involved in the given alignment to the database.
+ */
+void RedundantAlns::add(const AlnRes& res) {
+	Aln a;
+	if(makeRuns(res, runs_, a)) {
+		alns_.push_back(a);
 	}
 }
 
@@ -978,57 +1087,28 @@ void RedundantAlns::add(const AlnRes& res) {
  * one of the cells in the database.
  */
 bool RedundantAlns::overlap(const AlnRes& res) {
-	assert(!cells_.empty());
-	TRefOff left = res.refoff(), right;
-	const size_t len = res.readExtentRows();
-	const size_t alignmentStart = res.trimmedLeft(true);
-	if(!res.fw()) {
-		const_cast<AlnRes&>(res).invertEdits();
+	if(alns_.empty()) {
+		return false;
 	}
-	const EList<Edit>& ned = res.ned();
-	size_t nedidx = 0;
-	// For each row...
-	bool olap = false;
-	assert_leq(len, cells_.size());
-	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
-		size_t diff = 1;  // amount to shift to right for next round
-		right = left + 1;
-		while(nedidx < ned.size() && ned[nedidx].pos == i) {
-			if(ned[nedidx].isRefGap()) {
-				// Next my_left will be in same column as this round
-				diff = 0;
-			}
-			nedidx++;
-		}
-		if(i < alignmentStart + len - 1) {
-			// See how many inserts there are before the next read
-			// character
-			size_t nedidx_next = nedidx;
-			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
-			{
-				if(ned[nedidx_next].isReadGap()) {
-					right++;
-				}
-				nedidx_next++;
-			}
-		}
-		for(TRefOff j = left; j < right; j++) {
-			// Add to db
-			RedundantCell c(res.refid(), res.fw(), j, i);
-			if(cells_[i].contains(c)) {
-				olap = true;
-				break;
-			}
-		}
-		if(olap) {
-			break;
-		}
-		left = right + diff - 1;
+	qruns_.clear();
+	Aln q;
+	if(!makeRuns(res, qruns_, q)) {
+		return false;
 	}
-	if(!res.fw()) {
-		const_cast<AlnRes&>(res).invertEdits();
+	const size_t nalns = alns_.size();
+	for(size_t k = 0; k < nalns; k++) {
+		const Aln& a = alns_[k];
+		// One branch on all the bounds: each test alone is unpredictable
+		bool cand = (a.dlo < q.dhi) & (q.dlo < a.dhi) &
+		            (a.rfid == q.rfid) & (a.fw == q.fw) &
+		            (a.r0 <= q.r1) & (q.r0 <= a.r1);
+		if(cand &&
+		   runsOverlap(runs_.ptr() + a.run0, a.nrun, qruns_.ptr(), q.nrun))
+		{
+			return true;
+		}
 	}
-	return olap;
+	return false;
 }
 
 /**

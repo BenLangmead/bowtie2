@@ -859,11 +859,13 @@ public:
 		stream.zalloc = Z_NULL;
 		stream.zfree = Z_NULL;
 		stream.opaque = Z_NULL;
-		alignment_batch.reserve(1 << 16);
+		alignment_batch.reserve(1 << 20);
 	}
 
 	virtual void reset() {
-		first_ = true;
+                first_ = true;
+                delta_ = 0;
+                alignment_batch.clear();
 		CFilePatternSource::reset();
 	}
 

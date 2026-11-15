@@ -151,6 +151,8 @@ static bool sam_print_xo;
 static bool sam_print_xg;
 static bool sam_print_nm;
 static bool sam_print_md;
+static bool sam_print_mc;
+static bool sam_print_mq;
 static bool sam_print_yf;
 static bool sam_print_yi;
 static bool sam_print_ym;
@@ -386,7 +388,9 @@ static void resetOptions() {
 	sam_print_xg        = true;
 	sam_print_nm        = true;
 	sam_print_md        = true;
-	sam_print_yf        = true;
+        sam_print_mc        = false;
+        sam_print_mq        = false;
+        sam_print_yf        = true;
 	sam_print_yi        = false;
 	sam_print_ym        = false;
 	sam_print_yp        = false;
@@ -1775,9 +1779,13 @@ static void parseOptions(int argc, const char **argv) {
 		assert_gt(mhits, 0);
 		msample = true;
 	}
-	if (deterministicSeeds) {
-		if ( doExactUpFront || do1mmUpFront || (mhits!=0) ) {
-			cerr << "Warning: -d cannot be used with --exact-upfront, --1mm-upfront or -m." << endl;
+	if (deterministicSeeds ) {
+		if ( (mhits!=0) ) {
+			cerr << "Error: -d cannot be used -m." << endl;
+			throw 1;
+		}
+		if ( doExactUpFront || do1mmUpFront ) {
+			cerr << "Error: -d must be used with --no-exact-upfront and --no-1mm-upfront." << endl;
 			throw 1;
 		}
 		if ( !allHits ) {
@@ -5078,7 +5086,9 @@ static void driver(
 			sam_print_xg,
 			sam_print_nm,
 			sam_print_md,
-			sam_print_yf,
+                        sam_print_mc,
+                        sam_print_mq,
+                        sam_print_yf,
 			sam_print_yi,
 			sam_print_ym,
 			sam_print_yp,

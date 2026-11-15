@@ -586,6 +586,86 @@ pair<int, int> SeedAligner::instantiateSeeds(
 	return ret;
 }
 
+class SeedAlignerSearchState {
+public:
+	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
+	TIndexOffU t[4], b[4];   // dest BW ranges
+	TIndexOffU *tf, *tb, *bf, *bb; // depend on ltr
+	const Ebwt* ebwt;
+
+	TIndexOffU ntop;
+	int off;
+	bool ltr;
+	bool done;
+public:
+	SeedAlignerSearchState()
+	: tp{0,0,0,0}, bp{0,0,0,0}
+	, t{0,0,0,0}, b{0,0,0,0}
+	, tf(NULL), tb(NULL), bf(NULL), bb(NULL)
+	, ebwt(NULL)
+	, ntop(0)
+	, off(0)
+	, ltr(false)
+	, done(false)
+	{}
+
+	void setOff(
+		size_t _off,
+		const BwtTopBot &bwt,      // The 4 BWT idxs
+		const Ebwt* ebwtFw_,       // forward index (BWT)
+		const Ebwt* ebwtBw_)       // backward/mirror index (BWT')
+	{
+		off = _off;
+		ltr = off > 0;
+		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
+		off = abs(off)-1;
+		if(ltr) {
+			ebwt = ebwtBw_;
+			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topf;
+			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botf;
+			tf = tp; tb = t;
+			bf = bp; bb = b;
+			ntop = bwt.topb;
+		} else {
+			ebwt = ebwtFw_;
+			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topb;
+			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botb;
+			tf = t; tb = tp;
+			bf = b; bb = bp;
+			ntop = bwt.topf;
+		}
+		assert(ebwt != NULL);
+	}
+
+public:
+#ifndef NDEBUG
+	TIndexOffU lasttot;
+
+	void initLastTot(TIndexOffU tot) { lasttot = tot;}
+	void assertLeqAndSetLastTot(TIndexOffU tot) {
+		assert_leq(tot, lasttot);
+		lasttot = tot;
+	}
+#else
+	// noop in production code
+	void initLastTot(TIndexOffU tot) {}
+	void assertLeqAndSetLastTot(TIndexOffU tot) {};
+#endif
+
+};
+
+// searchAllSeeds scratch, kept across calls so that it allocates only
+// when a read needs more seed searches than any read before it
+struct SeedAligner::SeedSearchScratch {
+	std::vector<SeedAlignerSearchParams> params; // one per seed search
+	std::vector<SeedAlignerSearchState> states;  // one per seed search
+	std::vector<size_t> first;                   // per cache: its first search
+};
+
+SeedAligner::~SeedAligner() {
+	delete sss_;
+}
+
 /**
  * We assume that all seeds are the same length.
  *
@@ -593,6 +673,14 @@ pair<int, int> SeedAligner::instantiateSeeds(
  *
  * 1. Instantiate all seeds, retracting them if necessary.
  * 2. Calculate zone boundaries for each seed
+ *
+ * The seed offsets of both strands are searched together, up to
+ * SEED_BATCH_CACHES offsets per searchSeedBi batch, so that more searches
+ * are in flight than with one batch per strand.  The searches write only
+ * their SeedSearchCaches and the bwops_/bwedits_ counts, and the searches
+ * of one offset stay in one batch, in their order; the results are then
+ * handed to the alignment cache and to sr in the order the per-strand
+ * batches used: forward seed offsets in order, then reverse-complement ones.
  */
 void SeedAligner::searchAllSeeds(
 	const EList<Seed>& seeds,    // search seeds
@@ -618,86 +706,84 @@ void SeedAligner::searchAllSeeds(
 	bwops_ = bwedits_ = 0;
 	uint64_t possearches = 0, seedsearches = 0, intrahits = 0, interhits = 0, ooms = 0;
 
-	/**
-	 * TODO: Define is somewhere else
-	 * Note: The ideal may be dependent on the CPU model, but 8 seems to work fine.
-	 *       2 is too small for prefetch to be fully effective, 4 seems already OK, 
-	 *       and 32 is too big (cache trashing).
-	 **/
-	const int ibatch_size = 8;
+	if(sss_ == NULL) sss_ = new SeedSearchScratch();
+	SeedSearchMultiCache& mcache = mcache_;
+	std::vector<SeedAlignerSearchParams>& paramVec = sss_->params;
+	std::vector<SeedAlignerSearchState>& sstateVec = sss_->states;
+	std::vector<size_t>& first = sss_->first;
+	mcache.clear();
+	paramVec.clear();
+	first.clear();
 
-	SeedSearchMultiCache mcache;
-	std::vector<SeedAlignerSearchParams> paramVec;
-
-	mcache.reserve(ibatch_size);
-	paramVec.reserve(ibatch_size*16); // assume no more than 16 iss per cache, on average
-
+	// One cache per seed offset with something to search, forward offsets
+	// first.  All caches are taken before the searches refer to them.
 	for(int fwi = 0; fwi < 2; fwi++) {
 		const bool fw = (fwi == 0);
-                int i =0;
-		// For each instantiated seed, but batched
-		while (i < (int)sr.numOffs()) {
-		   const int ibatch_max = std::min(i+ibatch_size,(int)sr.numOffs());
-		   mcache.clear();
-		   paramVec.clear();
-		   // start aligning and find list of seeds to search
-		   for(; i < ibatch_max; i++) {
+		for(int i = 0; i < (int)sr.numOffs(); i++) {
 			assert(sr.repOk(&cache.current()));
-			EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
-			if(iss.empty()) {
+			if(sr.instantiatedSeeds(fw, i).empty()) {
 				// Cache hit in an across-read cache
 				continue;
 			}
-			const BTDnaString& seq  = sr.seqs(fw)[i];  // seed sequence
-			const BTString& qual = sr.quals(fw)[i]; // seed qualities
-			mcache.emplace_back(seq, qual, i, fw);
-			const size_t mnr = mcache.size()-1;
-			SeedSearchCache &srcache = mcache[mnr];
-			{
-				possearches++;
-				for(size_t j = 0; j < iss.size(); j++) {
-					// Set seq and qual appropriately, using the seed sequences
-					// and qualities already installed in SeedResults
-					assert_eq(fw, iss[j].fw);
-					assert_eq(i, (int)iss[j].seedoffidx);
-					paramVec.emplace_back(srcache, iss[j], ebwtFw_, ebwtBw_);
-					seedsearches++;
-				}
-			}
-		   } // internal i (batch) loop
+			mcache.add(sr.seqs(fw)[i], sr.quals(fw)[i], i, fw);
+			possearches++;
+		}
+	}
+	// The searches, in the same order
+	for(size_t mnr = 0; mnr < mcache.size(); mnr++) {
+		const bool fw = mcache.getFw(mnr);
+		const int i = mcache.getSeedOffIdx(mnr);
+		EList<InstantiatedSeed>& iss = sr.instantiatedSeeds(fw, i);
+		SeedSearchCache &srcache = mcache[mnr];
+		first.push_back(paramVec.size());
+		for(size_t j = 0; j < iss.size(); j++) {
+			// Set seq and qual appropriately, using the seed sequences
+			// and qualities already installed in SeedResults
+			assert_eq(fw, iss[j].fw);
+			assert_eq(i, (int)iss[j].seedoffidx);
+			paramVec.emplace_back(srcache, iss[j], ebwtFw_, ebwtBw_);
+			seedsearches++;
+		}
+	}
+	first.push_back(paramVec.size());
 
-		   // do the searches
-		   if (!paramVec.empty()) searchSeedBi(paramVec.size(), &(paramVec[0]));
+	// do the searches
+	if(sstateVec.size() < paramVec.size()) sstateVec.resize(paramVec.size());
+	for(size_t c0 = 0; c0 < mcache.size(); c0 += SEED_BATCH_CACHES) {
+		const size_t c1 = std::min(c0 + SEED_BATCH_CACHES, mcache.size());
+		const size_t p0 = first[c0], p1 = first[c1];
+		if(p1 > p0) {
+			searchSeedBi(p1 - p0, &(paramVec[p0]), &(sstateVec[p0]));
+		}
+	}
 
-		   // finish aligning and add to SeedResult
-		   for (size_t mnr=0; mnr<mcache.size(); mnr++) {
-			SeedSearchCache &srcache = mcache[mnr];
-			// Tell the cache that we've started aligning, so the cache can
-			// expect a series of on-the-fly updates
-			int ret = srcache.beginAlign(cache);
-			if(ret == -1) {
-				// Out of memory when we tried to add key to map
-				ooms++;
-				continue;
-			}
-			assert(srcache.aligning());
-			if(!srcache.addAllCached()){
-				// Memory exhausted during copy
-				ooms++;
-				continue;
-			}
-			srcache.finishAlign();
-			assert(!srcache.aligning());
-			if(srcache.qvValid()) {
-				sr.add(
-					srcache.getQv(),   // range of ranges in cache
-					cache.current(), // cache
-					mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
-					mcache.getFw(mnr));   // whether seed is from forward read
-			}
-		   } // mnr loop
-		} // external i while
-	} // for fwi
+	// finish aligning and add to SeedResult
+	for (size_t mnr=0; mnr<mcache.size(); mnr++) {
+		SeedSearchCache &srcache = mcache[mnr];
+		// Tell the cache that we've started aligning, so the cache can
+		// expect a series of on-the-fly updates
+		int ret = srcache.beginAlign(cache);
+		if(ret == -1) {
+			// Out of memory when we tried to add key to map
+			ooms++;
+			continue;
+		}
+		assert(srcache.aligning());
+		if(!srcache.addAllCached()){
+			// Memory exhausted during copy
+			ooms++;
+			continue;
+		}
+		srcache.finishAlign();
+		assert(!srcache.aligning());
+		if(srcache.qvValid()) {
+			sr.add(
+				srcache.getQv(),   // range of ranges in cache
+				cache.current(), // cache
+				mcache.getSeedOffIdx(mnr),     // seed index (from 5' end)
+				mcache.getFw(mnr));   // whether seed is from forward read
+		}
+	} // mnr loop
 	prm.nSeedRanges = sr.numRanges();
 	prm.nSeedElts = sr.numElts();
 	prm.nSeedRangesFw = sr.numRangesFw();
@@ -1142,8 +1228,12 @@ bool SeedAligner::oneMmSearch(
 					ebwt->mapBiLFEx(tloc, bloc, t, b, tp, bp);
 					SANITY_CHECK_4TUP(t, b, tp, bp);
 					match = rdc < 4;
-					top = t[rdc]; bot = b[rdc];
-					topp = tp[rdc]; botp = bp[rdc];
+					// An N in the read has no range of its own; only the
+					// mismatch search below continues past it.
+					if(match) {
+						top = t[rdc]; bot = b[rdc];
+						topp = tp[rdc]; botp = bp[rdc];
+					}
 				} else {
 					assert_eq(bot, top+1);
 					assert(!rep1mm || botp == topp+1);
@@ -1717,74 +1807,6 @@ SeedAligner::startSearchSeedBi(SeedAligner::SeedAlignerSearchParams &p)
 	return false;
 }
 
-class SeedAlignerSearchState {
-public:
-	TIndexOffU tp[4], bp[4]; // dest BW ranges for "prime" index
-	TIndexOffU t[4], b[4];   // dest BW ranges
-	TIndexOffU *tf, *tb, *bf, *bb; // depend on ltr
-	const Ebwt* ebwt;
-
-	TIndexOffU ntop;
-	int off;
-	bool ltr;
-	bool done;
-public:
-	SeedAlignerSearchState()
-	: tp{0,0,0,0}, bp{0,0,0,0}
-	, t{0,0,0,0}, b{0,0,0,0}
-	, tf(NULL), tb(NULL), bf(NULL), bb(NULL)
-	, ebwt(NULL)
-	, ntop(0)
-	, off(0)
-	, ltr(false)
-	, done(false)
-	{}
-
-	void setOff(
-		size_t _off,
-		const BwtTopBot &bwt,      // The 4 BWT idxs
-		const Ebwt* ebwtFw_,       // forward index (BWT)
-		const Ebwt* ebwtBw_)       // backward/mirror index (BWT')
-	{
-		off = _off;
-		ltr = off > 0;
-		t[0] = t[1] = t[2] = t[3] = b[0] = b[1] = b[2] = b[3] = 0;
-		off = abs(off)-1;
-		if(ltr) {
-			ebwt = ebwtBw_;
-			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topf;
-			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botf;
-			tf = tp; tb = t;
-			bf = bp; bb = b;
-			ntop = bwt.topb;
-		} else {
-			ebwt = ebwtFw_;
-			tp[0] = tp[1] = tp[2] = tp[3] = bwt.topb;
-			bp[0] = bp[1] = bp[2] = bp[3] = bwt.botb;
-			tf = t; tb = tp;
-			bf = b; bb = bp;
-			ntop = bwt.topf;
-		}
-		assert(ebwt != NULL);
-	}
-
-public:
-#ifndef NDEBUG
-	TIndexOffU lasttot;
-
-	void initLastTot(TIndexOffU tot) { lasttot = tot;}
-	void assertLeqAndSetLastTot(TIndexOffU tot) {
-		assert_leq(tot, lasttot);
-		lasttot = tot;
-	}
-#else
-	// noop in production code
-	void initLastTot(TIndexOffU tot) {}
-	void assertLeqAndSetLastTot(TIndexOffU tot) {};
-#endif
-
-};
-
 class SeedAlignerSearchSave {
 public:
 	SeedAlignerSearchSave(
@@ -1856,10 +1878,12 @@ private:
  * 2. Bidirectional BWT range(s) on either end
  */
 void
-SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchParams paramVec[]) 
+SeedAligner::searchSeedBi(
+	const size_t nparams,
+	SeedAligner::SeedAlignerSearchParams paramVec[],
+	SeedAlignerSearchState sstateVec[])
 {
 	size_t nleft = nparams; // will keep track of how many are not done yet
-	std::vector<SeedAlignerSearchState> sstateVec(nparams);
 
 	for (size_t n=0; n<nparams; n++) {
 		SeedAlignerSearchParams& p= paramVec[n];
@@ -1961,7 +1985,8 @@ SeedAligner::searchSeedBi(const size_t nparams, SeedAligner::SeedAlignerSearchPa
 								p.overall,       // overall constraints to enforce
 								&rstate.editl);  // latest edit
 							// recursion is rare, so just do one at a time
-							searchSeedBi(1, &p2);
+							SeedAlignerSearchState sstate2;
+							searchSeedBi(1, &p2, &sstate2);
 							// as rstate gets out of scope, p.prevEdit->next is updated
 						}
 					} else {

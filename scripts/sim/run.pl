@@ -59,6 +59,7 @@ Options:
   --die-with-child              Kill parent as soon as 1 child dies
   --no-die-with-child           Don\'t kill parent as soon as 1 child dies
   --small                       Make small test cases
+  --seed <int>                  Seed for the random generators (default: time and PID)
   --help                        Print this usage message
 
 !;
@@ -83,6 +84,7 @@ GetOptions(
 	"p|cpus=i"              => \$cpus,
 	"u|qupto|maxreads=i"    => \$conf{maxreads},
 	"numrefs|num-refs=i"    => \$conf{numrefs},
+	"seed=i"                => \$conf{seed},
 ) || die "Bad options;";
 
 if($help) {

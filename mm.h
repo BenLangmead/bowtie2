@@ -29,7 +29,31 @@
  * and where there isn't POSIX I/O,
  */
 
+#include <stddef.h>
+#include <stdint.h>
+
 #define MM_READ(file, dest, sz) fread(dest, 1, sz, file)
 #define MM_IS_IO_ERR(file_hd, ret, count) is_fread_err(file_hd, ret, count)
+
+/**
+ * Alignment, in bytes, of the large index arrays read from disk into the
+ * heap (BWT, SA sample, ftab, eftab, bit-packed reference).  A BWT side
+ * is 64 bytes (128 for 64-bit offsets) and is read at a random place, so
+ * a side that starts on a cache line touches one line (two) instead of
+ * two (three).  glibc serves large new[] blocks with mmap and returns an
+ * address 16 bytes into a page, which is never a line boundary.  Only
+ * where the arrays start in memory changes; their bytes are the file's.
+ */
+static const size_t MM_INDEX_ALIGN = 64;
+
+/**
+ * Round p up to the next multiple of MM_INDEX_ALIGN bytes.  The block p
+ * points into must extend MM_INDEX_ALIGN bytes past what is used.
+ */
+template<typename T>
+static inline T* mmAlignUp(T* p) {
+	const uintptr_t a = MM_INDEX_ALIGN;
+	return (T*)(((uintptr_t)p + a - 1) & ~(a - 1));
+}
 
 #endif /* MM_H_ */
