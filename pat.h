@@ -1563,14 +1563,17 @@ public:
 		sra_acc_cur_(0),
 		cur_(0),
 		first_(true),
+		read_iter_(NULL),
 		mutex_m(),
 		pp_(p)
 	{
 		assert_gt(sra_accs_.size(), 0);
 		errs_.resize(sra_accs_.size());
 		errs_.fill(0, sra_accs_.size(), false);
-		open(); // open first file in the list
-		sra_acc_cur_++;
+		if(!open()) { // open first accession in the list that can be read
+			cerr << "Error: No SRA accessions could be accessed" << endl;
+			throw 1;
+		}
 	}
 
 	virtual ~SRAPatternSource() {
@@ -1602,10 +1605,7 @@ public:
 	virtual void reset() {
 		PatternSource::reset();
 		sra_acc_cur_ = 0;
-		if (read_iter_)
-			delete read_iter_;
 		open();
-		sra_acc_cur_++;
 	}
 
 protected:
@@ -1615,9 +1615,10 @@ protected:
 		bool batch_a);
 
 	/**
-	 * Open the next file in the list of input files.
+	 * Open the next accession in the list that can be accessed;
+	 * returns false when none is left.
 	 */
-	void open();
+	bool open();
 
 	EList<string> sra_accs_; // filenames for read files
 	EList<bool> errs_;       // whether we've already printed an error for each file

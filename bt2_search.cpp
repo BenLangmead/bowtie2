@@ -5295,6 +5295,11 @@ int bowtie(int argc, const char **argv) {
 			// Get query filename
 			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
 #ifdef USE_SRA
+			if(got_reads && !sra_accs.empty()) {
+				// --sra-acc sets the read format, so other read files would be opened as accessions
+				cerr << "Error: --sra-acc cannot be combined with -U/-1/-2/--interleaved/--tab5/--tab6/--12" << endl;
+				return 1;
+			}
 			got_reads = got_reads || !sra_accs.empty();
 #endif
 			if(optind >= argc) {
