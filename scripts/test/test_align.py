@@ -523,6 +523,22 @@ def test_seed_length_L(bt2, genome_index, genome_dict, tmp_path, length, aligns)
 		assert (rec.pos, rec.tags['AS'], rec.tags['MD']) == (edited.pos, -24, edited.md)
 
 
+@pytest.mark.parametrize('policy', ['SEEDLEN=0', 'SEEDLEN=33'])
+def test_policy_seedlen_range(bt2, genome_index, genome_dict, tmp_path, policy):
+	"""SEEDLEN in --policy gets the same [1,32] check as -L."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq, '--policy', policy], check=False)
+	assert proc.returncode != 0
+	assert 'seed length must be within the interval [1,32]' in proc.stderr
+
+
+def test_seed_mismatches_not_less_than_length_warning(bt2, genome_index, genome_dict, tmp_path):
+	"""-N 1 -L 1 is lowered to -N 0 with a warning that says why."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq, '-L', 1, '-N', 1])
+	assert 'seed mismatches (1) is not less than seed length (1)' in proc.stderr
+
+
 @pytest.mark.parametrize('ival,aligns', [
 	('C,1,0', True), ('C,5,0', True), ('C,30,0', False),
 	('C,0,0', True),        # below 1, rounded up to 1
@@ -759,6 +775,36 @@ def test_mp_max_below_min_is_an_error(bt2, genome_index, qual_read, tmp_path):
 	assert 'Maximum mismatch penalty (3) is less than minimum penalty (5' in proc.stderr
 
 
+@pytest.mark.parametrize('args', [
+	['--score-min', 'L,-0.6,-O.6'], ['--score-min', 'L,abc,def'], ['-i', 'S,1,x'],
+	['--n-ceil', 'L,0,0.l5'], ['--ma', '2x'], ['--mp', '6,x'], ['--rdg', '5,y'],
+])
+def test_bad_number_is_an_error(bt2, genome_index, genome_dict, tmp_path, args):
+	"""A non-number in a numeric option is rejected instead of being read as 0."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq] + args, check=False)
+	assert proc.returncode != 0
+	assert 'could not parse' in proc.stderr
+
+
+@pytest.mark.parametrize('args', [
+	['--ma', '31.9387360218878', '--local'], ['--mp', '8.775,2.5'], ['--rdg', '5.7,3.2'],
+])
+def test_fraction_for_integer_setting_still_accepted(bt2, genome_index, genome_dict, tmp_path, args):
+	"""Fractions for integer penalties are truncated as before (the random tests pass them)."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	bt2.run('bowtie2', ['-x', genome_index, '-U', fq] + args)
+
+
+def test_score_min_too_many_parts(bt2, genome_index, genome_dict, tmp_path):
+	"""The error for a 4-part --score-min names --score-min."""
+	fq = write_reads(tmp_path, [('r', genome_dict['chr1'][:50])])
+	proc = bt2.run('bowtie2', ['-x', genome_index, '-U', fq, '--score-min', 'L,0,1,2'],
+		check=False)
+	assert proc.returncode != 0
+	assert 'arguments to --score-min option' in proc.stderr
+
+
 # ---------------------------------------------------------------------------
 # --score-min, --ma and the YF filters
 # ---------------------------------------------------------------------------
@@ -784,6 +830,17 @@ def test_score_min_end_to_end(bt2, genome_index, score18_read, tmp_path, func, a
 		assert (rec.pos, rec.tags['AS']) == (score18_read.pos, -18)
 	else:
 		assert 'YF' not in rec.tags
+
+
+@pytest.mark.parametrize('func,aligns', [
+	('L,0,-1,-100,-17', True),       # max(-100, min(-17, -64)) = -64
+	('L,0,-0.25,-100,-19', True),    # max(-100, min(-19, -16)) = -19
+	('L,0,-0.25,-100,-17', False),   # max(-100, min(-17, -16)) = -17
+])
+def test_score_min_max_part(bt2, genome_index, score18_read, tmp_path, func, aligns):
+	"""The 4th and 5th parts of a policy function are its minimum and maximum."""
+	rec = mapped(bt2, genome_index, tmp_path, score18_read.seq, ['--policy', 'MIN=' + func])
+	assert rec.is_unmapped != aligns
 
 
 @pytest.mark.parametrize('func,aligns', [
