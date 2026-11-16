@@ -17,7 +17,7 @@
 #   include <cpuid.h>
 #elif defined(_MSC_VER)
 // __MSC_VER defined by Microsoft compiler
-#define USING MSC_COMPILER
+#define USING_MSC_COMPILER
 #endif
 
 struct regs_t {unsigned int EAX, EBX, ECX, EDX;};
