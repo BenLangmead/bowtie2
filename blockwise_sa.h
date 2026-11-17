@@ -281,7 +281,26 @@ public:
 		_done(NULL)
 		{ _randomSrc.init(__seed); reset(); }
 
-	~KarkkainenBlockwiseSA() throw() {}
+	~KarkkainenBlockwiseSA() throw() {
+		// Pool threads use this object: let them claim no new block, and
+		// wait for the ones still sorting (after an error, for instance).
+		{
+			ThreadSafe ts(_mutex);
+			_cur = (TIndexOffU)_sampleSuffs.size() + 1;
+		}
+		for(size_t i = 0; i < _workers.size(); i++) {
+			if(_workers[i].valid()) _workers[i].wait();
+		}
+		if(_done != NULL) {
+			// Remove the sorted blocks that will not be read any more
+			for(size_t i = _itrBucketIdx; i <= _sampleSuffs.size(); i++) {
+				if(!_done[i]) continue;
+				std::ostringstream number; number << i;
+				std::remove((_base_fname + "." + number.str() + ".sa").c_str());
+			}
+		}
+		delete[] _done;
+	}
 
 	/**
 	 * Allocate an amount of memory that simulates the peak memory
@@ -313,13 +332,13 @@ public:
 					}
 					_itrBuckets.resize(this->_nthreads);
 					_tparams.resize(this->_nthreads);
+					// The pool has _nthreads-1 threads; the last tid is
+					// this thread, which sorts blocks while it waits below.
 					for(int tid = 0; tid < this->_nthreads; tid++) {
 						_tparams[tid].first = this;
 						_tparams[tid].second = tid;
-						if (tid == _nthreads - 1)
-							nextBlock_Worker((void *)&_tparams[tid]);
-						else
-							_pool.submit(nextBlock_Worker((void *)&_tparams[tid]));
+						if (tid < _nthreads - 1)
+							_workers.push_back(_pool.submit(nextBlock_Worker((void *)&_tparams[tid])));
 					}
 				}
 			}
@@ -339,7 +358,13 @@ public:
 					_cur++;
 				} else {
 					while(!_done[this->_itrBucketIdx]) {
-						SLEEP(1);
+						// Rethrow here the error of a pool thread that stopped
+						for(size_t i = 0; i < _workers.size(); i++) {
+							if(_workers[i].valid() &&
+							   _workers[i].wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+								_workers[i].get();
+						}
+						if(!sortNextBlock(this->_nthreads - 1)) SLEEP(1);
 					}
 					// Read suffixes from a file
 					std::ostringstream number; number << this->_itrBucketIdx;
@@ -377,6 +402,39 @@ public:
 	/// Return the difference-cover period
 	uint32_t dcV() const { return _dcV; }
 
+	/**
+	 * Claim the next unsorted block, sort it into a .sa file and mark it
+	 * done.  Return false when no block is left.
+	 */
+	bool sortNextBlock(int tid) {
+		size_t cur = 0;
+		{
+			ThreadSafe ts(this->_mutex);
+
+			cur = this->_cur;
+			if(cur > this->_sampleSuffs.size()) return false;
+			this->_cur++;
+		}
+		this->nextBlock((int)cur, tid);
+		// Write suffixes into a file
+		std::ostringstream number; number << cur;
+		const string fname = this->_base_fname + "." + number.str() + ".sa";
+		ofstream sa_file(fname.c_str(), ios::binary);
+		if(!sa_file.good()) {
+			cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
+			throw 1;
+		}
+		const EList<TIndexOffU>& bucket = this->_itrBuckets[tid];
+		writeU<TIndexOffU>(sa_file, (TIndexOffU)bucket.size(), this->_bigEndian);
+		for(size_t i = 0; i < bucket.size(); i++) {
+			writeU<TIndexOffU>(sa_file, bucket[i], this->_bigEndian);
+		}
+		sa_file.close();
+		this->_itrBuckets[tid].clear();
+		this->_done[cur] = true;
+		return true;
+	}
+
 //TBB requires a Functor to be passed to the thread group
 //hence the nested class
 
@@ -388,35 +446,7 @@ public:
 		nextBlock_Worker(void *vp_):vp(vp_) {};
 		void operator()() const {
 			pair<KarkkainenBlockwiseSA*, int> param = *(pair<KarkkainenBlockwiseSA*, int>*)vp;
-			KarkkainenBlockwiseSA* sa = param.first;
-			int tid = param.second;
-			while(true) {
-				size_t cur = 0;
-				{
-					ThreadSafe ts(sa->_mutex);
-
-					cur = sa->_cur;
-					if(cur > sa->_sampleSuffs.size()) break;
-					sa->_cur++;
-				}
-				sa->nextBlock((int)cur, tid);
-				// Write suffixes into a file
-				std::ostringstream number; number << cur;
-				const string fname = sa->_base_fname + "." + number.str() + ".sa";
-				ofstream sa_file(fname.c_str(), ios::binary);
-				if(!sa_file.good()) {
-					cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
-					throw 1;
-				}
-				const EList<TIndexOffU>& bucket = sa->_itrBuckets[tid];
-				writeU<TIndexOffU>(sa_file, (TIndexOffU)bucket.size(), sa->_bigEndian);
-				for(size_t i = 0; i < bucket.size(); i++) {
-					writeU<TIndexOffU>(sa_file, bucket[i], sa->_bigEndian);
-				}
-				sa_file.close();
-				sa->_itrBuckets[tid].clear();
-				sa->_done[cur] = true;
-			}
+			while(param.first->sortNextBlock(param.second)) { }
 		}
 	};
 
@@ -502,7 +532,7 @@ private:
 	MUTEX_T                 _mutex;       /// synchronization of output message
 	string                  _base_fname;  /// base file name for storing SA blocks
 	bool                    _bigEndian;   /// bigEndian?
-	EList<std::thread*> _threads;     /// thread list
+	std::vector<std::future<void> > _workers; /// pool threads sorting blocks
 	EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
 	ELList<TIndexOffU>      _itrBuckets;  /// buckets
 	volatile bool *_done;        /// is a block processed?
