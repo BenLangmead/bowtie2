@@ -1803,7 +1803,8 @@ int parseIntQuals(
 			}
 		}
         }
-        
+}
+
 void truncatedFastqRecord(const BTString& read_name) {
 	cerr << "Error: Read " << read_name << " is a truncated FASTQ record "
 		 << "(its '+' line or quality line is missing)." << endl;
