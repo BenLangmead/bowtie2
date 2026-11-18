@@ -1146,6 +1146,12 @@ public:
 					}
 #endif
 #ifdef USE_SAIS
+					if(isPacked()) {
+						// SAISBlockwiseSA reads the text as one byte per base
+						cerr << "Error: packed strings (-p/--packed, also tried automatically after running" << endl
+						     << "out of memory) are not supported by a bowtie2-build compiled with SAIS (USE_SAIS)." << endl;
+						throw 1;
+					}
 					VMSG_NL("Using SAIS algorithm for constructing suffix array");
 					SAISBlockwiseSA<TStr> bsa(s, bmax, nthreads);
 #else
