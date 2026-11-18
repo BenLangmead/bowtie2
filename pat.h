@@ -1513,7 +1513,14 @@ private:
 				// Should never get in here, but just in case
 				re.readResult = make_pair(true, false);
 			} else {
-				re.readResult = re.ps->nextReadPair();
+				try {
+					re.readResult = re.ps->nextReadPair();
+				} catch(int e) {
+					// Input error, already reported on stderr.  Other
+					// threads cannot be unwound, so end the process here
+					// instead of letting std::terminate abort it.
+					_Exit(e);
+				}
 			}
 			psq_ready.push(re);
                 }
