@@ -577,6 +577,27 @@ def test_bam_preserve_tags_paired(bt2, genome_dict, genome_index, tmp_path):
 	assert recs[1].line.endswith('\tYT:Z:CP\tQC:i:200')
 
 
+def test_bam_align_paired_reads_lone_mates(bt2, genome_dict, genome_index, tmp_path):
+	"""-b --align-paired-reads drops a mate 2 not preceded by its own mate 1.
+
+	Here: a lone unmapped mate 2 whose mate 1 is mapped (flags 73/133), and
+	a pair stored mate 2 first (141/77); the pair after them still aligns."""
+	m1, m2 = pair_seqs(genome_dict, PAIRS[0])
+	o1, o2 = pair_seqs(genome_dict, PAIRS[1])
+	recs_in = [
+		('lone', 73, o1, 'I' * len(o1), []),
+		('lone', 133, o2, 'I' * len(o2), []),
+		('rev', 141, o2, 'I' * len(o2), []),
+		('rev', 77, o1, 'I' * len(o1), []),
+		('p1', 77, m1, 'I' * len(m1), []),
+		('p1', 141, m2, 'I' * len(m2), []),
+	]
+	path = write_bam(str(tmp_path / 'r.bam'), recs_in)
+	recs, _ = run_align(bt2, genome_index, ['-b', path, '--align-paired-reads'])
+	assert [r.qname for r in recs] == ['p1', 'p1']
+	assert_pair(recs[0], recs[1], genome_dict, PAIRS[0])
+
+
 @pytest.mark.parametrize('option', ['--preserve-tags', '--align-paired-reads'])
 def test_bam_options_require_bam_input(bt2, genome_dict, genome_index, tmp_path, option):
 	"""--preserve-tags and --align-paired-reads are errors without -b."""
