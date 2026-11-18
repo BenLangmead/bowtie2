@@ -971,3 +971,24 @@ def test_sais_build_refuses_packed(bt2, mixed_fasta, tmp_path):
 	assert proc.returncode == 1, proc.stderr
 	assert 'not supported by a bowtie2-build compiled with SAIS' in proc.stderr
 	assert '.1.bt2' not in files_written(str(tmp_path / 'idx'))
+
+
+def test_failed_rebuild_keeps_existing_index(bt2, mixed_fasta, tmp_path):
+	"""A rebuild that fails (all-N input) leaves the previous index untouched
+	and removes its own .tmp files."""
+	prefix = str(tmp_path / 'idx')
+	bt2.build_index(mixed_fasta, prefix)
+	before = {}
+	for name in os.listdir(str(tmp_path)):
+		with open(str(tmp_path / name), 'rb') as f:
+			before[name] = f.read()
+	all_n = h.write_fasta(str(tmp_path / 'n.fa'), [('n', 'N' * 100)])
+	proc = bt2.build_index(all_n, prefix, check=False)
+	assert proc.returncode != 0
+	assert 'No unambiguous stretches' in proc.stderr
+	after = {}
+	for name in os.listdir(str(tmp_path)):
+		if name != 'n.fa':
+			with open(str(tmp_path / name), 'rb') as f:
+				after[name] = f.read()
+	assert after == before

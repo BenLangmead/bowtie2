@@ -22,6 +22,8 @@
 #include <fstream>
 #include <string>
 #include <cassert>
+#include <cerrno>
+#include <cstring>
 #include <getopt.h>
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -353,19 +355,26 @@ static void deleteIdxFiles(
 {
 
 	for(size_t i = 0; i < filesWritten.size(); i++) {
-		cerr << "Deleting \"" << filesWritten[i].c_str()
+		// Only the .tmp files are ours; the final names may hold a previous good index
+		std::string tmpName = filesWritten[i] + ".tmp";
+		cerr << "Deleting \"" << tmpName.c_str()
 		     << "\" file written during aborted indexing attempt." << endl;
-		remove(filesWritten[i].c_str());
+		remove(tmpName.c_str());
 	}
 }
 
-static void renameIdxFiles() {
+static bool renameIdxFiles() {
 	for (size_t i = 0; i < filesWritten.size(); i++) {
 		std::string oldName = filesWritten[i] + ".tmp";
 		if (verbose)
 			std::cerr << "Renaming " << oldName << " to " << filesWritten[i] << std::endl;
-		std::rename(oldName.c_str(), filesWritten[i].c_str());
+		if (std::rename(oldName.c_str(), filesWritten[i].c_str()) != 0) {
+			std::cerr << "Error: could not rename " << oldName << " to " << filesWritten[i]
+			          << ": " << strerror(errno) << std::endl;
+			return false;
+		}
 	}
+	return true;
 }
 
 /**
@@ -711,7 +720,6 @@ int bowtie_build(int argc, const char **argv) {
 		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return e;
 	}
-	renameIdxFiles();
-	return 0;
+	return renameIdxFiles() ? 0 : 1;
 }
 }
