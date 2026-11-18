@@ -218,6 +218,8 @@ struct PerThreadReadBuf {
 extern void wrongQualityFormat(const BTString& read_name);
 extern void tooFewQualities(const BTString& read_name);
 extern void tooManyQualities(const BTString& read_name);
+extern int parseIntQuals(const Read::TBuf& buf, size_t& cur, int& c,
+	int trim5, bool solexa64, BTString& qual);
 
 /**
  * Encapsulates a synchronized source of patterns; usually a file.
