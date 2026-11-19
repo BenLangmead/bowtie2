@@ -163,6 +163,11 @@ static RefRecord fastaRefReadAppend(
 	static int lastc = '>';
 	if(first) {
 		c = in.getPastWhitespace();
+		// Skip comment lines starting with ';' (the original FASTA
+		// comment convention) before the first record
+		while(c == ';') {
+			c = in.getPastNewline();
+		}
 		if(c != '>') {
 			cerr << "Reference file does not seem to be a FASTA file" << endl;
 			throw 1;
