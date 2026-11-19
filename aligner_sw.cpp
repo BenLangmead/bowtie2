@@ -513,9 +513,12 @@ bool SwAligner::align(
 	size_t rdlen = rdf_ - rdi_;
 	bool checkpointed = rdlen >= cperMinlen_;
 	bool gathered = false; // Did gathering happen along with alignment?
+	// The 8-bit kernels store penalties in single bytes; larger ones would wrap
+	int maxPen = max(sc_->mmpMax, sc_->npen);
+	bool gapsFit8 = max(sc_->readGapOpen(), sc_->refGapOpen()) <= 255;
 	if(sc_->monotone) {
 		// End-to-end
-		if(enable8_ && !readSse16_ && minsc_ >= -254) {
+		if(enable8_ && !readSse16_ && minsc_ >= -254 && maxPen <= 255 && gapsFit8) {
 			// 8-bit end-to-end
 			if(checkpointed) {
 				best = alignGatherEE8(flag, false);
@@ -567,7 +570,8 @@ bool SwAligner::align(
 	} else {
 		// Local
 		flag = -2;
-		if(enable8_ && !readSse16_) {
+		// The local 8-bit kernel needs bias (max penalty) < 127 and bias + bonus <= 255
+		if(enable8_ && !readSse16_ && maxPen < 127 && maxPen + sc_->matchConst <= 255 && gapsFit8) {
 			// 8-bit local
 			if(checkpointed) {
 				best = alignGatherLoc8(flag, false);
