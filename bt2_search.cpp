@@ -3128,6 +3128,18 @@ public:
  *   + If not identical, continue
  * -
  */
+/**
+ * Give a read the worker does not align (skipped by --sample, or not
+ * parsed) an empty output record, so --reorder can flush past its id.
+ */
+static void finishSkippedRead(AlnSink& msink, TReadId rdid, int tid) {
+	if(rdid >= skipReads && rdid < qUpto) {
+		BTString empty;
+		msink.outq().beginRead(rdid, tid);
+		msink.outq().finishRead(empty, rdid, tid);
+	}
+}
+
 //void multiseedSearchWorker::operator()() const {
 static void multiseedSearchWorker(void *vp) {
 	//int tid = *((int*)vp);
@@ -3301,6 +3313,7 @@ static void multiseedSearchWorker(void *vp) {
 			if(!success && done) {
 				break;
 			} else if(!success) {
+				finishSkippedRead(msink, ps->read_a().rdid, tid);
 				continue;
 			}
 			TReadId rdid = ps->read_a().rdid;
@@ -4261,6 +4274,8 @@ static void multiseedSearchWorker(void *vp) {
 		else if(rdid >= qUpto) {
 			done = true;
 			break;
+		} else {
+			finishSkippedRead(msink, rdid, tid);
 		}
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt);
@@ -4417,6 +4432,7 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		if(!success && done) {
 			break;
 		} else if(!success) {
+			finishSkippedRead(msink, ps->read_a().rdid, tid);
 			continue;
 		}
 		TReadId rdid = ps->read_a().rdid;
@@ -4614,6 +4630,8 @@ static void multiseedSearchWorker_2p5(void *vp) {
 		} // if(rdid >= skipReads && rdid < qUpto)
 		else if(rdid >= qUpto) {
 			break;
+		} else {
+			finishSkippedRead(msink, rdid, tid);
 		}
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt);

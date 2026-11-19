@@ -949,6 +949,24 @@ def test_reorder(bt2, genome_index, many):
 	assert body(bt2.run('bowtie2', args + ['-p', '1', '--reorder']).stdout) == ref
 
 
+def test_reorder_skipped_reads(bt2, genome_index, many, tmp_path):
+	"""--reorder does not stall on reads the workers do not align: reads left
+	out by --sample, and a FASTA record with a name but no sequence, which gets
+	an unaligned record (YF:Z:LN) like an empty FASTQ read."""
+	args = ['-x', genome_index, '-U', many['fq'], '--sample', '0.3']
+	ref = body(bt2.run('bowtie2', args + ['-p', '1']).stdout)
+	assert 200 < len(ref) < 600
+	assert body(bt2.run('bowtie2', args + ['-p', '4', '--reorder']).stdout) == ref
+	reads = h.read_fastq(many['fq'])
+	reads.insert(600, ('empty', ''))
+	fa = h.write_fasta_reads(str(tmp_path / 'gap.fa'), reads)
+	args = ['-x', genome_index, '-f', fa]
+	ref = body(bt2.run('bowtie2', args + ['-p', '1']).stdout)
+	assert [l.split('\t')[0] for l in ref] == [r[0] for r in reads]
+	assert 'YF:Z:LN' in ref[600].split('\t')
+	assert body(bt2.run('bowtie2', args + ['-p', '4', '--reorder']).stdout) == ref
+
+
 def test_mm(bt2, genome_index, unp):
 	"""--mm (memory-mapped index) gives the same alignments."""
 	ref = bt2.run('bowtie2', unp_args(genome_index, unp)).stdout
