@@ -483,15 +483,12 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 			pvELeft += ROWSTRIDE_2COL;
 			
 			// Store cells in F, calculated previously
-			vf = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
-			sse_store_siall(pvFRight, vf);
+			SSERegI vfv = sse_subs_epu8(vf, pvScore[1]); // veto some ref gap extensions
+			sse_store_siall(pvFRight, vfv);
 			pvFRight += ROWSTRIDE_2COL;
 			
 			// Factor in query profile (matches and mismatches)
 			vh = sse_subs_epu8(vh, pvScore[0]);
-			
-			// Update H, factoring in E and F
-			vh = sse_max_epu8(vh, vf);
 			
 			// Update vE value
 			vhdtmp = vhd;
@@ -499,12 +496,17 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 			vhd = sse_subs_epu8(vhd, pvScore[1]); // veto some read gap opens
 			ve = sse_subs_epu8(ve, rdgape);
 			ve = sse_max_epu8(ve, vhd);
+
+			// Update H, factoring in E and F.  F's own contribution to the
+			// next F's H - rfgapo term never beats F - rfgape (rfgapo >=
+			// rfgape), so that term uses H before F is folded in.
 			vh = sse_max_epu8(vh, ve);
+			vtmp = sse_subs_epu8(vh, rfgapo);
+			vh = sse_max_epu8(vh, vfv);
 			
 			// Save the new vH values
 			sse_store_siall(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
-			vtmp = vh;
 			assert_all_lt(ve, vhi);
 			
 			// Load the next h value
@@ -515,10 +517,8 @@ TAlScore SwAligner::alignGatherEE8(int& flag, bool debug) {
 			sse_store_siall(pvERight, ve);
 			pvERight += ROWSTRIDE_2COL;
 			
-			// Update vf value
-			vtmp = sse_subs_epu8(vtmp, rfgapo);
-
-			vf = sse_subs_epu8(vf, rfgape);
+			// Update vf value: veto and extension in one saturating subtraction
+			vf = sse_subs_epu8(vf, sse_adds_epu8(pvScore[1], rfgape));
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epu8(vf, vtmp);
 			
@@ -826,7 +826,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 	SSERegI vhdtmp   = sse_setzero_siall();
 #endif
 	SSERegI vtmp     = sse_setzero_siall();
-	SSERegI vzero    = sse_setzero_siall();
 	SSERegI vhilsw   = sse_setzero_siall();
 
 	SSERegI vs0     = sse_setzero_siall();
@@ -932,22 +931,104 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 #endif
 	}
 
+	// Per-row vectors that depend only on the gap barrier, which is the same
+	// for every reference character, so they are built once per fill:
+	//   [0] the fix-up pass's carry penalty at the row, which otherwise is a
+	//       two-op loop-carried chain down every column (see below)
+	//   [1] the read gap open plus its veto
+	// Saturating u8 subtraction of a saturated sum equals the two subtractions.
+	d.rowbuf_.resizeNoCopy(iter * 2);
+	{
+		const SSERegI *pvBar = d.profbuf_.ptr() + 1;
+		SSERegI *pvRow = d.rowbuf_.ptr();
+		SSERegI vpen = sse_setzero_siall();
+		for(size_t j = 0; j < iter; j++) {
+			SSERegI vbar = pvBar[2 * j];
+			vpen = sse_adds_epu8(vpen, vbar);
+			pvRow[2 * j + 0] = vpen;
+			pvRow[2 * j + 1] = sse_adds_epu8(rdgapo, vbar);
+			vpen = sse_adds_epu8(vpen, rfgape);
+		}
+	}
+
 	// The final row of H vectors of the previous column, kept in a register
 	// from one column to the next; before the first column, the staged
 	// initial column (vlo).
 	SSERegI vhlast = vlo;
+	SSERegI vhstage;
+
+	// One row of the first pass over column i: F, H and the next column's E
+	// from the diagonal H (VHD) and this column's E (ve).  F's loop-carried
+	// chain is two ops: the next F is max(F - rfgape, H - rfgapo), and since
+	// rfgapo >= rfgape, F - rfgapo never wins, so H - rfgapo can use H before
+	// F is folded in, and F's veto and extension are one subtraction.
+#define EE_U8_FIRST_PASS_ROW(VHD) { \
+		vs0 = sse_load_siall(pvScore); \
+		vs1 = sse_load_siall(pvScore + 1); \
+		pvScore += 2; \
+		assert_all_lt(ve, vhi); \
+		/* Store cells in F, calculated previously */ \
+		SSERegI vfv = sse_subs_epu8(vf, vs1); /* veto some ref gap extensions */ \
+		sse_store_siall(pvFStore, vfv); \
+		pvFStore += ROWSTRIDE; \
+		/* Factor in query profile (matches and mismatches), then E */ \
+		vh = sse_subs_epu8(VHD, vs0); \
+		vh = sse_max_epu8(vh, ve); \
+		vtmp = sse_subs_epu8(vh, rfgapo); \
+		/* ... then F, and save the new H */ \
+		vh = sse_max_epu8(vh, vfv); \
+		sse_store_siall(pvHStore, vh); \
+		pvHStore += ROWSTRIDE; \
+		/* The next column's E */ \
+		vh = sse_subs_epu8(vh, pvRow[1]); /* read gap open, some vetoed */ \
+		ve = sse_subs_epu8(ve, rdgape); \
+		ve = sse_max_epu8(ve, vh); \
+		assert_all_lt(ve, vhi); \
+		sse_store_siall(pvEStore, ve); \
+		pvEStore += ROWSTRIDE; \
+		/* The next F; ref gap extension plus veto computed in registers: as \
+		   a folded load this op, on F's chain, measured slower on some x86 \
+		   models */ \
+		vf = sse_subs_epu8(vf, sse_adds_epu8(vs1, rfgape)); \
+		assert_all_lt(vf, vhi); \
+		vf = sse_max_epu8(vf, vtmp); \
+		pvRow += 2; \
+}
+
+	// F (reference gap) carries across lanes, after the prefix scan below,
+	// for the previous column's fix-up pass, if it needs one (fixPending).
+	// That pass is fused into the first pass over the next column: row j of
+	// the previous column's F and H, and of this column's E, are final just
+	// before the first pass needs this column's E at row j and the previous
+	// column's H at row j as the diagonal of row j+1.
+	SSERegI vcarry = sse_setzero_siall();
+	bool fixPending = false;
+	SSERegI *pvFPrev = NULL; // previous column's F, for its fix-up
+
+#ifndef NDEBUG
+	// This is a work-intensive sanity check; once a column is final, we
+	// sometimes check that each H, E, and F in it is sensible.
+#define EE_U8_CHECK_COLUMN(ci) { \
+		if((rand() & 15) == 0) { \
+			for(size_t k = 0; k < dpRows(); k++) { \
+				assert(cellOkEnd2EndU8( \
+					d, \
+					k,                   /* row */ \
+					(ci) - rfi_,         /* col */ \
+					(int)rf_[ci],        /* reference mask */ \
+					(int)(*rd_)[rdi_+k], /* read char */ \
+					(int)(*qu_)[rdi_+k], /* read quality */ \
+					*sc_));              /* scoring scheme */ \
+			} \
+		} \
+}
+#endif
 
 	// Fill in the table as usual but instead of using the same gap-penalty
 	// vector for each iteration of the inner loop, load words out of a
 	// pre-calculated gap vector parallel to the query profile.  The pre-
 	// calculated gap vectors enforce the gap barrier constraint by making it
 	// infinitely costly to introduce a gap in barrier rows.
-	//
-	// AND use a separate loop to fill in the first row of the table, enforcing
-	// the st_ constraints in the process.  This is awkward because it
-	// separates the processing of the first row from the others and might make
-	// it difficult to use the first-row results in the next row, but it might
-	// be the simplest and least disruptive way to deal with the st_ constraint.
 
 	colstop_ = rff_ - 1;
 	lastsolcol_ = 0;
@@ -965,77 +1046,72 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		// Set all cells to low value
 		vf = sse_xor_siall(vf, vf);
 
-		// H vector from the final row of the previous column
-		// Shift 2 bytes down so that topmost (least sig) cell gets 0
-		vh = sse_slli_siall(vhlast, NBYTES_PER_WORD);
-		// Fill topmost (least sig) cell with high value
-		vh = sse_or_siall(vh, vhilsw);
-		
-		// For each character in the reference text:
+		const SSERegI *pvRow = d.rowbuf_.ptr();
 		size_t j;
-		for(j = 0; j < iter; j++) {
-			vs0 = sse_load_siall(pvScore);
-                        pvScore++;
-			vs1 = sse_load_siall(pvScore);
-                        pvScore++;
-			// Load cells from E, calculated previously
-			ve = sse_load_siall(pvELoad);
-#if 0
-			vhd = sse_load_siall(pvHLoad);
-#endif
-			assert_all_lt(ve, vhi);
-			pvELoad += ROWSTRIDE;
-			
-			// Store cells in F, calculated previously
-			vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
-			sse_store_siall(pvFStore, vf);
-			pvFStore += ROWSTRIDE;
-			
-			// Factor in query profile (matches and mismatches)
-			vh = sse_subs_epu8(vh, vs0);
-			
-			// Update H, factoring in E and F
-			vh = sse_max_epu8(vh, ve);
-			vh = sse_max_epu8(vh, vf);
-			
-			// Save the new vH values
-			sse_store_siall(pvHStore, vh);
-			pvHStore += ROWSTRIDE;
-			
-			// Update vE value
-			vtmp = vh;
-#if 0
-			vhdtmp = vhd;
-			vhd = sse_subs_epu8(vhd, rdgapo);
-			vhd = sse_subs_epu8(vhd, vs1); // veto some read gap opens
-			ve = sse_subs_epu8(ve, rdgape);
-			ve = sse_max_epu8(ve, vhd);
-#else
-			vh = sse_subs_epu8(vh, rdgapo);
-			vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
-			ve = sse_subs_epu8(ve, rdgape);
-			ve = sse_max_epu8(ve, vh);
-#endif
-			assert_all_lt(ve, vhi);
-			
-			// Load the next h value
-#if 0
-			vh = vhdtmp;
-#else
-			vh = sse_load_siall(pvHLoad);
-#endif
-			pvHLoad += ROWSTRIDE;
-			
-			// Save E values
-			sse_store_siall(pvEStore, ve);
-			pvEStore += ROWSTRIDE;
-			
-			// Update vf value
-			vtmp = sse_subs_epu8(vtmp, rfgapo);
-			vf = sse_subs_epu8(vf, rfgape);
-			assert_all_lt(vf, vhi);
-			vf = sse_max_epu8(vf, vtmp);
+		if(fixPending) {
+			// The previous column's final H in its last row: the fix-up makes
+			// F there max(F, carry - penalty), and H was already at least F.
+			vhlast = sse_max_epu8(vhlast,
+				sse_subs_epu8(vcarry, pvRow[2 * (iter - 1)]));
+			// H vector from the final row of the previous column; shift it
+			// down so that topmost (least sig) cell gets 0, then fill that
+			// cell with high value
+			SSERegI vhd = sse_or_siall(
+				sse_slli_siall(vhlast, NBYTES_PER_WORD), vhilsw);
+			SSERegI *pvF = pvFPrev;
+			for(j = 0; j < iter; j++) {
+				// Fix up row j of the previous column (F and H) and of this
+				// column's E
+				vtmp = sse_load_siall(pvF);
+				vtmp = sse_max_epu8(vtmp, sse_subs_epu8(vcarry, pvRow[0]));
+				sse_store_siall(pvF, vtmp);
+				pvF += ROWSTRIDE;
+				SSERegI vhp = sse_load_siall(pvHLoad);
+				vhp = sse_max_epu8(vhp, vtmp);
+				sse_store_siall(pvHLoad, vhp);
+				pvHLoad += ROWSTRIDE;
+				ve = sse_load_siall(pvELoad);
+				ve = sse_max_epu8(ve, sse_subs_epu8(vhp, pvRow[1]));
+				sse_store_siall(pvELoad, ve);
+				pvELoad += ROWSTRIDE;
+				EE_U8_FIRST_PASS_ROW(vhd);
+				vhd = vhp;
+			}
+			nfixup += iter;
+		} else {
+			// H vector from the final row of the previous column, shifted
+			// and with the topmost cell high, as above.  Each row loads its
+			// diagonal H through pvHDiag rather than carrying it in a
+			// register from the previous row, so no loaded vector crosses
+			// the loop's back edge (clang otherwise keeps it in a pair of
+			// GPRs on AArch64).
+			sse_store_siall(&vhstage,
+				sse_or_siall(sse_slli_siall(vhlast, NBYTES_PER_WORD), vhilsw));
+			const SSERegI *pvHDiag = &vhstage;
+			for(j = 0; j < iter; j++) {
+				ve = sse_load_siall(pvELoad);
+				pvELoad += ROWSTRIDE;
+				EE_U8_FIRST_PASS_ROW(sse_load_siall(pvHDiag));
+				pvHDiag = pvHLoad;
+				pvHLoad += ROWSTRIDE;
+			}
 		}
+		// This column's H, and the previous column's, which is now final
+		pvHLoad = pvHStore - colstride;
+		pvFPrev = pvFStore - colstride;
+		vhlast = sse_load_siall(pvHStore - ROWSTRIDE);
+		if(i > (size_t)rfi_) {
+#ifndef NDEBUG
+			EE_U8_CHECK_COLUMN(i - 1);
+#endif
+			// Note: we may not want to extract from the final row
+			TCScore lr = ((TCScore*)(pvHLoad - colstride))[lastWordIdx];
+			if(lr > lrmax) {
+				lrmax = lr;
+			}
+		}
+		found = true;
+
 		// vf holds, in each lane, the F value the first pass carries out of
 		// the lane's last row: max(F - rfgape, H - rfgapo).  Lane L's first
 		// row receives the carry of lane L-1, or of any lane above it less the
@@ -1051,11 +1127,8 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 		// Farrar's lazy-F loop, and the usual case when gaps are barred or
 		// costly.
 		vtmp = sse_subs_epu8(vf, sse_load_siall(pvScore - (iter*2) + 1));
-		vtmp = sse_cmpeq_epi8(vtmp, vzero);
-		if(sse_movemask_epi8(vtmp) == SSE_MASK_ALL) {
-			pvHLoad = pvHStore - colstride;
-			vhlast = sse_load_siall(pvHStore - ROWSTRIDE);
-		} else {
+		fixPending = !sse_is_zero_siall(vtmp);
+		if(fixPending) {
 			vtmp = sse_subs_epu8(sse_slli_siall(vf, 1 * NBYTES_PER_WORD), vpass1);
 			vf = sse_max_epu8(vf, vtmp);
 			vtmp = sse_subs_epu8(sse_slli_siall(vf, 2 * NBYTES_PER_WORD), vpass2);
@@ -1068,75 +1141,57 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
 			vtmp = sse_subs_epu8(sse_slli_siall(vf, 16 * NBYTES_PER_WORD), vpass16);
 			vf = sse_max_epu8(vf, vtmp);
 	#endif
-
-			// One more pass down the column extends each lane's carry through its
-			// rows and folds it into F, then H, then the next column's E: the
-			// values the lazy-F loop converges to, in exactly iter steps.  The
-			// carry reaching row j has lost j gap extensions, or everything if a
-			// row up to j is inside the gap barrier; vpen accumulates that
-			// penalty (saturating) apart from the carry, so that each row's value
-			// is one subtraction from the carry rather than a chain of them.
-				const SSERegI *pvBar = pvScore - (iter*2) + 1; // gap barrier, row 0
-				SSERegI *pvF = pvFStore - colstride;            // this column
-				SSERegI *pvE = pvELoad;                         // next column
-				// The first column's pvHLoad started in the staging vectors, so
-				// take this column's H from pvHStore instead.
-				pvHLoad = pvHStore - colstride;
-				SSERegI *pvH = pvHLoad;                         // this column
-				SSERegI vpen = sse_setzero_siall();
-				for(j = 0; j < iter; j++) {
-					vs1 = sse_load_siall(pvBar);
-					pvBar += 2;
-					vpen = sse_adds_epu8(vpen, vs1); // veto some ref gap extensions
-					vtmp = sse_load_siall(pvF);
-					vtmp = sse_max_epu8(vtmp, sse_subs_epu8(vf, vpen));
-					sse_store_siall(pvF, vtmp);
-					pvF += ROWSTRIDE;
-					vh = sse_load_siall(pvH);
-					vh = sse_max_epu8(vh, vtmp);
-					sse_store_siall(pvH, vh);
-					pvH += ROWSTRIDE;
-					vhlast = vh;
-					// Update E in case it can be improved using our new vh
-					ve = sse_load_siall(pvE);
-					vh = sse_subs_epu8(vh, rdgapo);
-					vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
-					ve = sse_max_epu8(ve, vh);
-					sse_store_siall(pvE, ve);
-					pvE += ROWSTRIDE;
-					vpen = sse_adds_epu8(vpen, rfgape);
-				}
-				nfixup += iter;
-		}
-		
-#ifndef NDEBUG
-		if(true && (rand() & 15) == 0) {
-			// This is a work-intensive sanity check; each time we finish filling
-			// a column, we check that each H, E, and F is sensible.
-			for(size_t k = 0; k < dpRows(); k++) {
-				assert(cellOkEnd2EndU8(
-					d,
-					k,                   // row
-					i - rfi_,            // col
-					refc,                // reference mask
-					(int)(*rd_)[rdi_+k], // read char
-					(int)(*qu_)[rdi_+k], // read quality
-					*sc_));              // scoring scheme
-			}
-		}
-#endif
-		
-		// Note: we may not want to extract from the final row
-		TCScore lr = ((TCScore*)(pvHLoad))[lastWordIdx];
-		found = true;
-		if(lr > lrmax) {
-			lrmax = lr;
+			vcarry = vf;
 		}
 
 		// pvHLoad (this column's H), pvELoad (next column's E), pvHStore and
 		// pvFStore (next column) and pvEStore (the column after) are already
 		// where the next column needs them.
 	}
+#undef EE_U8_FIRST_PASS_ROW
+
+	// The last column's fix-up has no next column to fuse with.  One pass
+	// down the column extends each lane's carry through its rows and folds
+	// it into F, then H, then the next column's E: the values the lazy-F
+	// loop converges to, in exactly iter steps.  The carry reaching row j has
+	// lost j gap extensions, or everything if a row up to j is inside the gap
+	// barrier; rowbuf_ holds that penalty (saturating) apart from the carry,
+	// so that each row's value is one subtraction from the carry rather than
+	// a chain of them.  The fused pass above is the same.
+	if(fixPending) {
+		const SSERegI *pvRow = d.rowbuf_.ptr();
+		SSERegI *pvF = pvFPrev;
+		SSERegI *pvH = pvHLoad;
+		SSERegI *pvE = pvELoad;
+		for(size_t j = 0; j < iter; j++) {
+			vtmp = sse_load_siall(pvF);
+			vtmp = sse_max_epu8(vtmp, sse_subs_epu8(vcarry, pvRow[0]));
+			sse_store_siall(pvF, vtmp);
+			pvF += ROWSTRIDE;
+			vh = sse_load_siall(pvH);
+			vh = sse_max_epu8(vh, vtmp);
+			sse_store_siall(pvH, vh);
+			pvH += ROWSTRIDE;
+			ve = sse_load_siall(pvE);
+			ve = sse_max_epu8(ve, sse_subs_epu8(vh, pvRow[1]));
+			sse_store_siall(pvE, ve);
+			pvE += ROWSTRIDE;
+			pvRow += 2;
+		}
+		nfixup += iter;
+	}
+	if(rff_ > rfi_) {
+#ifndef NDEBUG
+		EE_U8_CHECK_COLUMN(rff_ - 1);
+#endif
+		TCScore lr = ((TCScore*)(pvHLoad))[lastWordIdx];
+		if(lr > lrmax) {
+			lrmax = lr;
+		}
+	}
+#ifndef NDEBUG
+#undef EE_U8_CHECK_COLUMN
+#endif
 	
 	// Update metrics
 	if(!debug) {
