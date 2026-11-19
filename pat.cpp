@@ -806,11 +806,6 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 			c = getc_wrapper();
 			if(c < 0 || c == '>') {
 				done = c < 0;
-				// parse() expects the record to end with a newline, as the
-				// FASTQ light parser also ensures at EOF
-				if(done && buf.length() > 1 && buf[buf.length()-1] != '\n') {
-					buf.append('\n');
-				}
 				break;
 			}
 			buf.append(c);
@@ -824,12 +819,18 @@ pair<bool, int> FastaPatternSource::nextBatchFromFile(
 		} else {
 			readi++;
 		}
-
-	}
-	// Immediate EOF case
-	if(done && readi > 0 && (*readbuf)[readi-1].readOrigBuf.length() == 1) {
-		readi--;
-	}
+        }
+        if(done && readi > 0) {
+                Read::TBuf& buf = (*readbuf)[readi - 1].readOrigBuf;
+                // Immediate EOF case
+                if (buf.length() == 1) {
+                        readi--;
+                } else if (buf[buf.length() - 1] != '\n') {
+                        // parse() expects the record to end with a newline, as the
+                        // FASTQ light parser also ensures at EOF
+                        buf.append('\n');
+                }
+        }
 	return make_pair(done, readi);
 }
 
