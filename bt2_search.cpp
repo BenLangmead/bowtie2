@@ -5266,6 +5266,7 @@ static void driver(
 		delete mssink;
 		delete metricsOfb;
 		if(fout != NULL) {
+			fout->close(); // may throw on a write error, which the destructor must not
 			delete fout;
 		}
 	}
