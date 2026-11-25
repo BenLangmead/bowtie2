@@ -1,6 +1,7 @@
 #ifndef _BT2_DECOMPRESS_
 #define _BT2_DECOMPRESS_
 
+#include <cstdint>
 #include <stdio.h>
 #include <zlib.h>
 #ifdef WITH_ZSTD
