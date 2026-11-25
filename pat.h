@@ -20,6 +20,7 @@
 #ifndef PAT_H_
 #define PAT_H_
 
+#include <cstdio>
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -33,6 +34,7 @@
 #include <queue>
 #include "alphabet.h"
 #include "assert_helpers.h"
+#include "filebuf.h"
 #include "random_source.h"
 #include "threading.h"
 #include "qual.h"
@@ -42,9 +44,7 @@
 #include "read.h"
 #include "util.h"
 #include "concurrentqueue.h"
-#ifdef WITH_ZSTD
-#include "zstd_decompress.h"
-#endif
+#include "bt2_decompress.h"
 
 #ifdef USE_SRA
 #include <ncbi-vdb/NGS.hpp>
@@ -355,7 +355,8 @@ private:
 class CFilePatternSource : public PatternSource {
 	enum CompressionType {
 		NONE,
-		GZIP,
+                BGZF,
+                GZIP,
 #ifdef WITH_ZSTD
 		ZSTD,
 #endif
@@ -375,7 +376,7 @@ public:
 		is_open_(false),
 		skip_(p.skip),
 		first_(true),
-		compressionType_(CompressionType::NONE)
+                compressionType_(CompressionType::NONE)
 	{
 		assert_gt(infiles.size(), 0);
 		errs_.resize(infiles_.size());
@@ -389,24 +390,11 @@ public:
 	 */
 	virtual ~CFilePatternSource() {
 		if(is_open_) {
-			switch (compressionType_) {
-			case CompressionType::NONE:
-				assert(fp_ != NULL);
-				fclose(fp_);
-				break;
-			case CompressionType::GZIP:
-				assert(zfp_ != NULL);
-				gzclose(zfp_);
-				break;
-#ifdef WITH_ZSTD
-			case CompressionType::ZSTD:
-				assert(zstdfp_ != NULL);
-				zstdClose(zstdfp_);
-				break;
-#endif
-			}
-		}
-	}
+                        if (compressionType_ == CompressionType::BGZF) {
+                                fclose(fp_);
+                        }
+                }
+        }
 
 	/**
 	 * Fill Read with the sequence, quality and name for the next
@@ -426,8 +414,8 @@ public:
 	 * Should only be called by the master thread.
 	 */
 	virtual void reset() {
-		PatternSource::reset();
-		filecur_ = 0,
+                PatternSource::reset();
+		filecur_ = 0;
 		open();
 		filecur_++;
 	}
@@ -456,95 +444,89 @@ protected:
 	int getc_wrapper() {
 		int c;
 
-		do {
-			if (compressionType_ == CompressionType::GZIP)
-				c = gzgetc(zfp_);
+                do {
+                        c = fb_.get();
+			if (compressionType_ == CompressionType::GZIP) {
+                                if (c == EOF && zfp_->z_err != Z_OK) {
+                                        compressedReadError(gzErrorString(zfp_));
+                                }
+			}
 #ifdef WITH_ZSTD
-			else if (compressionType_ == CompressionType::ZSTD)
-				c = zstdGetc(zstdfp_);
+			else if (compressionType_ == CompressionType::ZSTD) {
+				if (c == EOF && ZSTD_isError(zstdfp_->err))
+					compressedReadError(ZSTD_getErrorName(zstdfp_->err));
+			}
 #endif
-			else
-				c = getc_unlocked(fp_);
 		} while (c != EOF && c != '\t' && c != '\r' && c != '\n' && !isprint(c));
 
 		return c;
 	}
 
+	void compressedReadError(const char *msg) {
+		// open() has already advanced filecur_ past the file being read
+		std::cerr << "Error reading compressed file " << infiles_[filecur_ - 1]
+		          << ": " << msg << std::endl;
+		throw 1;
+	}
+
 	int ungetc_wrapper(int c) {
-		if (compressionType_ == CompressionType::GZIP)
-			return gzungetc(c, zfp_);
-#ifdef WITH_ZSTD
-		else if (compressionType_ == CompressionType::ZSTD)
-			return zstdUngetc(c, zstdfp_);
-#endif
-		else
-			return ungetc(c, fp_);
+                fb_.unget();
+                return 0;
 	}
 
-	int zread(voidp buf, unsigned len) {
-		int r = gzread(zfp_, buf, len);
-		if (r < 0) {
-			const char *err = gzerror(zfp_, NULL);
-			if (err != NULL) {
-				std::cerr << err << std::endl;
-			}
-		}
-		return r;
-	}
+        CompressionType detectCompressionType(FILE *fp, uint32_t *header) {
+                CompressionType compression_type = CompressionType::NONE;
 
-	bool is_gzipped_file(int fd) {
-		if (fd == -1) {
-			return false;
-		}
+                // Gzip magic: 0x1f 0x8b (little-endian)
+                const uint16_t gzip_magic = 0x8b1f;
 
-		uint8_t byte1, byte2;
+                size_t bytes_read = fread(header, 1, sizeof(*header), fp);
 
-		ssize_t r1 = read(fd, &byte1, sizeof(uint8_t));
-		ssize_t r2 = read(fd, &byte2, sizeof(uint8_t));
-
-		lseek(fd, 0, SEEK_SET);
-                if (r1 == 0 || r2 == 0) {
-                        std::cerr << "Unable to read file magic number" << std::endl;
-                        return false;
+                if (bytes_read < 2) {
+                        compression_type = CompressionType::NONE;
                 }
 
-		if (byte1 == 0x1f && byte2 == 0x8b) {
-			return true;
-		}
-
-		return false;
-	}
-
-#ifdef WITH_ZSTD
-	bool is_zstd_file(int fd) {
-		if (fd == -1)
-			return false;
-
-		unsigned magic;
-
-                if (read(fd, &magic, sizeof(unsigned)) != sizeof(unsigned)) {
-			std::cerr << "is_zstd_file: unable to read magic number" << std::endl;
-			return false;
+                uint16_t first_two = *header & 0xFFFF;
+                if (first_two == gzip_magic) {
+                        return CompressionType::GZIP;
                 }
-		lseek(fd, 0, SEEK_SET);
+#ifdef WITH_ZSTD
+                if (bytes_read >= 4) {
+                        // Zstd regular frame magic: 0xFD2FB528 (stored little-endian as 0x28 0xB5 0x2F 0xFD)
+                        const uint32_t zstd_regular_magic = 0xFD2FB528;
 
-                return magic == 0xfd2fb528;
-	}
+                        uint8_t *bytes = (uint8_t *)&header;
+
+                        // Check zstd regular frame
+                        if (*header == zstd_regular_magic) {
+                                compression_type = CompressionType::ZSTD;
+                        }
+
+                        // Check zstd skippable frame: bytes are 0x18 0x4D 0x2A 0x5X where X=0-7
+                        if (bytes[0] == 0x18 && bytes[1] == 0x4D && bytes[2] == 0x2A) {
+                                if (bytes[3] >= 0x50 && bytes[3] <= 0x57) {
+                                        compression_type = CompressionType::ZSTD;
+                                }
+                        }
+                }
 #endif
+                return compression_type;
+        }
 
 	EList<std::string> infiles_;	 // filenames for read files
 	EList<bool> errs_;		 // whether we've already printed an error for each file
 	size_t filecur_;		 // index into infiles_ of next file to read
 	FILE *fp_;			 // read file currently being read from
-	gzFile zfp_;			 // compressed version of fp_
+        GzipReader *zfp_;                // gzipped compressed file
 #ifdef WITH_ZSTD
 	zstdStrm *zstdfp_;	         // zstd compressed file
 #endif
 	bool is_open_;			 // whether fp_ is currently open
 	TReadId skip_;			 // number of reads to skip
 	bool first_;			 // parsing first record in first file?
-	char buf_[64*1024];		 // file buffer
-	CompressionType compressionType_;
+        unsigned char buf_[64 * 1024];            // file buffer
+        CompressionType compressionType_;
+        FileBuf fb_;
 
 private:
 

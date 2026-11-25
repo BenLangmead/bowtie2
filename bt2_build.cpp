@@ -36,9 +36,7 @@
 #include "filebuf.h"
 #include "reference.h"
 #include "ds.h"
-#ifdef WITH_ZSTD
-#include "zstd_decompress.h"
-#endif
+#include "bt2_decompress.h"
 
 /**
  * \file Driver for the bowtie-build indexing tool.
@@ -413,16 +411,18 @@ static void driver(
 
 			size_t idx = infiles[i].find_last_of(".");
 			std::string ext = (idx == std::string::npos) ? "" : infiles[i].substr(idx + 1);
-			if (ext == "" || ext == "gz" || ext == "Z") {
-				gzFile zFp = gzopen(infiles[i].c_str(), "rb");
-				if (zFp == NULL) {
-					cerr << "Error: could not open "<< infiles[i].c_str() << endl;
-					throw 1;
-				}
-				fb = new FileBuf(zFp);
+                        FILE *fp = fopen(infiles[i].c_str(), "rb");
+                        if (fp == NULL) {
+                                cerr << "Error: could not open "<< infiles[i].c_str() << endl;
+                                throw 1;
+                        }
+
+                        if (ext == "" || ext == "gz" || ext == "Z") {
+                                GzipReader *gr = gzipReaderInit(fp, NULL);
+				fb = new FileBuf(gr);
 #ifdef WITH_ZSTD
 			} else if (ext == "zstd" || ext == "zst") {
-				zstdStrm *zstdFp = zstdOpen(infiles[i].c_str());
+				zstdStrm *zstdFp = zstdFileOpen(fp, NULL);
 				if (zstdFp == NULL) {
 					cerr << "Error: could not open " << infiles[i].c_str() << endl;
 					throw 1;
@@ -430,12 +430,7 @@ static void driver(
 				fb = new FileBuf(zstdFp);
 #endif
 			} else {
-				FILE *f = fopen(infiles[i].c_str(), "rb");
-				if (f == NULL) {
-					cerr << "Error: could not open "<< infiles[i].c_str() << endl;
-					throw 1;
-				}
-				fb = new FileBuf(f);
+				fb = new FileBuf(fp);
 			}
 			assert(fb != NULL);
 			if(fb->peek() == -1 || fb->eof()) {

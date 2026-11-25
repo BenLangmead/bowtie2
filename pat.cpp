@@ -34,6 +34,7 @@
 #include "str_util.h"
 #include "tokenize.h"
 #include "endian_swap.h"
+#include "bt2_decompress.h"
 
 using namespace std;
 
@@ -491,85 +492,17 @@ pair<bool, int> CFilePatternSource::nextBatch(
  */
 void CFilePatternSource::open() {
 	if(is_open_) {
-		is_open_ = false;
-		switch (compressionType_) {
-		case CompressionType::GZIP:
-			gzclose(zfp_);
-			zfp_ = NULL;
-			break;
-#ifdef WITH_ZSTD
-		case CompressionType::ZSTD:
-			zstdClose(zstdfp_);
-			zstdfp_ = NULL;
-			break;
-#endif
-		case CompressionType::NONE:
-			fclose(fp_);
-			fp_ = NULL;
-		}
+                is_open_ = false;
+                fb_.close();
 	}
 	while(filecur_ < infiles_.size()) {
 		if(infiles_[filecur_] == "-") {
-			int fd = dup(fileno(stdin));
-			SET_BINARY_MODE(fd);
-
-			if (pp_.format == BAM) {
-				compressionType_ = CompressionType::NONE;
-				fp_ = fdopen(fd, "rb");
-			} else {
-				// always assume that data from stdin is compressed
-				compressionType_ = CompressionType::GZIP;
-				zfp_ = gzdopen(fd, "rb");
-
-				if (zfp_ == NULL) {
-					close(fd);
-				}
-			}
+                        fp_ = stdin;
 		} else {
 			const char* filename = infiles_[filecur_].c_str();
 
-			int fd = ::open(filename, O_RDONLY);
-			bool is_fifo = false;
-
-#ifndef _WIN32
-			struct stat st;
-			if (fstat(fd, &st) != 0) {
-				perror("stat");
-			}
-
-			is_fifo = S_ISFIFO(st.st_mode) != 0;
-#endif
-#define CHECK_ERROR(exp) ((exp) == NULL) ? true : false
-
-			bool err = false;
-                        if (pp_.format == BAM) {
-				SET_BINARY_MODE(fd);
-				err = CHECK_ERROR(fp_ = fdopen(fd, "rb"));
-				compressionType_ = CompressionType::NONE;
-                        } else if (is_fifo) {
-				SET_BINARY_MODE(fd);
-				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
-				compressionType_ = CompressionType::GZIP;
-                        } else if (is_gzipped_file(fd)) {
-				SET_BINARY_MODE(fd);
-				err = CHECK_ERROR(zfp_ = gzdopen(fd, "rb"));
-				compressionType_ = CompressionType::GZIP;
-#ifdef WITH_ZSTD
-                        } else if (is_zstd_file(fd)) {
-				SET_BINARY_MODE(fd);
-				err = CHECK_ERROR(zstdfp_ = zstdFdOpen(fd));
-				compressionType_ = CompressionType::ZSTD;
-#endif
-                        } else {
-				err = CHECK_ERROR(fp_ = fdopen(fd, "r"));
-				compressionType_ = CompressionType::NONE;
-                        }
-
-			if(err) {
-				if (fd != -1) {
-					close(fd);
-				}
-
+                        fp_ = fopen(filename, "rb");
+                        if(fp_ == NULL) {
 				if(!errs_[filecur_]) {
 					cerr << "Warning: Could not open read file \""
 					     << filename
@@ -579,20 +512,40 @@ void CFilePatternSource::open() {
 				filecur_++;
 				compressionType_ = CompressionType::NONE;
 				continue;
-			}
-		}
-		is_open_ = true;
-		if (compressionType_ == CompressionType::GZIP) {
-#if ZLIB_VERNUM < 0x1235
-			cerr << "Warning: gzbuffer added in zlib v1.2.3.5. Unable to change "
-				"buffer size from default of 8192." << endl;
-#else
-			gzbuffer(zfp_, 128*1024);
+                        }
+                }
+#ifndef _WIN32
+			// struct stat st;
+			// if (fstat(fd, &st) != 0) {
+			// 	perror("stat");
+			// }
+
+			// is_fifo = S_ISFIFO(st.st_mode) != 0;
 #endif
-		}
-		else if (compressionType_ == CompressionType::NONE) {
-			setvbuf(fp_, buf_, _IOFBF, 64*1024);
-		}
+                uint32_t header = 0;
+                if (pp_.format == BAM) {
+                        compressionType_ = CompressionType::BGZF;
+                } else {
+                        compressionType_ = detectCompressionType(fp_, &header);
+                }
+
+                if (compressionType_ == CompressionType::GZIP) {
+                        compressionType_ = CompressionType::GZIP;
+                        zfp_ = gzipReaderInit(fp_, &header);
+                        fb_.newFile(zfp_);
+#ifdef WITH_ZSTD
+                } else if (compressionType_ == CompressionType::ZSTD) {
+                        zstdfp_ = zstdFileOpen(fp_, &header);
+                        fb_.newFile(zstdfp_);
+#endif
+                } else {
+                        fb_.newFile(fp_, header);
+                }
+
+		is_open_ = true;
+		// if (compressionType_ == CompressionType::NONE) {
+		// 	setvbuf(fp_, buf_, _IOFBF, 64*1024);
+		// }
 		return;
 	}
 	cerr << "Error: No input read files were valid" << endl;
@@ -1072,7 +1025,8 @@ pair<bool, int> FastqPatternSource::nextBatchFromFile(
 		while(c == '\r' || c == '\n') {
 			c = getc_wrapper();
 		}
-		if(c != '@') {
+                if (c != '@') {
+                        cerr << "c is " << c << std::endl;
 			cerr << "Error: reads file does not look like a FASTQ file" << endl;
 			throw 1;
 		}
@@ -1350,7 +1304,7 @@ std::pair<bool, int> BAMPatternSource::nextBatch(PerThreadReadBuf& pt, bool batc
 			alignment_batch.resize(block.ftr.isize + delta_);
 			int ret_code = decompress_bgzf_block(&alignment_batch[0] + delta_, block.ftr.isize, block.cdata, cdata_len);
 			if (ret_code != Z_OK) {
-				return make_pair(true, 0);
+				compressedReadError(stream.msg != NULL ? stream.msg : zError(ret_code));
 			}
 #ifndef NDEBUG
 			uLong crc = crc32(0L, Z_NULL, 0);

@@ -33,9 +33,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <zlib.h>
-#ifdef WITH_ZSTD
-#include "zstd_decompress.h"
-#endif
+#include "bt2_decompress.h"
 
 /**
  * Simple, fast helper for determining if a character is a newline.
@@ -68,21 +66,24 @@ public:
 		init();
 	}
 
-	FileBuf(FILE *in) {
+	FileBuf(FILE *in, uint32_t header = 0) {
 		init();
-		_in = in;
+                _in = in;
+                _header = header;
 		assert(_in != NULL);
 	}
 
-	FileBuf(gzFile in) {
+	FileBuf(GzipReader *in, uint32_t header = 0) {
 		init();
-		_zIn = in;
+                _zIn = in;
+                _header = header;
 		assert(_zIn != NULL);
 	}
 #ifdef WITH_ZSTD
-	FileBuf(zstdStrm *zstdIn) {
+	FileBuf(zstdStrm *zstdIn, uint32_t header = 0): BUF_SZ(ZSTD_DStreamOutSize()) {
 		init();
-		_zstdIn = zstdIn;
+                _zstdIn = zstdIn;
+                _header = header;
 		assert(_zstdIn != NULL);
 	}
 #endif
@@ -126,7 +127,7 @@ public:
                         _inf->close();
                         _inf = NULL;
 		} else if(_zIn != NULL) {
-                        gzclose(_zIn);
+                        gzClose(_zIn);
                         _zIn = NULL;
 #ifdef WITH_ZSTD
 		} else if(_zstdIn != NULL) {
@@ -135,6 +136,10 @@ public:
 #endif
 		} else {
 			// can't close _ins
+                }
+                if (_buf != NULL) {
+                        free(_buf);
+                        _buf = NULL;
                 }
 	}
 
@@ -153,7 +158,13 @@ public:
 			if(_lastn_cur < LASTN_BUF_SZ) _lastn_buf[_lastn_cur++] = c;
 		}
 		return c;
-	}
+        }
+
+        void unget() {
+                if (_buf_sz > 0 && _cur > 0) {
+                        _cur -= 1;
+                }
+        }
 
 	/**
 	 * Return true iff all input is exhausted.
@@ -165,50 +176,31 @@ public:
 	/**
 	 * Initialize the buffer with a new C-style file.
 	 */
-	void newFile(FILE *in) {
+	void newFile(FILE *in, uint32_t header) {
                 close();
+                init();
                 _in = in;
-		_zIn = NULL;
-		_inf = NULL;
-		_ins = NULL;
-#ifdef WITH_ZSTD
-		_zstdIn = NULL;
-#endif
-		_cur = BUF_SZ;
-		_buf_sz = BUF_SZ;
-		_done = false;
+                _header = header;
 	}
 
 	/**
 	 * Initialize the buffer with a new gz file.
 	 */
-        void newFile(gzFile in) {
+        void newFile(GzipReader *in) {
                 close();
-		_in = NULL;
+                init();
 		_zIn = in;
-		_inf = NULL;
-		_ins = NULL;
-#ifdef WITH_ZSTD
-		_zstdIn = NULL;
-#endif
-		_cur = BUF_SZ;
-		_buf_sz = BUF_SZ;
-		_done = false;
 	}
 
 #ifdef WITH_ZSTD
 	/**
 	 * Initialize the buffer with a new ZSTD file.
 	 */
-	void newFile(zstdStrm *s) {
-		_in = NULL;
-		_zIn = NULL;
-		_inf = NULL;
-		_ins = NULL;
+        void newFile(zstdStrm *s) {
+                BUF_SZ = ZSTD_DStreamOutSize();
+                close();
+                init();
 		_zstdIn = s;
-		_cur = BUF_SZ;
-		_buf_sz = BUF_SZ;
-		_done = false;
 	}
 #endif
 	/**
@@ -216,16 +208,8 @@ public:
 	 */
         void newFile(std::ifstream *__inf) {
                 close();
-		_in = NULL;
-		_zIn = NULL;
+                init();
 		_inf = __inf;
-		_ins = NULL;
-#ifdef WITH_ZSTD
-		_zstdIn = NULL;
-#endif
-		_cur = BUF_SZ;
-		_buf_sz = BUF_SZ;
-		_done = false;
 	}
 
 	/**
@@ -233,16 +217,8 @@ public:
 	 */
         void newFile(std::istream *__ins) {
                 close();
-		_in = NULL;
-		_zIn = NULL;
-		_inf = NULL;
+                init();
 		_ins = __ins;
-#ifdef WITH_ZSTD
-		_zstdIn = NULL;
-#endif
-		_cur = BUF_SZ;
-		_buf_sz = BUF_SZ;
-		_done = false;
 	}
 
 	/**
@@ -257,7 +233,7 @@ public:
 			_ins->clear();
 			_ins->seekg(0, std::ios::beg);
 		} else if (_zIn != NULL) {
-			gzrewind(_zIn);
+			gzRewind(_zIn);
 #ifdef WITH_ZSTD
 		} else if (_zstdIn) {
 			zstdRewind(_zstdIn);
@@ -294,19 +270,30 @@ public:
 				if(_inf != NULL) {
 					_inf->read((char*)_buf, BUF_SZ);
 					_buf_sz = _inf->gcount();
-				} else if(_zIn != NULL) {
-					_buf_sz = gzread(_zIn, (void *)_buf, BUF_SZ);
+                                } else if (_zIn != NULL) {
+                                        _buf_sz = gzRead(_zIn, _buf, BUF_SZ);
 				} else if(_ins != NULL) {
 					_ins->read((char*)_buf, BUF_SZ);
 					_buf_sz = _ins->gcount();
 #ifdef WITH_ZSTD
                                 } else if (_zstdIn != NULL) {
-					_buf_sz = zstdRead(_zstdIn, (void *)_buf, BUF_SZ);
+					_buf_sz = zstdRead(_zstdIn, _buf, BUF_SZ);
 #endif
                                 } else {
 					assert(_in != NULL);
-					// TODO: consider an _unlocked function
-					_buf_sz = fread(_buf, 1, BUF_SZ, _in);
+                                        uint8_t *b = _buf;
+                                        size_t s = BUF_SZ;
+                                        // TODO: consider an _unlocked function
+                                        if (_header != 0) {
+                                                uint8_t *h = (uint8_t *)&_header;
+                                                for (size_t i = 0; i < sizeof(_header); i++) {
+                                                        b[i] = h[i];
+                                                        s -= 1;
+                                                }
+                                                b += sizeof(_header);
+                                                _header = 0;
+                                        }
+					_buf_sz = fread(b, 1, s, _in) + (b - _buf);
                                 }
                                 _cur = 0;
 				if(_buf_sz == 0) {
@@ -321,7 +308,66 @@ public:
 			}
 		}
 		return (int)_buf[_cur];
-	}
+        }
+
+        int refillBuffer() {
+                if(_done) {
+                        // We already exhausted the input stream
+                        return -1;
+                }
+
+                size_t remainder = _buf_sz - _cur;
+                memmove(_buf, _buf + _cur, remainder);
+                uint8_t *buf = _buf + remainder;
+                size_t size = BUF_SZ - remainder;
+
+                // Read a new buffer's worth of data
+                // Get the next chunk
+                if(_inf != NULL) {
+                        _inf->read((char*)buf, size);
+                        _buf_sz = _inf->gcount();
+                } else if (_zIn != NULL) {
+                        _buf_sz = gzRead(_zIn, _buf, BUF_SZ);
+                } else if(_ins != NULL) {
+                        _ins->read((char*)buf, size);
+                        _buf_sz = _ins->gcount();
+#ifdef WITH_ZSTD
+                } else if (_zstdIn != NULL) {
+                        _buf_sz = zstdRead(_zstdIn, buf, size);
+#endif
+                } else {
+                        assert(_in != NULL);
+                        uint8_t *b = buf;
+                        size_t s = size;
+                        // TODO: consider an _unlocked function
+                        if (_header) {
+                                uint8_t *h = (uint8_t *)&_header;
+                                for (size_t i = 0; i < sizeof(uint16_t); i++) {
+                                        b[i] = h[i];
+                                        s -= 1;
+                                }
+                                _header = 0;
+                        }
+                        _buf_sz = fread(b, 1, s, _in);
+                }
+                _buf_sz += remainder;
+                _cur = 0;
+                if(_buf_sz == 0) {
+                        // Exhausted, and we have nothing to return to the
+                        // caller
+                        _done = true;
+                        return -1;
+                } else if(_buf_sz < BUF_SZ) {
+                        // Exhausted
+                        _done = true;
+                }
+
+                return _buf_sz;
+        }
+
+        // size_t read(void *ptr, size_t size, size_t nmemb) {
+                
+        // }
 
 	/**
 	 * Store a string of characters from the input file into 'buf',
@@ -544,19 +590,21 @@ private:
 		_in = NULL;
 		_zIn = NULL;
 		_inf = NULL;
-		_ins = NULL;
+                _ins = NULL;
 #ifdef WITH_ZSTD
 		_zstdIn = NULL;
 #endif
 		_cur = _buf_sz = BUF_SZ;
 		_done = false;
-		_lastn_cur = 0;
+                _lastn_cur = 0;
+                _header = 0;
+                _buf = (uint8_t *)malloc(BUF_SZ);
 		// no need to clear _buf[]
 	}
 
-	static const size_t BUF_SZ = 256 * 1024;
+	size_t BUF_SZ = 256 * 1024;
 	FILE     *_in;
-	gzFile   _zIn;
+	GzipReader *_zIn;
 #ifdef WITH_ZSTD
 	zstdStrm *_zstdIn;
 #endif
@@ -565,9 +613,10 @@ private:
 	size_t    _cur;
 	size_t    _buf_sz;
 	bool      _done;
-	uint8_t   _buf[BUF_SZ]; // (large) input buffer
+	uint8_t   *_buf; // (large) input buffer
 	size_t    _lastn_cur;
 	char      _lastn_buf[LASTN_BUF_SZ]; // buffer of the last N chars dispensed
+        uint32_t _header;
 };
 
 /**
