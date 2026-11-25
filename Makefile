@@ -185,7 +185,7 @@ endif
 
 SHARED_CPPS :=  ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
   edit.cpp bt2_locks.cpp bt2_idx.cpp bt2_io.cpp bt2_util.cpp \
-  reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
+  bt2_decompress.cpp reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
   random_source.cpp
 
 SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
@@ -210,7 +210,6 @@ SEARCH_CPPS :=  qual.cpp pat.cpp sam.cpp \
 ifeq (1, $(WITH_ZSTD))
   LDLIBS += -lzstd
   CXXFLAGS += -DWITH_ZSTD
-  SHARED_CPPS += zstd_decompress.cpp
 endif
 
 SEARCH_CPPS_MAIN := $(SEARCH_CPPS) bowtie_main.cpp
