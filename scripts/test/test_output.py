@@ -995,7 +995,7 @@ def thread_counts(bt2, genome_index, runs, settled, timeout=30):
 			p.wait(timeout=60)
 
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='counts threads via /proc')
+@pytest.mark.skipif(False and not sys.platform.startswith('linux'), reason='counts threads via /proc')
 def test_omp_num_threads_sets_default_thread_count(bt2, genome_index):
 	"""OMP_NUM_THREADS sets the number of search threads when -p is absent,
 	and -p overrides it."""
