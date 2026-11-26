@@ -529,7 +529,12 @@ void CFilePatternSource::open() {
                         compressionType_ = detectCompressionType(fp_, &header);
                 }
 
-                if (compressionType_ == CompressionType::GZIP) {
+                if (compressionType_ == CompressionType::BGZF) {
+                        // BAM pattern source does not use FileBuf
+                        // This empty if blocks prevents instantiation
+                        // of the FileBuf object which caused a
+                        // double free.
+                } else if (compressionType_ == CompressionType::GZIP) {
                         compressionType_ = CompressionType::GZIP;
                         zfp_ = gzipReaderInit(fp_, &header);
                         fb_.newFile(zfp_);
