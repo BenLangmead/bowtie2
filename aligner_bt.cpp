@@ -30,7 +30,7 @@ using namespace std;
 			abort = true; \
 			return; \
 		} \
-		assert(local || prob_.cper_->debugCell(rowc, colc, hefc)); \
+		assert(local || !prob_.cper_->debug() || prob_.cper_->debugCell(rowc, colc, hefc)); \
 	}
 
 /**

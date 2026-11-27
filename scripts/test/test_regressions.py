@@ -17,6 +17,7 @@ import subprocess
 import pytest
 
 import pytest
+import sys
 
 import bt2_helpers as h
 
@@ -323,3 +324,25 @@ def test_bad_option_values_are_errors(bt2, lambda_index, lambda_fasta, example_r
 	proc = bt2.run(prog, args, check=False, timeout=60)
 	assert proc.returncode != 0
 	assert message in proc.stderr
+
+
+def test_long_local_read_memory(bt2, lambda_fasta, lambda_index, tmp_path):
+	"""A 20 kb --local read aligns in well under 2 GB of memory.
+
+	Long reads use the checkpointed DP fill. A full copy of every DP column,
+	meant only for debug-build checks, was kept in release builds too: about
+	5.5 GB for this read. The aligner runs in a fresh Python process so its
+	peak RSS is the only child counted by RUSAGE_CHILDREN."""
+	with open(lambda_fasta) as f:
+		lam = ''.join(l.strip() for l in f if not l.startswith('>'))
+	read = h.mutate(lam[18000:38000], range(100, 20000, 200))
+	fq = h.write_fastq(str(tmp_path / 'long.fq'), [('long', read)])
+	sam = str(tmp_path / 'long.sam')
+	prog = ('import resource, subprocess, sys\n'
+		'subprocess.run(sys.argv[1:], check=True)\n'
+		'print(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)')
+	proc = bt2.run(sys.executable, ['-c', prog, os.path.join(h.BIN_DIR, 'bowtie2-align-s'),
+		'--local', '-x', lambda_index, '-U', fq, '-S', sam])
+	rss = int(proc.stdout.split()[-1]) * (1 if sys.platform == 'darwin' else 1024)
+	assert rss < 2 << 30, '%.2f GB peak RSS' % (rss / 2.0 ** 30)
+	assert [r.pos for r in sam_records(sam)] == [18001]
