@@ -397,6 +397,31 @@ def test_met_stderr_and_file_together(bt2, genome_index, unp, tmp_path):
 		check_metrics(f.read(), unp)
 
 
+def test_met_totals_match_per_read_rows(bt2, lambda_index, example_reads, tmp_path):
+	"""The final --met-file row is the total of the run: on 1,000 example
+	pairs its Paired column counts every pair, and the Paired and DP
+	backtrace-filter columns equal the sums of the --met-read rows. --met-read
+	with -p 8 writes one header and one complete row per pair."""
+	args = ['-x', lambda_index, '-1', example_reads['reads_1'], '-2',
+		example_reads['reads_2'], '-u', '1000', '--local', '-k', '5', '-S', os.devnull]
+	met, per_read = str(tmp_path / 'met.txt'), str(tmp_path / 'read.txt')
+	bt2.run('bowtie2', args + ['-p', '4', '--met-file', met, '--met', '1'])
+	bt2.run('bowtie2', args + ['-p', '8', '--met-read', '--met-file', per_read])
+	with open(met) as f:
+		cols, rows = metrics_rows(f.read())
+	final = dict(zip(cols, rows[-1]))
+	with open(per_read) as f:
+		lines = [l.rstrip('\t').split('\t') for l in f.read().splitlines()]
+	header, reads = lines[0], lines[1:]
+	assert header == ['Name'] + cols
+	assert len(reads) == 1000
+	assert all(len(r) == len(header) for r in reads)
+	assert int(final['Paired']) == 1000
+	assert int(final['DPBtFiltStart']) > 0
+	for c in ('Paired', 'DPBtFiltStart', 'DPBtFiltScore', 'DpBtFiltDom'):
+		assert int(final[c]) == sum(int(r[header.index(c)]) for r in reads), c
+
+
 def feed_copies(proc, data, stop, sent):
 	"""Write `data` to proc's stdin again and again until `stop` is set, then
 	close it; sent[0] counts the copies written in full."""
