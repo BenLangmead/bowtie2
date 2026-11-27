@@ -492,9 +492,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 			// Factor in query profile (matches and mismatches)
 			vh = sse_adds_epi16(vh, pvScore[0]);
 			
-			// Update H, factoring in E and F
-			vh = sse_max_epi16(vh, vf);
-			
 			// Update vE value
 			vhdtmp = vhd;
 			vhd = sse_subs_epi16(vhd, rdgapo);
@@ -502,12 +499,18 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 			vhd = sse_adds_epi16(vhd, pvScore[1]); // veto some read gap opens
 			ve = sse_subs_epi16(ve, rdgape);
 			ve = sse_max_epi16(ve, vhd);
+
+			// Update H, factoring in E and F
 			vh = sse_max_epi16(vh, ve);
+			// F's own contribution to the next F's H - rfgapo term never
+			// beats F - rfgape (rfgapo >= rfgape), so that term uses H before
+			// F is folded in, off F's loop-carried chain.
+			vtmp = sse_subs_epi16(vh, rfgapo);
+			vh = sse_max_epi16(vh, vf);
 
 			// Save the new vH values
 			sse_store_siall(pvHRight, vh);
 			pvHRight += ROWSTRIDE_2COL;
-			vtmp = vh;
 			assert_all_lt(ve, vhi);
 			
 			// Load the next h value
@@ -519,7 +522,6 @@ TAlScore SwAligner::alignGatherEE16(int& flag, bool debug) {
 			pvERight += ROWSTRIDE_2COL;
 			
 			// Update vf value
-			vtmp = sse_subs_epi16(vtmp, rfgapo);
 			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epi16(vf, vtmp);
@@ -969,6 +971,10 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 			
 			// Update H, factoring in E and F
 			vh = sse_max_epi16(vh, ve);
+			// F's own contribution to the next F's H - rfgapo term never
+			// beats F - rfgape (rfgapo >= rfgape), so that term uses H before
+			// F is folded in, off F's loop-carried chain.
+			vtmp = sse_subs_epi16(vh, rfgapo);
 			vh = sse_max_epi16(vh, vf);
 			
 			// Save the new vH values
@@ -976,7 +982,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 			pvHStore += ROWSTRIDE;
 			
 			// Update vE value
-			vtmp = vh;
 #if 0
 			vhdtmp = vhd;
 			vhd = sse_subs_epi16(vhd, rdgapo);
@@ -1006,7 +1011,6 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseI16(int& flag, bool debug) {
 			pvEStore += ROWSTRIDE;
 			
 			// Update vf value
-			vtmp = sse_subs_epi16(vtmp, rfgapo);
 			vf = sse_subs_epi16(vf, rfgape);
 			assert_all_lt(vf, vhi);
 			vf = sse_max_epi16(vf, vtmp);
