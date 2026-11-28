@@ -18,6 +18,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "read.h"
 #include <cassert>
 #include <dirent.h>
 #include <fstream>
@@ -2057,9 +2058,9 @@ struct PerfMetrics {
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_)
-		{
+                {
 			ThreadSafe ts(mutex_m);
-			if(ol != NULL) {
+                        if(ol != NULL) {
 				olmu.merge(*ol);
 			}
 			if(sd != NULL) {
@@ -2104,15 +2105,14 @@ struct PerfMetrics {
 		bool metricsStderr,   // additionally output to stderr?
 		bool total,           // true -> report total, otherwise incremental
 		const BTString *name) // non-NULL name pointer if is per-read record
-		{
-			ThreadSafe ts(mutex_m);
+                {
+                        ThreadSafe ts(mutex_m);
 			// With --met-read every thread reports from its own object to the one shared output
-			ThreadSafe tsOut(mutex_out);
-			ostringstream stderrSs;
+                        ostringstream stderrSs;
 			time_t curtime = time(0);
 			char buf[1024];
 			if(first) {
-				const char *str =
+                                const char *str =
 					/*  1 */ "Time"           "\t"
 					/*  2 */ "Read"           "\t"
 					/*  3 */ "Base"           "\t"
@@ -2899,13 +2899,12 @@ struct PerfMetrics {
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
 
-	MUTEX_T           mutex_m;  // lock for when one ob
-	static MUTEX_T    mutex_out; // lock for writing to the output
-	static bool       first; // yet to print first line?
+        static MUTEX_T    mutex_m; // lock for writing to the output
+        static bool       first; // yet to print first line?
 	time_t            lastElapsed; // used in reportInterval to measure time since last call
 };
 
-MUTEX_T PerfMetrics::mutex_out;
+MUTEX_T PerfMetrics::mutex_m{};
 bool PerfMetrics::first = true;
 static PerfMetrics metrics;
 
@@ -3074,7 +3073,8 @@ static void setupMinScores(
 			nbtfiltst,		\
 			nbtfiltsc,		\
 			nbtfiltdo);		\
-		olm.reset();			\
+                                                \
+                olm.reset();                    \
 		sdm.reset();			\
 		wlm.reset();			\
 		swmSeed.reset();		\
@@ -3098,7 +3098,7 @@ static void setupMinScores(
 			nbtfiltst,		\
 			nbtfiltsc,		\
 			nbtfiltdo);		\
-		x.resetCounters();		\
+                x.resetCounters();              \
 	}
 
 #ifdef PER_THREAD_TIMING

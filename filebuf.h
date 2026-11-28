@@ -889,7 +889,7 @@ public:
 	}
 
 	bool flushBlocking() const {
-		return asyncData_.buf!=NULL;
+		return asyncData_.buf.load()!=NULL;
 	}
 
 private:
@@ -970,7 +970,7 @@ private:
 		bool abort; // the async thread will abort when this is set to true
 		FILE*      &out;
 
-		const char* buf;
+                std::atomic<const char*> buf;
 		size_t      cur;
 
 		std::mutex m;
@@ -1004,7 +1004,7 @@ private:
 		// returns abort
 		bool waitForBuf() {
 			std::unique_lock<std::mutex> lk(m);
-			while((buf==NULL)&&(!abort)) cv.wait(lk);
+			while((buf.load()==NULL)&&(!abort)) cv.wait(lk);
 			return abort;
 		}
 
@@ -1019,9 +1019,6 @@ private:
 			cv.notify_all();
 			return ret;
 		}
-
-
-
 	};
 
 	static void writeAsync(AsyncData *asyncDataPtr) {
