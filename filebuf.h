@@ -20,6 +20,7 @@
 #ifndef FILEBUF_H_
 #define FILEBUF_H_
 
+#include <atomic>
 #include <iostream>
 #include <fstream>
 #include <string>
